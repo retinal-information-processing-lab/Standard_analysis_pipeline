@@ -6,7 +6,7 @@ Once downloaded the repository all the code runs in python. A standard anaconda 
 
 ## Installation
 Once you have your Anaconda distribution for python (you can find here the ones you need depending on your OS: https://www.anaconda.com/download#downloads) you need to create an environment (here how to do it: https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands) and to install spike interface in it (here how to do it: https://spikeinterface.readthedocs.io/en/latest/installation.html). 
-It works with Anaconda 4.11.0 and python 3.9.16
+It works for sure with Anaconda 4.11.0 and python 3.9.16 but also later versions of anaconda should be compatible.
 
 ## Dependencies
 
