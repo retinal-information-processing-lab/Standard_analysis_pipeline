@@ -574,8 +574,8 @@ def reduced_gaussian2D(x, amp, sigma_x, sigma_y, angle,):
     x0 = int(x[2])
     y0 = int(x[3])
     
-    x=np.linspace(1,shape[1],shape[1])
-    y=np.linspace(1,shape[0],shape[0])
+    x=np.linspace(0,shape[1],shape[1])
+    y=np.linspace(0,shape[0],shape[0])
     X,Y = np.meshgrid(x,y)
     
     theta = 3.14*angle/180
