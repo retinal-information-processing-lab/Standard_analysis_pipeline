@@ -90,7 +90,7 @@ def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, ch
     data = np.empty((nb_samples,), dtype=dtype)
     for k in tqdm(range(nb_samples),disable = disable):
         data[k] = m[nb_channels * k + channel_id]
-    data = data.astype(np.float64)
+    data = data.astype(np.float)
     data = data - np.iinfo('uint16').min + np.iinfo('int16').min
     data = data / voltage_resolution
     
@@ -472,7 +472,7 @@ def checkerboard_from_binary(nb_frames, nb_checks_x, nb_checks_y, checkerboard_f
     
     for frame in tqdm(range(nb_frames)):
         
-        image = np.zeros((nb_checks_x, nb_checks_y), dtype=np.float64)
+        image = np.zeros((nb_checks_x, nb_checks_y), dtype=np.float)
         
         for row in range(nb_checks_x):
             for col in range(nb_checks_y):
@@ -547,24 +547,6 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
         print(f'Cluster {cluster_id} has no spikes, no sta can be found...')
     return sta
 
-def old_gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
-    if sigma_x == 0:
-        sigma_x = 0.001
-    
-    if sigma_y == 0:
-        sigma_y = 0.001
-    shape = (int(shape[0]),int(shape[1]))
-    x=np.linspace(1,shape[1],shape[1])
-    y=np.linspace(1,shape[0],shape[0])
-    X,Y = np.meshgrid(x,y)
-    
-    theta = 3.14*angle/180
-    a = (math.cos(theta)**2)/(2*sigma_x**2) + (math.sin(theta)**2)/(2*sigma_y**2)
-    b = -(math.sin(2*theta))/(4*sigma_x**2) + (math.sin(2*theta))/(4*sigma_y**2)
-    c = (math.sin(theta)**2)/(2*sigma_x**2) + (math.cos(theta)**2)/(2*sigma_y**2)
-    
-    return amp*np.exp( - (a*np.power((X-x0),2) + 2*b*np.multiply((X-x0),(Y-y0))+ c*np.power((Y-y0),2)))
-
 def gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
     if sigma_x == 0:
         sigma_x = 0.001
@@ -572,8 +554,8 @@ def gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
     if sigma_y == 0:
         sigma_y = 0.001
     shape = (int(shape[0]),int(shape[1]))
-    x=np.linspace(0,shape[1]-1,shape[1])
-    y=np.linspace(0,shape[0]-1,shape[0])
+    x=np.linspace(0,shape[1],shape[1])
+    y=np.linspace(0,shape[0],shape[0])
     X,Y = np.meshgrid(x,y)
     
     theta = 3.14*angle/180
