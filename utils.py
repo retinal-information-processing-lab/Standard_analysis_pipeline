@@ -150,6 +150,35 @@ def detect_onsets(data, threshold=params.threshold):
     
     return indices
 
+def detect_offsets(data,threshold=params.threshold):
+    """
+    Function to compute time point in the data coresponding to the shutdown of laser, laser offset trigger
+
+    Input :
+        - data (1D numpy array) : raw triggers data
+        - threshold (int) : voltage value that detects onsets in data
+       
+    Output :
+        - indices (1D numpy array) : list of time indices corresponding to the detected offsets time point
+       
+    Possible mistakes :
+        - Threshold is no longer optimum and has to be changed
+        - Wrong mea given as parameters
+        - Data coming from the wrong channel
+    """
+       
+    test_1 = data[:-1] > threshold
+    test_2 = data[1:] <= threshold
+    test = np.logical_and(test_1, test_2)
+   
+    indices = np.where(test)[0]
+   
+    test = data[indices - 1] < data[indices]
+    while np.any(test):
+        indices[test] = indices[test] - 1
+        test = data[indices - 1] < data[indices]
+   
+    return indices
 
 def save_obj(obj, name ):
     """
