@@ -1,51 +1,70 @@
 import os
+                                                                 ###################################################################
+#####################  Experiment Parameters  #####################
+###################################################################
+"""
+    Experiment Parameters
+    
+Various names of folders and files that you need to set up for the pipeline to work.
+"""
+#### ----------------------- ALWAYS check these names ----------------------- ####
 
 
+root = r"/home/guiglaz/Documents/Pipeline Git Repo"   # Root folder of your experiment
+                                                      # all other files must be inside of this folder or manually specified.
+            
+exp = r'Pipeline_DEV'  #name of your experiment for saving the triggers
 
-                                                                     ###################################################################
-                                                                     #####################  Experiment Parameters  #####################
-                                                                     ###################################################################
+MEA = 3                # select MEA (3=2p room) (4=MEA1 Polychrome)
+
+raw_files_folder = r"RAW_files"  #Enter the name of the folder containing all your raw files. 
+                                 #It will be conctenated with root to find your raws. 
+                                 #If the folder is not in root, change the variable "recording_directory" manually.
 
 
-#name of your experiment for saving the triggers
-exp = r'20230303_MultiSpots'
-
-# select MEA (3=2p room) (4=MEA1 Polychrome)
-MEA = 3
-
-#Link to the folder where spiking circus will look for the symbolic links "recording_0i.raw"
-symbolic_link_directory = r"/media/samuele/Samuele_2/20230303_MultiSpots/Sorting_3"
-
-#link to .GUI directory where phy extracts all arrays and data on spikes (folder name ends by .GUI)
-phy_directory = r'/media/samuele/Samuele_2/20230303_MultiSpots/Sorting_3/recording_00/recording_00.GUI'
-
-#Link to the actual raw files frome the recording listed in the input_file
-recording_directory = r"/media/samuele/Samuele_2/20230303_MultiSpots/RAW_Files"
-
-#Link to the directory where output data should be saved
-output_directory = r'/media/samuele/Samuele_2/20230303_MultiSpots/Analysis'
-
-#Link to the folder in which triggers will be saved. If doesn't exist, will be created.
-triggers_directory = os.path.join(output_directory,"trigs")
-
-#Ordered list of recording_names with your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
+#Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
 recording_names =    [
-"00_CheckerboardAcclim_25D50%_30x20_30Hz.raw",
-"01_Checkerboard_25D50%_20x30_30Hz.raw",
-"02_Chirp_20reps_25ND50%_50Hz.raw",
-"03_DG_25ND50%_2sT_50Hz.raw",
-"04_MultiSpots_50reps_25ND50%_40Hz.raw",
-"05_MultiSpots_25ND50%_40Hz.raw",
+"00_CheckerboardAcclim_25D50%_30x20_30Hz",
+"01_Checkerboard_25D50%_20x30_30Hz",
+"02_Chirp_20reps_25ND50%_50Hz",
+"03_DG_25ND50%_2sT_50Hz",
+"04_MultiSpots_50reps_25ND50%_40Hz",
+"05_MultiSpots_25ND50%_40Hz",
 ]
 
-binary_source_path = 'binarysource1000Mbits'
+registration_directory = r''  #Set the registration folder name here.
+                              #If you don't know what that is keep it empty otherwise.
 
-registration_directory = r''
+
+# Unless you have a specific file organisation, you don't need to change anything bellow this line
+
+#### ----------------------- Automatic folders creation ----------------------- ####
+
+#Link to the actual raw files frome the recording listed in the input_file
+recording_directory = os.path.join(root,r"RAW_files")
+
+#Link to the folder where spiking circus will look for the symbolic links "recording_0i.raw"
+symbolic_link_directory = os.path.join(root,r"Sorting")
+if not os.path.exists(symbolic_link_directory): os.makedirs(symbolic_link_directory)
+
+#link to .GUI directory where phy extracts all arrays and data on spikes (folder name ends by .GUI)
+phy_directory = os.path.normpath(os.path.join(symbolic_link_directory, r'recording_00/recording_00.GUI'))
+
+#Link to the directory where output data should be saved
+output_directory = os.path.join(root,r'Analysis')
+if not os.path.exists(output_directory): os.makedirs(output_directory)
+
+#Link to the folder in which triggers will be saved. If doesn't exist, will be created.
+triggers_directory = os.path.join(output_directory,"triggers")
+if not os.path.exists(triggers_directory): os.makedirs(triggers_directory)
 
 #Path to the checkerboard binary file used to generate stimuli
-# binary_source_path = ''
+binary_source_path = 'binarysource1000Mbits'
 
-# def find_files(path):
+
+
+# Automatic raw files detection
+def find_files(path):
 #     """
 #     Function to get all recording files name from either a txt file name or a folder.
 
@@ -63,16 +82,16 @@ registration_directory = r''
 #         - Other files not in '.raw' extension in the folder
 #         - Files names aren't ordered
 #     """
-#     if os.path.isfile(os.path.normpath(path)):                                      #Check if given path is a file and if it exist
-#         with open(os.path.normpath(path)) as file:                                      #If yes, than open in variable "file"
-#             return file.read().splitlines()                                                 #return the text of each line as a file name ordered from top to bottom
-#     return [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]       #If no, the path is considered as a folder and return the name of all the files in alphabetic order
+    if os.path.isfile(os.path.normpath(path)):                                      #Check if given path is a file and if it exist
+        with open(os.path.normpath(path)) as file:                                      #If yes, than open in variable "file"
+            return file.read().splitlines()                                                 #return the text of each line as a file name ordered from top to bottom
+    return sorted([os.path.splitext(f)[0] for f in os.listdir(path) if (os.path.isfile(os.path.join(path, f)) and os.path.splitext(f)[1] == ".raw")])       #If no, the path is considered as a folder and return the name of all the files in alphabetic order
 
-# recording_names = find_files(recording_directory) #Do not use this unless you know why ! ! !
+recording_names = find_files(recording_directory) #Do not use this unless you know why ! ! !
 
                                                                      ###################################################################
-                                                                     ####################### Advanced Parameters #######################
-                                                                     ###################################################################
+####################### Advanced Parameters #######################
+###################################################################
 
 """
     Functions Parameters

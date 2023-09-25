@@ -40,14 +40,19 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
     previously_existing = []
     
     for i_recording, filename in enumerate(recording_names):
-        linkname = "recording_{}.raw".format(i_recording)                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
+        linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
         linknames_list.append(linkname)                                                        #linknames_list is created with the extention in the names
         if os.path.exists(os.path.join(symbolic_link_directory,linkname)):                      #Check if the symbolic link exists already at given path for this indice
-            print(Fore.YELLOW+"/!\ File {} already exists /!\ May not be a problem if you already run this code for THIS experiment".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
+            print(Fore.YELLOW+r"/!\ File {} already exists /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
+            print(Fore.YELLOW+"\t\tMay not be a problem if you already run this code for THIS experiment\n"+Style.RESET_ALL)
             previously_existing.append(' already existed')
             continue                                                                                #If yes, add 'already exists' to previously_existing list and go to next file iteration without rewriting current trig data
-        os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
-        previously_existing.append('')                                                              #If no, create symlink accordinly and add an empty string to 'previously_existing' list
+        try:
+            os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
+            previously_existing.append('')  #If no, create symlink accordinly and add an empty string to 'previously_existing' list
+        except FileExistsError :
+            print(Fore.RED+r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)            
+            break
     return linknames_list, previously_existing                                                  #Return both link names created and the tracking of previously existing links
         
 
@@ -90,7 +95,7 @@ def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, ch
     data = np.empty((nb_samples,), dtype=dtype)
     for k in tqdm(range(nb_samples),disable = disable):
         data[k] = m[nb_channels * k + channel_id]
-    data = data.astype(np.float)
+    data = data.astype(float)
     data = data - np.iinfo('uint16').min + np.iinfo('int16').min
     data = data / voltage_resolution
     
