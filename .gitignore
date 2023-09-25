@@ -145,8 +145,4 @@ ui-tests/playwright-report
 ui-tests/.yarn/*
 ui-tests/.pnp.*
 
-Euler_50Hz_20reps_1024x768pix.vec
-
-EulerStim180530.vec
-
 specific_analysis_notebooks/
