@@ -297,7 +297,7 @@ def run_minimal_sanity_check(triggers, sampling_rate=params.fs, maximal_jitter=p
     errors = np.where(np.abs(inter_triggers - inter_trigger_value) >= maximal_jitter * sampling_rate)[0]
     
     if errors.size>0:
-        print("Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
+        print(r"Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
     else :
         print("Minimal sanity checks : Ok on all {} triggers".format(len(triggers)))
 
