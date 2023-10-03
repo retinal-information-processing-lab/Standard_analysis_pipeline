@@ -18,7 +18,7 @@ from scipy.cluster.hierarchy import dendrogram
 
 
 
-def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory):
+def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory, print_warning=True):
     """
     Function to create symbolic links to the recording files for spyking circus needs.
 
@@ -43,17 +43,18 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
         linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
         linknames_list.append(linkname)                                                        #linknames_list is created with the extention in the names
         if os.path.exists(os.path.join(symbolic_link_directory,linkname)):                      #Check if the symbolic link exists already at given path for this indice
-            print(Fore.YELLOW+r"/!\ File {} already exists /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
-            print(Fore.YELLOW+"\t\tMay not be a problem if you already run this code for THIS experiment\n"+Style.RESET_ALL)
+            if print_warning:
+                print(Fore.YELLOW+r"/!\ File {} already exists /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
+                print(Fore.YELLOW+"\t\tMay not be a problem if you already run this code for THIS experiment\n"+Style.RESET_ALL)
             previously_existing.append(' already existed')
             continue                                                                                #If yes, add 'already exists' to previously_existing list and go to next file iteration without rewriting current trig data
         try:
             os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
             previously_existing.append('')  #If no, create symlink accordinly and add an empty string to 'previously_existing' list
-        except FileExistsError :
-            print(Fore.RED+r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)            
-            break
-    return linknames_list, previously_existing                                                  #Return both link names created and the tracking of previously existing links
+        except FileExistsError as e:
+            raise FileExistsError(r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))) 
+    return linknames_list, previously_existing  
+                          #Return both link names created and the tracking of previously existing links
         
 
 def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, channel_id=params.visual_channel_id, probe_size=None, voltage_resolution=params.voltage_resolution, disable=False):
@@ -96,19 +97,19 @@ def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, ch
     for k in tqdm(range(nb_samples),disable = disable):
         data[k] = m[nb_channels * k + channel_id]
     data = data.astype(float)
-    data = data - np.iinfo('uint16').min + np.iinfo('int16').min
+    data = data + np.iinfo('int16').min
     data = data / voltage_resolution
     
     return data, nb_samples
 
 
-def is_holographic_rec(input_path, probe_size=params.probe_size, mea = params.MEA):
+def is_holographic_rec(input_path, probe_size=params.fs*params.time, mea = params.MEA, dtype=params.dtype):
     """
     Function to check if a recording was holographic or not
 
     Input :
         - input_path (str) : path to binary file
-        - probe_size (int) : read only part of the recording to reduce useless computation time
+        - probe_size (int) : read only part of the recording to reduce useless computation time (default 10s)
 
         
     Output :
@@ -119,9 +120,9 @@ def is_holographic_rec(input_path, probe_size=params.probe_size, mea = params.ME
         - params.py mea value not on the right rig
         - probe_size has been change and threshold of detection must be ajusted to the new probe_size value to detect holo stims correctly
     """
-    print('Checking if holographic recording...\t',  end ='')
+#     print('Checking if holographic recording...\t',  end ='')
     if mea == 3:
-        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].sum()>-probe_size*1e+5
+        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].max()>0
     else :
         return False
 
@@ -563,17 +564,18 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
     
     nb_sequences = data["counted_spikes"].shape[0]
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype = 'float64')
-    for sequence in range(nb_sequences):
-        for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
-            
-                sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
-                sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
-                weight = data["counted_spikes"][sequence,frame]
+    total_spikes = np.sum(data["counted_spikes"])
+    
+    if total_spikes > 0:
+        for sequence in range(nb_sequences):
+            for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
 
-                sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
+                    sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
+                    sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
+                    weight = data["counted_spikes"][sequence,frame]
 
-    if np.sum(data["counted_spikes"]) > 0:
-        sta = sta/np.sum(data["counted_spikes"])
+                    sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
+        sta = sta/total_spikes
         #Bring values between -1 and 1
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))

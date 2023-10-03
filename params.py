@@ -10,14 +10,14 @@ Various names of folders and files that you need to set up for the pipeline to w
 #### ----------------------- ALWAYS check these names ----------------------- ####
 
 
-root = r"/home/guiglaz/Documents/Pipeline Git Repo"   # Root folder of your experiment
+root = r"/home/guiglaz/Documents/Pipeline_Git_Repo"   # Root folder of your experiment
                                                       # all other files must be inside of this folder or manually specified.
             
 exp = r'Pipeline_DEV'  #name of your experiment for saving the triggers
 
 MEA = 3                # select MEA (3=2p room) (4=MEA1 Polychrome)
 
-raw_files_folder = r"RAW_files"  #Enter the name of the folder containing all your raw files. 
+raw_files_folder = r"RAW_Files"  #Enter the name of the folder containing all your raw files. 
                                  #It will be conctenated with root to find your raws. 
                                  #If the folder is not in root, change the variable "recording_directory" manually.
 
@@ -41,7 +41,7 @@ registration_directory = r''  #Set the registration folder name here.
 #### ----------------------- Automatic folders creation ----------------------- ####
 
 #Link to the actual raw files frome the recording listed in the input_file
-recording_directory = os.path.join(root,r"RAW_files")
+recording_directory = os.path.join(root,raw_files_folder)
 
 #Link to the folder where spiking circus will look for the symbolic links "recording_0i.raw"
 symbolic_link_directory = os.path.join(root,r"Sorting")
@@ -108,8 +108,8 @@ voltage_resolution = 0.1042  # µV / DC level
 # Size of a sample in bytes
 nb_bytes_by_datapoint=2
 
-# Number of time points to read in a trigger check
-probe_size=1000000
+# Time in s at the begining of the recording used to check recording type
+time = 10
 
 # Maximal error admissible in sec for time gap between triggers 
 maximal_jitter=0.25e-3
@@ -141,14 +141,14 @@ if MEA==4: threshold  = -3.14470e+5
 #256 for standard MEA, 17 for MEA1 Polychrome
 nb_channels  = 256                
 
-# number of triggers samples acquired per second
-fs=20000
-
 #MEA channel id containing holographic triggers trace
 holo_channel_id = 127
 
 #MEA channel id containing visual triggers trace
 visual_channel_id = 126
+
+# number of triggers samples acquired per second
+fs=20000
 
 # Time before a trigger to remove from the spyking circus analysis due to photo induced current on mea
 time_after = 10 #msec
