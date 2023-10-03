@@ -566,15 +566,16 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype = 'float64')
     total_spikes = np.sum(data["counted_spikes"])
     
-    if total_spikes > 0:
-        for sequence in range(nb_sequences):
-            for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
+    for sequence in range(nb_sequences):
+        for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
 
-                    sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
-                    sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
-                    weight = data["counted_spikes"][sequence,frame]
+                sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
+                sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
+                weight = data["counted_spikes"][sequence,frame]
 
-                    sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
+                sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
+                
+    if np.max(np.abs(sta)) > 0:        
         sta = sta/total_spikes
         #Bring values between -1 and 1
         sta -= np.mean(sta)
