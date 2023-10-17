@@ -146,3 +146,5 @@ ui-tests/.yarn/*
 ui-tests/.pnp.*
 
 specific_analysis_notebooks/
+
+*.vec
