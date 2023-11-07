@@ -148,3 +148,7 @@ ui-tests/.pnp.*
 specific_analysis_notebooks/
 
 *.vec
+
+kilosort2/
+
+yass/
