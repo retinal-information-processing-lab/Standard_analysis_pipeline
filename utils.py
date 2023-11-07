@@ -584,6 +584,7 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
         print(f'Cluster {cluster_id} has no spikes, no sta can be found...')
     return sta
 
+
 def gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
     if sigma_x == 0:
         sigma_x = 0.001

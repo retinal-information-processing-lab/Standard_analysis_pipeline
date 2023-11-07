@@ -47,6 +47,8 @@ recording_directory = os.path.join(root,raw_files_folder)
 symbolic_link_directory = os.path.join(root,r"Sorting")
 if not os.path.exists(symbolic_link_directory): os.makedirs(symbolic_link_directory)
 
+sorting_directory = symbolic_link_directory
+
 #link to .GUI directory where phy extracts all arrays and data on spikes (folder name ends by .GUI)
 phy_directory = os.path.normpath(os.path.join(symbolic_link_directory, r'recording_00/recording_00.GUI'))
 
