@@ -12,7 +12,7 @@ import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
 import itertools
-
+import time
 
 #############################################
 ######          Preprocessing          ######
@@ -919,7 +919,36 @@ def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
 ######            Clustering           ######
 #############################################
 
+def cell_selection_for_clustering(cells, CT_directory_path, selected_cells_sta=[], selected_cells_chirp=[]):
+    print("Selecting via STA ...")
+    if selected_cells_sta == []:
+        for cell_nb in tqdm(cells):
+            plt.figure(r"Current cell", figsize=(10,10))
+            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
+            plt.imshow(image[50:220,1330:1550])
+            plt.axis('off')
+            plt.show(block=False)
+            time.sleep(0.2)
+            if input("Keep cell {} for clustering using sta? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
+                selected_cells_sta += [cell_nb]
+                
+    print("List of selected cells using sta : ", selected_cells_sta)
+    print("Selecting via chirp ...")
 
+    if selected_cells_chirp == []:
+        for cell_nb in tqdm(cells):
+            plt.figure(r"Current cell", figsize=(50,100))
+            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
+            plt.imshow(image[:,:1350])
+            plt.show(block=False)
+            time.sleep(0.2)
+            if input("Keep cell {} for clustering using chirp? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
+                selected_cells_chirp += [cell_nb]
+    print("List of selected cells using chirp : ", selected_cells_chirp)
+    
+    selected_cells = [id for id in selected_cells_sta if id in selected_cells_chirp]
+    
+    return selected_cells, selected_cells_sta, selected_cells_chirp
 
 
 def plot_dendrogram(model, **kwargs):
@@ -955,7 +984,30 @@ def restrict_array(array, value_min, value_max):
 ######          ID card                ######
 #############################################
 
-
+def find_Analysis_Directory(dir_type="Checkerboard", output_directory = params.output_directory):
+    """
+        Automatically calls for the analysis folder using names defined in the pipeline :
+            - Checkerboard_Analysis_rec_i
+            - DG_Analysis_rec_i
+            - CellTyping_Analysis_rec_i
+            
+        dir_type should be either "Checkerboard", "DG", or "CellTyping"
+        
+        If severeal analysis has been done for the same type, you will have to input the one to select.
+    """
+    assert dir_type in ["Checkerboard", "DG", "CellTyping"]
+    dirs = sorted([os.path.splitext(f)[0] for f in os.listdir(output_directory) if not (os.path.isfile(os.path.join(output_directory, f))) and dir_type in f])
+    if len(dirs)==1:
+        analysis_directory = dirs[0]
+    elif len(dirs)>1:
+        print(f"\n Several {dir_type} analysis folder has been found :")
+        print(*['{} : {}'.format(i,dirs[i]) for i, recording_name in enumerate(dirs)], sep="\n")
+        analysis_directory = dirs[int(input(f"\n Select the {dir_type} directory to use : "))]
+        print(f"\n Selected folder : {analysis_directory} \n")
+    else:
+        assert len(dirs)>=1, (f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !")
+    
+    return os.path.normpath(os.path.join(output_directory,analysis_directory))
 
 
 def get_cell_rpvs(cells, phy_directory, rpv_len=2.0, fs=20000):
