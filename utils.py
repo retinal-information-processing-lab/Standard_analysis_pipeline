@@ -43,7 +43,7 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
     previously_existing = []
     
     for i_recording, filename in enumerate(recording_names):
-        linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
+        linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_ii.raw)
         linknames_list.append(linkname)                                                        #linknames_list is created with the extention in the names
         if os.path.exists(os.path.join(symbolic_link_directory,linkname)):                      #Check if the symbolic link exists already at given path for this indice
             if print_warning:
@@ -52,7 +52,7 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
             previously_existing.append(' already existed')
             continue                                                                                #If yes, add 'already exists' to previously_existing list and go to next file iteration without rewriting current trig data
         try:
-            os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
+            os.symlink(os.path.join("../"+os.path.split(recording_directory)[1], filename), os.path.join("../"+os.path.split(symbolic_link_directory)[1],linkname))
             previously_existing.append('')  #If no, create symlink accordinly and add an empty string to 'previously_existing' list
         except FileExistsError as e:
             raise FileExistsError(r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))) 

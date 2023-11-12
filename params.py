@@ -23,14 +23,7 @@ raw_files_folder = r"RAW_Files"  #Enter the name of the folder containing all yo
 
 
 #Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
-recording_names =    [
-"00_CheckerboardAcclim_25D50%_30x20_30Hz",
-"01_Checkerboard_25D50%_20x30_30Hz",
-"02_Chirp_20reps_25ND50%_50Hz",
-"03_DG_25ND50%_2sT_50Hz",
-"04_MultiSpots_50reps_25ND50%_40Hz",
-"05_MultiSpots_25ND50%_40Hz",
-]
+recording_names =    []
 
 registration_directory = r''  #Set the registration folder name here.
                               #If you don't know what that is keep it empty otherwise.
@@ -63,7 +56,7 @@ if not os.path.exists(triggers_directory): os.makedirs(triggers_directory)
 #Path to the checkerboard binary file used to generate stimuli
 binary_source_path = 'binarysource1000Mbits'
 
-
+raw_filtered_directory = os.path.join(root,'RAW_filtered')
 
 # Automatic raw files detection
 def find_files(path):
@@ -89,7 +82,7 @@ def find_files(path):
             return file.read().splitlines()                                                 #return the text of each line as a file name ordered from top to bottom
     return sorted([os.path.splitext(f)[0] for f in os.listdir(path) if (os.path.isfile(os.path.join(path, f)) and os.path.splitext(f)[1] == ".raw")])       #If no, the path is considered as a folder and return the name of all the files in alphabetic order
 
-recording_names = find_files(recording_directory) #Do not use this unless you know why ! ! !
+recording_names = find_files(recording_directory) #Do not use this unless you know how  ! ! !
 
                                                                      ###################################################################
 ####################### Advanced Parameters #######################
