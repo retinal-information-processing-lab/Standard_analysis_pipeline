@@ -884,7 +884,7 @@ def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
 
 ############################    
     if sum(TuneSum)==0:
-        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0})
+        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
         return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
 ############################
     VxS=VxS/np.amax(TuneSum) 
@@ -907,7 +907,7 @@ def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
         if IDX<-0.2: angle=angle+1
         IDX = (TuneSum[:-1][angle]-TuneSum[:-1][int((angle+4)%8)])/(TuneSum[:-1][angle]+ TuneSum[:-1][int((angle+4)%8)])
     
-    DG_data = ({'IDX':IDX,'Tuning':TuneSum,'atune':atune,'Rtune':R, 'rasters': ch_raster})
+    DG_data = ({'IDX':IDX,'Tuning':TuneSum,'atune':atune,'Rtune':R, 'rasters': ch_raster, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
 
     ###########################################################
     return TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data
