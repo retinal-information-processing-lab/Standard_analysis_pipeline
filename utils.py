@@ -11,8 +11,6 @@ import params
 import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
-import itertools
-import time
 
 #############################################
 ######          Preprocessing          ######
@@ -20,8 +18,7 @@ import time
 
 
 
-
-def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory, print_warning=True):
+def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory):
     """
     Function to create symbolic links to the recording files for spyking circus needs.
 
@@ -43,21 +40,15 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
     previously_existing = []
     
     for i_recording, filename in enumerate(recording_names):
-        linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_ii.raw)
+        linkname = "recording_{}.raw".format(i_recording)                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
         linknames_list.append(linkname)                                                        #linknames_list is created with the extention in the names
         if os.path.exists(os.path.join(symbolic_link_directory,linkname)):                      #Check if the symbolic link exists already at given path for this indice
-            if print_warning:
-                print(Fore.YELLOW+r"/!\ File {} already exists /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
-                print(Fore.YELLOW+"\t\tMay not be a problem if you already run this code for THIS experiment\n"+Style.RESET_ALL)
+            print(Fore.YELLOW+"/!\ File {} already exists /!\ May not be a problem if you already run this code for THIS experiment".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
             previously_existing.append(' already existed')
             continue                                                                                #If yes, add 'already exists' to previously_existing list and go to next file iteration without rewriting current trig data
-        try:
-            os.symlink(os.path.join("../"+os.path.split(recording_directory)[1], filename), os.path.join("../"+os.path.split(symbolic_link_directory)[1],linkname))
-            previously_existing.append('')  #If no, create symlink accordinly and add an empty string to 'previously_existing' list
-        except FileExistsError as e:
-            raise FileExistsError(r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))) 
-    return linknames_list, previously_existing  
-                          #Return both link names created and the tracking of previously existing links
+        os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
+        previously_existing.append('')                                                              #If no, create symlink accordinly and add an empty string to 'previously_existing' list
+    return linknames_list, previously_existing                                                  #Return both link names created and the tracking of previously existing links
         
 
 def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, channel_id=params.visual_channel_id, probe_size=None, voltage_resolution=params.voltage_resolution, disable=False):
@@ -99,20 +90,20 @@ def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, ch
     data = np.empty((nb_samples,), dtype=dtype)
     for k in tqdm(range(nb_samples),disable = disable):
         data[k] = m[nb_channels * k + channel_id]
-    data = data.astype(float)
-    data = data + np.iinfo('int16').min
+    data = data.astype(np.float)
+    data = data - np.iinfo('uint16').min + np.iinfo('int16').min
     data = data / voltage_resolution
     
     return data, nb_samples
 
 
-def is_holographic_rec(input_path, probe_size=params.fs*params.time, mea = params.MEA, dtype=params.dtype):
+def is_holographic_rec(input_path, probe_size=params.probe_size, mea = params.MEA):
     """
     Function to check if a recording was holographic or not
 
     Input :
         - input_path (str) : path to binary file
-        - probe_size (int) : read only part of the recording to reduce useless computation time (default 10s)
+        - probe_size (int) : read only part of the recording to reduce useless computation time
 
         
     Output :
@@ -123,9 +114,9 @@ def is_holographic_rec(input_path, probe_size=params.fs*params.time, mea = param
         - params.py mea value not on the right rig
         - probe_size has been change and threshold of detection must be ajusted to the new probe_size value to detect holo stims correctly
     """
-#     print('Checking if holographic recording...\t',  end ='')
+    print('Checking if holographic recording...\t',  end ='')
     if mea == 3:
-        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].max()>0
+        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].sum()>-probe_size*1e+5
     else :
         return False
 
@@ -159,35 +150,6 @@ def detect_onsets(data, threshold=params.threshold):
     
     return indices
 
-def detect_offsets(data,threshold=params.threshold):
-    """
-    Function to compute time point in the data coresponding to the shutdown of laser, laser offset trigger
-
-    Input :
-        - data (1D numpy array) : raw triggers data
-        - threshold (int) : voltage value that detects onsets in data
-       
-    Output :
-        - indices (1D numpy array) : list of time indices corresponding to the detected offsets time point
-       
-    Possible mistakes :
-        - Threshold is no longer optimum and has to be changed
-        - Wrong mea given as parameters
-        - Data coming from the wrong channel
-    """
-       
-    test_1 = data[:-1] > threshold
-    test_2 = data[1:] <= threshold
-    test = np.logical_and(test_1, test_2)
-   
-    indices = np.where(test)[0]
-   
-    test = data[indices - 1] < data[indices]
-    while np.any(test):
-        indices[test] = indices[test] - 1
-        test = data[indices - 1] < data[indices]
-   
-    return indices
 
 def save_obj(obj, name ):
     """
@@ -301,7 +263,7 @@ def run_minimal_sanity_check(triggers, sampling_rate=params.fs, maximal_jitter=p
     errors = np.where(np.abs(inter_triggers - inter_trigger_value) >= maximal_jitter * sampling_rate)[0]
     
     if errors.size>0:
-        print(r"Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
+        print("Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
     else :
         print("Minimal sanity checks : Ok on all {} triggers".format(len(triggers)))
 
@@ -438,14 +400,10 @@ def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs = param
             rec_name=rec
     return data
     
-     
-        
-        
-#########################################
-#####     Checkerboard Analysis     #####
-#########################################
-
-
+    
+#################################
+##### Checkerboard Analysis #####
+#################################
 
 def get_recording_spikes(recording_name,all_recs_spikes):
     rec_spikes = {}
@@ -571,26 +529,23 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
     
     nb_sequences = data["counted_spikes"].shape[0]
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype = 'float64')
-    total_spikes = np.sum(data["counted_spikes"])
-    
     for sequence in range(nb_sequences):
         for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
-
+            
                 sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
                 sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
                 weight = data["counted_spikes"][sequence,frame]
 
                 sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
-                
-    if np.max(np.abs(sta)) > 0:        
-        sta = sta/total_spikes
+
+    if np.sum(data["counted_spikes"]) > 0:
+        sta = sta/np.sum(data["counted_spikes"])
         #Bring values between -1 and 1
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))
     else :
         print(f'Cluster {cluster_id} has no spikes, no sta can be found...')
     return sta
-
 
 def gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
     if sigma_x == 0:
@@ -825,131 +780,14 @@ def analyse_sta(sta, cell_id):
 def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     #magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
-    ax.imshow(spatial_sta)
+    ax.imshow(spatial_sta,cmap='RdBu_r',vmin=-1,vmax=1)
     if ellipse_params[0] != 0:
         ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='w',linestyles = 'solid', alpha = 0.8)
     return ax
 
-
-
-
 #############################################
-######         Drifting Gratings       ######
+######          Clustering        ######
 #############################################
-
-
-
-
-def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
-    ###########################################################
-    # computing tuning
-    merged = list(itertools.chain(*ch_raster))   #all the spike times of all the 32 gratings. In this way when I bin I am
-                                                 #binning per each of the 8 angles the responses to all the 4 repetitions of
-                                                 #that angle
-
-    nbins = 8*10*20                 #totoal nb of bins  (1600)
-    binsize = seq_sep*8*1000//nbins #bin size in ms     (100)
-    binsec = 1000//binsize          #nb bins per second  (10)
-    base_fire=base_fire*(seq_sep*8/nbins)*n_repeats
-    
-    bins =  np.linspace(0,seq_sep*8,nbins+1)
-    counts, bins = np.histogram(merged,bins=bins)   #binning the spike times of all the repetitions at once
-    counts=counts-base_fire
-    maxcount = np.amax(counts)
-
-    #for plotting purposes, counts has 1600 bins, 10 each second of the 160 seconds. But some of this bins are fake because
-    #the seq_sep (20 secs for the slow gratings) added in ch_raster is longer than the actual seq_len (12 secs for slow grating),
-    #in which the stimulus was presented. So the last 8 secs after each angle have to have 80 empty.
-    
-        #--------------------------
-    TuneSum = np.zeros(9)
-    VxS=0
-    VyS=0
-
-    for a in np.arange(8):
-        #################################################
-        #per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
-        sel_bins = np.copy(counts[ int(seq_len*1000/6)//binsize + int(seq_sep*binsec*a): int(seq_len*binsec + seq_sep*binsec*a)])  
-        #################################################
-
-        TuneSum[a] = np.sum(sel_bins)    #per each angle these are all the spikes that the cell fired during the 4 repetitions
-                                         #of that angle from 2 to 12 seconds
-        #print(TuneSum[a])
-        VxS+= np.cos(np.pi*a*45/180)*TuneSum[a]
-        VyS+= np.sin(np.pi*a*45/180)*TuneSum[a]
-#             VxM+= np.cos(np.pi*a/180)*TuneMax[a]
-#             VyM+= np.sin(np.pi*a/180)*TuneMax[a]
-        if a==0:
-            TuneSum[a+8] = np.sum(sel_bins)
-
-############################    
-    if sum(TuneSum)==0:
-        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
-        return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
-############################
-    VxS=VxS/np.amax(TuneSum) 
-    VyS=VyS/np.amax(TuneSum) 
-
-    TuneSum=TuneSum/np.amax(TuneSum)
-    atune = np.arctan2(VyS,VxS)
-    R = np.sqrt(VyS**2+VxS**2)
-   
-    angle = int(np.round(atune/np.pi*4 ))
-        
-    IDX = (TuneSum[:-1][angle]-TuneSum[:-1][int((angle+4)%8)])/(TuneSum[:-1][angle]+ TuneSum[:-1][int((angle+4)%8)])
-    if IDX<-0.2:
-        angle2=angle+1
-        IDX = (TuneSum[:-1][angle2]-TuneSum[:-1][int((angle2+4)%8)])/(TuneSum[:-1][angle2]+ TuneSum[:-1][int((angle2+4)%8)])
-        angle=angle2
-    if IDX<-0.2:
-        angle2=angle-2
-        IDX = (TuneSum[:-1][angle2]-TuneSum[:-1][int((angle2+4)%8)])/(TuneSum[:-1][angle2]+ TuneSum[:-1][int((angle2+4)%8)])
-        if IDX<-0.2: angle=angle+1
-        IDX = (TuneSum[:-1][angle]-TuneSum[:-1][int((angle+4)%8)])/(TuneSum[:-1][angle]+ TuneSum[:-1][int((angle+4)%8)])
-    
-    DG_data = ({'IDX':IDX,'Tuning':TuneSum,'atune':atune,'Rtune':R, 'rasters': ch_raster, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
-
-    ###########################################################
-    return TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data
-
-
-
-
-#############################################
-######            Clustering           ######
-#############################################
-
-def cell_selection_for_clustering(cells, CT_directory_path, selected_cells_sta=[], selected_cells_chirp=[]):
-    print("Selecting via STA ...")
-    if selected_cells_sta == []:
-        for cell_nb in tqdm(cells):
-            plt.figure(r"Current cell", figsize=(10,10))
-            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
-            plt.imshow(image[50:220,1330:1550])
-            plt.axis('off')
-            plt.show(block=False)
-            time.sleep(0.2)
-            if input("Keep cell {} for clustering using sta? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
-                selected_cells_sta += [cell_nb]
-                
-    print("List of selected cells using sta : ", selected_cells_sta)
-    print("Selecting via chirp ...")
-
-    if selected_cells_chirp == []:
-        for cell_nb in tqdm(cells):
-            plt.figure(r"Current cell", figsize=(50,100))
-            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
-            plt.imshow(image[:,:1350])
-            plt.show(block=False)
-            time.sleep(0.2)
-            if input("Keep cell {} for clustering using chirp? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
-                selected_cells_chirp += [cell_nb]
-    print("List of selected cells using chirp : ", selected_cells_chirp)
-    
-    selected_cells = [id for id in selected_cells_sta if id in selected_cells_chirp]
-    
-    return selected_cells, selected_cells_sta, selected_cells_chirp
-
 
 def plot_dendrogram(model, **kwargs):
     # Create linkage matrix and then plot the dendrogram
@@ -977,38 +815,9 @@ def restrict_array(array, value_min, value_max):
     array = array[array<=value_max]
     return array.tolist()
 
-
-
-
 #############################################
 ######          ID card                ######
 #############################################
-
-def find_Analysis_Directory(dir_type="Checkerboard", output_directory = params.output_directory):
-    """
-        Automatically calls for the analysis folder using names defined in the pipeline :
-            - Checkerboard_Analysis_rec_i
-            - DG_Analysis_rec_i
-            - CellTyping_Analysis_rec_i
-            
-        dir_type should be either "Checkerboard", "DG", or "CellTyping"
-        
-        If severeal analysis has been done for the same type, you will have to input the one to select.
-    """
-    assert dir_type in ["Checkerboard", "DG", "CellTyping"]
-    dirs = sorted([os.path.splitext(f)[0] for f in os.listdir(output_directory) if not (os.path.isfile(os.path.join(output_directory, f))) and dir_type in f])
-    if len(dirs)==1:
-        analysis_directory = dirs[0]
-    elif len(dirs)>1:
-        print(f"\n Several {dir_type} analysis folder has been found :")
-        print(*['{} : {}'.format(i,dirs[i]) for i, recording_name in enumerate(dirs)], sep="\n")
-        analysis_directory = dirs[int(input(f"\n Select the {dir_type} directory to use : "))]
-        print(f"\n Selected folder : {analysis_directory} \n")
-    else:
-        assert len(dirs)>=1, (f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !")
-    
-    return os.path.normpath(os.path.join(output_directory,analysis_directory))
-
 
 def get_cell_rpvs(cells, phy_directory, rpv_len=2.0, fs=20000):
     
