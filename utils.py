@@ -831,8 +831,6 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     return ax
 
 
-
-
 #############################################
 ######         Drifting Gratings       ######
 #############################################
