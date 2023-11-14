@@ -976,6 +976,40 @@ def restrict_array(array, value_min, value_max):
     return array.tolist()
 
 
+def correlate_PersonPM(cell1,cell2, max_shift=25):
+    assert max_shift<max(len(cell1),len(cell2))
+    center = np.corrcoef(cell1,cell2)[0,1]
+    right  = []
+    left   = []
+    for t in range(1,max_shift+1):
+        right.append(np.corrcoef(cell1[t:],cell2[:-t])[0,1]) 
+        left.append(np.corrcoef(cell1[:-max_shift+t-1],cell2[max_shift-t+1:])[0,1])
+    return np.asarray(left + [center] + right)
+
+
+def noise_and_stim_correlations(resp_cell1, resp_cell2, max_shift=25, shift_time_resolution=1):
+    """
+        Exactly the same as above but manually computed. Not in use.
+    """
+    #resp_cell should be of the form (nb_trials, nb_response points)
+    #THIS MIGHT HAVE NORMALIZATION PROBLEMS IN CASE OF CURRENTS!!!!
+    noise_corr=[]
+    stim_corr=[]
+   
+    for lag in range(-max_shift,max_shift+1,shift_time_resolution):
+        shifted_c2=np.roll(resp_cell2, lag, axis=0)
+       
+        V_1=((resp_cell1-resp_cell1.mean())**2).mean()
+        V_2=((shifted_c2-shifted_c2.mean())**2).mean()
+       
+        nc=( (resp_cell1 -  resp_cell1.mean(axis=0)) * (shifted_c2- shifted_c2.mean(axis=0)) ).mean()-np.sqrt(V_1*V_2)
+        noise_corr.append(nc)
+#         tot_corr=((resp_cell1-resp_cell1.mean())*(shifted_c2-shifted_c2.mean()) ).mean()/np.sqrt(V_1*V_2)
+#         sc=tot_corr-nc
+#         stim_corr.append(sc)
+#     return np.array(noise_corr), np.array(stim_corr)
+    return np.array(noise_corr)
+
 
 
 #############################################
