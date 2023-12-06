@@ -1,0 +1,33 @@
+Baden Types
+OFF local OS
+OFF DS
+OFF step
+OFF slow
+OFF alpha sustained
+ON-OFF JAM-B
+OFF sustained
+OFF alpha transient
+OFF mini alpha transient
+ON-OFF local-edge W3
+ON-OFF local
+ON-OFF DS 1
+ON-OFF DS 2
+ON-OFF local OS
+ON step
+ON DS transient
+ON local transient OS
+ON transient
+ON transient large
+ON high frequency
+ON low frequency
+ON sustained
+ON mini alpha
+ON alpha
+ON DS sustained 1
+ON DS sustained 2
+ON slow
+ON constrast suppression
+ON DS sustained 3
+ON local sustained OS
+OFF suppression 1
+OFF suppression 2
