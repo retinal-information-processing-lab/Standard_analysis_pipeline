@@ -10,7 +10,7 @@ Various names of folders and files that you need to set up for the pipeline to w
 #### ----------------------- ALWAYS check these names ----------------------- ####
 
 
-root = r"/home/guiglaz/Documents/Pipeline_Git_Repo"   # Root folder of your experiment
+root = r"/home/guiglaz/Documents/Pipeline_Dev"   # Root folder of your experiment
                                                       # all other files must be inside of this folder or manually specified.
             
 exp = r'Pipeline_DEV'  #name of your experiment for saving the triggers

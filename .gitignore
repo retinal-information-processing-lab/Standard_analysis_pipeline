@@ -150,3 +150,7 @@ specific_analysis_notebooks/
 kilosort2/
 
 yass/
+
+ressources/baden_data.mat
+
+*.vec
