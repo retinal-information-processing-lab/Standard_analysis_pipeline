@@ -1097,6 +1097,108 @@ def compute_refractory_period_violation(spike_times, duration=2.0, cell_nb=None)
         rpv = compute_number_of_rpv_spikes(spike_times, duration)/ float(nb_isis) *100
         return rpv
 
+    
+###########################################################
+###########          Analysis from vec          ###########
+###########################################################
+    
+    
+    
+def split_spikes_between_triggers(spike_train,triggers):
+    """
+Returns a list of spikes includes between 2 triggers in a row. Everything must be in sampling point or sec.
+    """
+    return [spike_train[(spike_train >= triggers[i]) & (spike_train < triggers[i + 1])] for i in range(len(triggers) - 1)]
 
+def get_sequences_triggers(triggers, vec):
+    """
+Spilt all triggers into dict of triggers from the same sequence using the key on the last colomn of the vec.
+Same key for the triggers means same sequence.
+
+Could be rewritten without the "defaultdict" trick
+    """
+    from collections import defaultdict
+    sequences = defaultdict(list)
+
+    keys = vec[:, -1].astype(int).astype(str)
+    for key, trigger in zip(keys, triggers):
+        sequences[key].append(trigger)
+    
+    return dict(sequences) #this dictionnary has its keys ordered as the vec. !! CAUTION !! works for python > 3.7 only
+   
+    
+def get_spikes_sequences(spike_times, trig_seq):
+    """
+Read the first trigger of all sequence and group all spikes between each begining of sequence into a dict with
+sequence key as dict key and a list of spike times with the 0 at the begining of a sequence.
+    """
+    trigs=[[trig_list[0],trig_list[-1]+np.mean(np.diff(np.array(trig_list)))] for trig_list in trig_seq.values()]  #make a list of all first and last trig of each seq    
+    splited_spikes = [split_spikes_between_triggers(spike_times,seq_times)[0] for seq_times in trigs]
+    return dict(zip(trig_seq.keys(), splited_spikes))
+    
+    
+def spikeseq2raster(spikesequences, trig_seq):
+    """
+Makes a raster from a dictionnary of sequences splited with repetition. 
+Looks for the key to stack repetitions (last 2 digits of the key). Repetition number is not representative of when it has been played 
+    """
+    
+    from collections import defaultdict
+    rasters = defaultdict(list) #more compliant than dict. Allows you to either use an existing key or create it with empty list and than use it if missing.
+
+    for key in spikesequences.keys():
+        rasters[key[1:-2]].append(spikesequences[key]-trig_seq[key][0])
+    return dict(rasters)
+
+def spikeseq2psth(raster, trig_seq, n_bin=40):
+    psth={}
+    for key in raster.keys():
+        n_rep = len(raster[key])
+        if key=='':
+            seq_range  = (0, trig_seq['0'][-1]-trig_seq['0'][0] + np.mean(np.diff(trig_seq['0'])))
+        else:
+            seq_range  = (0, trig_seq['1'+key+'00'][-1]-trig_seq['1'+key+'00'][0] + np.mean(np.diff(trig_seq['1'+key+'00'])))
+        
+        if n_bin =="relative":
+            all_spikes_times=[]
+            for i in range(n_rep):
+                all_spikes_times+=list(raster[key][i])
+            psth[key] = np.histogram(np.array(all_spikes_times), bins=max(1,int(np.sqrt(len(all_spikes_times)))), range=seq_range   )[0]/n_rep
+        else:
+            binned_spike_count = np.zeros((n_rep, n_bin))
+            for i in range(n_rep):
+                binned_spike_count[i,:] = np.histogram(raster[key][i], bins=n_bin, range=seq_range   )[0]
+            psth[key] = np.sum(binned_spike_count, axis=0)/n_rep
+            
+    return psth
+
+def smooth(scalars: list[float], weight: float) -> list[float]:  # Weight between 0 and 1
+    """
+Function to smooth a 1D numpy array before plotting
+    """
+    last = scalars[0]  # First value in the plot (first timestep)
+    smoothed = list()
+    for point in scalars:
+        smoothed_val = last * weight + (1 - weight) * point  # Calculate smoothed value
+        smoothed.append(smoothed_val)                        # Save it
+        last = smoothed_val                                  # Anchor the last smoothed value
+        
+    return smoothed
+
+def reshape_dict(original_dict):
+    """
+This function allows you to reshape dictionnaries by reversing their keys. 
+If you have {Cell1 : {key1: data, key2: data}, Cell2 : {key1: data, key2: data}}
+you will get {key1 : {Cell1: data, Cell2: data}, key2 : {Cell1: data, Cell2: data}}
+    """
+    reshaped_dict = {}
+
+    for cell_number, seq_dict in original_dict.items():
+        for seq_number, data_dict in seq_dict.items():
+            if seq_number not in reshaped_dict:
+                reshaped_dict[seq_number] = {}
+            reshaped_dict[seq_number][cell_number] = data_dict
+
+    return reshaped_dict
 
 
