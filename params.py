@@ -13,7 +13,7 @@ Various names of folders and files that you need to set up for the pipeline to w
 root = r"/home/guiglaz/Documents/Pipeline_Dev"   # Root folder of your experiment
                                                       # all other files must be inside of this folder or manually specified.
             
-exp = r'Pipeline_DEV'  #name of your experiment for saving the triggers
+exp = r'20231125_VIP.Project_VDH--FF+Disk_100um(dark)'  #name of your experiment for saving the triggers
 
 MEA = 3                # select MEA (3=2p room) (4=MEA1 Polychrome)
 
@@ -25,8 +25,15 @@ raw_files_folder = r"RAW_Files"  #Enter the name of the folder containing all yo
 #Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
 recording_names =    []
 
-registration_directory = r''  #Set the registration folder name here.
+registration_directory = r'20231125_VIP.Project_FF+Disk_100um_DHguiOptimization'  #Set the registration folder name here.
                               #If you don't know what that is keep it empty otherwise.
+
+## Your MEA parameters
+    
+mea_spacing = 30            # the sapcing between two electrodes of the MEA in µm for registration
+
+n_electrodes = 16           # number of electrodes on one side of the MEA. N tot electrodes = n_electrodes**2
+
 
 
 # Unless you have a specific file organisation, you don't need to change anything bellow this line
@@ -57,6 +64,11 @@ if not os.path.exists(triggers_directory): os.makedirs(triggers_directory)
 binary_source_path = 'binarysource1000Mbits'
 
 raw_filtered_directory = os.path.join(root,'RAW_filtered')
+
+registration_frames = os.path.join(root, registration_directory+r"/frames/")
+
+registration_imgs = os.path.join(root, registration_directory+r"/imgs/")
+
 
 # Automatic raw files detection
 def find_files(path):
@@ -127,10 +139,15 @@ temporal_dimension = 30
 Only change if you knwo what you are doing. Those parameters are following the setups specs of january 2023
 """
 
+
 #the optimal threshhold for detecting stimuli onsets varies with the rig
 if MEA==1: threshold  = 270e+3         
 if MEA==2: threshold  = 50e+3          
-if MEA==3: threshold  = 170e+3          
+if MEA==3:
+    threshold  = 170e+3   
+    size_dmd = [760, 1020]      # dimensions of the DMD, in pixels
+    pxl_size_dmd = 2.5          # The size of one pixel of the DMD in µm? on the camera or in reality?
+
 if MEA==4: threshold  = -3.14470e+5
 
 #256 for standard MEA, 17 for MEA1 Polychrome
@@ -153,4 +170,10 @@ time_before = 10 #msec
 
 # Delay after a trigger to add a fake trigger in the data adding one more dead period 
 offset_time = 0.5 #sec
+
+"""
+    Pipeline params
+"""
+
+ressources = r"./ressources" #relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
 

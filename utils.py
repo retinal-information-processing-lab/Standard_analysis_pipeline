@@ -13,7 +13,7 @@ from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
 import itertools
 import time
-
+from collections import defaultdict
 #############################################
 ######          Preprocessing          ######
 #############################################
@@ -1112,7 +1112,7 @@ Returns a list of spikes includes between 2 triggers in a row. Everything must b
 
 def get_sequences_triggers(triggers, vec):
     """
-Spilt all triggers into dict of triggers from the same sequence using the key on the last colomn of the vec.
+Spilt all triggers into dict of triggers from the same sequence using the keys provided in vec.
 Same key for the triggers means same sequence.
 
 Could be rewritten without the "defaultdict" trick
@@ -1120,7 +1120,7 @@ Could be rewritten without the "defaultdict" trick
     from collections import defaultdict
     sequences = defaultdict(list)
 
-    keys = vec[:, -1].astype(int).astype(str)
+    keys = vec.astype(int).astype(str)
     for key, trigger in zip(keys, triggers):
         sequences[key].append(trigger)
     
