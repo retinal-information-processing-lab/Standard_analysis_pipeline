@@ -61,7 +61,7 @@ triggers_directory = os.path.join(output_directory,"triggers")
 if not os.path.exists(triggers_directory): os.makedirs(triggers_directory)
 
 #Path to the checkerboard binary file used to generate stimuli
-binary_source_path = 'binarysource1000Mbits'
+binary_source_path = './ressources/binarysource1000Mbits'
 
 raw_filtered_directory = os.path.join(root,'RAW_filtered')
 
@@ -147,7 +147,8 @@ if MEA==3:
     threshold  = 170e+3   
     size_dmd = [760, 1020]      # dimensions of the DMD, in pixels
     pxl_size_dmd = 2.5          # The size of one pixel of the DMD in µm? on the camera or in reality?
-
+    
+        
 if MEA==4: threshold  = -3.14470e+5
 
 #256 for standard MEA, 17 for MEA1 Polychrome

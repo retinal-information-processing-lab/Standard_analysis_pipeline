@@ -497,12 +497,17 @@ def build_rasters(cell_spikes, triggers, stim_frequency, nb_frames_by_sequence =
     return analyse
 
 def image_projection(image,mea=params.MEA):
+    """
+    Project the image following setup transformation of image compared to the bin displayed on a computer before the setup
+    image has to be a numpy array. It can have values from 0 to 1 or 0 to 255, both works.
+    """
     if mea == 2:
         image = np.rot90(image)
         image = np.flipud(image)
 
     elif mea == 3:
         image = np.fliplr(image)
+        image = np.ones(image.shape)*np.max(image)-image  ## Reversing polarity in mea3
     return image
 
 
