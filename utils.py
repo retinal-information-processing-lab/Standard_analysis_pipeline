@@ -362,8 +362,13 @@ def extract_all_spike_times_from_phy(directory):
         - .npy files no longer exists
     
     """
+    path_all_spike_clusters = os.path.join(directory, "spike_clusters.npy")
+    if os.path.isfile(path_all_spike_clusters):
+        all_spike_clusters = np.load(path_all_spike_clusters)
+    else:
+        path_all_spike_clusters = os.path.join(directory, "spike_templates.npy")
+        all_spike_clusters = np.load(path_all_spike_clusters)
 
-    all_spike_clusters = np.load(os.path.join(directory, "spike_clusters.npy"))
     all_spike_times = np.load(os.path.join(directory, "spike_times.npy"))
     
     spike_times = {}
@@ -374,7 +379,7 @@ def extract_all_spike_times_from_phy(directory):
         
     return spike_times
 
-
+    
 def extract_cluster_groups(phy_path = params.phy_directory):
     """
         Read phy variables and extract the cluster numbers and their group
@@ -390,18 +395,36 @@ def extract_cluster_groups(phy_path = params.phy_directory):
     """
     cluster_number = []
     good_clusters = []
-
     path_cluster_group = os.path.normpath(os.path.join(phy_path,"cluster_group.tsv"))
-    cluster_file = open(path_cluster_group)
-    read_file = csv.reader(cluster_file, delimiter="\t")
-    next(cluster_file, None)
+    path_spike_clusters = os.path.normpath(os.path.join(phy_path,"spike_clusters.npy"))
+    path_spike_templates = os.path.normpath(os.path.join(phy_path,"spike_templates.npy"))
+    
+    if os.path.isfile(path_cluster_group):
+        print("Extracting Manually Curated 'Good' clusters")
+        cluster_file = open(path_cluster_group)
+        read_file = csv.reader(cluster_file, delimiter="\t")
+        next(cluster_file, None)
 
-    for row in read_file:
-        cluster_number += [int(row[0])]
-        if row[1] == 'good':
-            good_clusters += [int(row[0])]
+        for row in read_file:
+            cluster_number += [int(row[0])]
+            if row[1] == 'good':
+                good_clusters += [int(row[0])]
+    
+    elif os.path.isfile(path_spike_clusters):
+        print("Manual curation not done yet. Extracting all clusters using 'spike_clusters.npy'!")
+        spikes_clusters = np.load(path_spike_clusters)
+        cluster_number  = set(spikes_clusters)
+        good_clusters   = set(spikes_clusters)
+        
+    elif os.path.isfile(path_spike_templates):
+        print("Phy hasn't been opened. Extracting all clusters using 'spike_templates.npy'!")
+        spikes_templates = np.load(path_spike_templates)
+        cluster_number   = set(spikes_templates)
+        good_clusters    = set(spikes_templates)
+    else:
+        print("No phy files could be opened...\n\n")
+
     return cluster_number,good_clusters
-
 
 def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs = params.fs):
     """
