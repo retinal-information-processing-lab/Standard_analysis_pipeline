@@ -1229,4 +1229,214 @@ you will get {key1 : {Cell1: data, Cell2: data}, key2 : {Cell1: data, Cell2: dat
 
     return reshaped_dict
 
+###########################################################
+###########          Registration Holo          ###########
+###########################################################
 
+# Functions
+def buildH(t_pre,s,t_post,r=0):
+    H_pre_translation = np.array([[1, 0, t_pre[1]],
+                                  [0, 1, t_pre[0]],
+                                  [0, 0,    1]])
+  
+                          
+    H_rotation = np.array([[cos(r),  -sin(r), 0],
+                          [sin(r),   cos(r), 0],
+                          [0,        0,      1]])
+    
+    H_scaling = np.array([[s[0], 0,   0],
+                          [0,   s[1], 0],
+                          [0,    0,   1]])
+    
+    H_post_translation = np.array([[1, 0, t_post[1]],
+                                   [0, 1, t_post[0]],
+                                   [0, 0, 1]])
+    return H_post_translation@H_rotation@H_scaling@H_pre_translation
+
+
+def transform_coordinates(coordinates, homography):
+    coordinates = np.append(coordinates, np.array([1]))
+    transformation = homography@coordinates.T
+    transformation = transformation / transformation[2]
+    transformed_coordinates = np.array(transformation[:2])
+    return transformed_coordinates
+
+    
+def onclick(event):
+    global size
+    if size =="40x":
+        dot_size = 1000
+        font_size = 15
+
+    elif size =="10x":
+        dot_size = 100
+        font_size = 10
+        
+    global output_hui
+    global ix, iy
+    ix, iy = event.xdata, event.ydata
+    scattered.append(ax.scatter(ix,iy, s=dot_size, c='red'))
+    plt.draw()
+    global coords
+
+    global indices
+
+    xind = easygui.enterbox("electrode row:")
+    yind = easygui.enterbox("electrode column:")
+    try:
+        indices.append([int(xind),int(yind)])
+        coords.append([ix, iy])
+        txt_scattered.append(ax.annotate(str(tuple(indices[-1])), (coords[-1][0]-35,coords[-1][1]+5), c='white', fontsize=font_size))
+        
+        plt.draw()
+        print(f'electrode ({xind},{yind}): x = {ix}, y = {iy}')
+
+    except TypeError:
+        scattered[-1].set_visible(False)
+        print(f" /!\ Point at {(ix,iy)} not added. Error on input format. Please enter only integers./!\ ")
+        
+    if len(coords) >= 5:
+
+        np.save(os.path.join(output_gui,"indices_"+size), indices)
+        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
+        output = easygui.msgbox(f"You have {len(coords)}/5 electrodes. Coordinates have been saved !", "Enough Points !",'ok')
+
+        plt.close('all')
+    return indices, coords
+
+
+def onclose(event):
+    global coords
+    global indices
+    global size
+    global output_gui
+    
+    txt = 'Plot is closing. Do you want to save current points ? \n \n'
+    for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords)):
+        txt += f'\t ({xind},{yind})\t: x = {ix},\t y = {iy} \n'
+    output = easygui.ynbox(txt, "Saving on closing")
+    if output:
+        print(f"{len(coords)} electrodes saved :")
+        np.save(os.path.join(output_gui,"indices_"+size), indices)
+        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
+        
+        [print(f'\t ({xind},{yind})\t: x = {ix},\t y = {iy}') for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords))]
+        
+    else:
+        print(f"{len(coords)} electrodes NOT saved on closing:")    
+
+        
+    fig.canvas.mpl_disconnect(cid)
+    fig.canvas.mpl_disconnect(rmv)
+    fig.canvas.mpl_disconnect(cls)
+    
+
+def onkey(event):
+    global size
+    global coords
+    global indices
+    global scattered
+    global txt_scattered
+    global output_gui
+    
+    if event.key == 'backspace':
+        scattered[-1].set_visible(False)
+        scattered.pop()
+        
+        txt_scattered[-1].set_visible(False)
+        txt_scattered.pop()
+        coords.pop()
+        indices.pop()
+        
+        plt.draw()
+        
+    elif event.key in ['e', 'enter']:
+        print(f"{len(coords)} electrodes saved :")
+        np.save(os.path.join(output_gui,"indices_"+size), indices)
+        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
+        
+        [print(f'\t ({xind},{yind})\t: x = {ix},\t y = {iy}') for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords))]
+    
+    elif event.key =='r':
+        try:
+            txt = 'Enter the point id to remove \n \n'
+            for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords)):
+                txt += f'{idx}\t --> \t ({xind},{yind})\t\n'
+            idx = int(easygui.enterbox(txt))
+            scattered[idx].set_visible(False)
+            scattered.pop(idx)
+
+            txt_scattered[idx].set_visible(False)
+            txt_scattered.pop(idx)
+            coords.pop(idx)
+            indices.pop(idx)
+
+            plt.draw()
+        except:
+            print("Wrong input")
+            pass
+    
+    elif event.key == 'escape':
+        plt.close(fig)
+    else:
+        print(event.key)
+
+def get_ellipse(parameters,factor=2):
+        
+    amplitude, x0, y0, sigma_x, sigma_y, theta = parameters
+    width = factor * 2.0 * sigma_x
+    height = factor * 2.0 * sigma_y
+
+    t = np.linspace(0, 2*np.pi, 360)
+    
+    Ell = np.array([sigma_x*np.cos(t) , sigma_y*np.sin(t)])
+    
+    R_rot = np.array([[np.cos(-np.deg2rad(theta)) , -np.sin(-np.deg2rad(theta))]
+                      ,[np.sin(-np.deg2rad(theta)) , np.cos(-np.deg2rad(theta))]])  
+    
+    Ell = np.dot(R_rot, Ell)
+    Ell[0,:] += x0
+    Ell[1,:] += y0
+    ell_size = np.abs(np.pi*width*height)
+    ell_meas = 1-min(width, height)/max(width, height)
+    
+    return Ell, ell_size, ell_meas
+
+def find_angle(a,b,c):
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+    
+    return np.degrees(angle)
+
+def find_aligned_point(point, ellipse, sanity_check=True):
+    ellipse_center = np.mean(ellipse, axis=1)
+    index = 0
+
+    angle = 10000
+    
+    for i in range(360):
+        angle_temp = find_angle(point,ellipse_center, ellipse[:,i])
+        if angle_temp < angle:
+            angle = angle_temp
+            index = i
+            
+    closest_point = ellipse[:,index]
+            
+    if sanity_check:
+            
+        plt.figure()
+        plt.plot(ellipse[1],ellipse[0])
+        plt.scatter(ellipse_center[1],ellipse_center[0], marker='+')
+        plt.scatter(closest_point[1],closest_point[0], color="green")
+        plt.scatter(point[1],point[0], color='r')
+        
+            
+    return closest_point
+
+
+def compute_distance_between_points(point_1, point_2):
+    distance = np.linalg.norm(point_1 - point_2)
+    return distance
