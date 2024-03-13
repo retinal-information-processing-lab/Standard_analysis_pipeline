@@ -21,8 +21,9 @@ In linux, do :
 	- pip install phy --pre --upgrade
 	- pip install colorama
 	- pip install notebook
+    - pip install easygui
+    - pip install scipy
 	- pip install numpy==1.23.5
-
 	
 One may have issues involving Qt plateform plugin "xcb". In this case, please make sure your drivers are up to date. If you still have an issue, check this solution: https://stackoverflow.com/questions/68036484/qt6-qt-qpa-plugin-could-not-load-the-qt-platform-plugin-xcb-in-even-thou
 
