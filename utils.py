@@ -14,6 +14,8 @@ from scipy.cluster.hierarchy import dendrogram
 import itertools
 import time
 from collections import defaultdict
+from math import *
+
 #############################################
 ######          Preprocessing          ######
 #############################################
@@ -1261,125 +1263,6 @@ def transform_coordinates(coordinates, homography):
     transformed_coordinates = np.array(transformation[:2])
     return transformed_coordinates
 
-    
-def onclick(event):
-    global size
-    if size =="40x":
-        dot_size = 1000
-        font_size = 15
-
-    elif size =="10x":
-        dot_size = 100
-        font_size = 10
-        
-    global output_hui
-    global ix, iy
-    ix, iy = event.xdata, event.ydata
-    scattered.append(ax.scatter(ix,iy, s=dot_size, c='red'))
-    plt.draw()
-    global coords
-
-    global indices
-
-    xind = easygui.enterbox("electrode row:")
-    yind = easygui.enterbox("electrode column:")
-    try:
-        indices.append([int(xind),int(yind)])
-        coords.append([ix, iy])
-        txt_scattered.append(ax.annotate(str(tuple(indices[-1])), (coords[-1][0]-35,coords[-1][1]+5), c='white', fontsize=font_size))
-        
-        plt.draw()
-        print(f'electrode ({xind},{yind}): x = {ix}, y = {iy}')
-
-    except TypeError:
-        scattered[-1].set_visible(False)
-        print(f" /!\ Point at {(ix,iy)} not added. Error on input format. Please enter only integers./!\ ")
-        
-    if len(coords) >= 5:
-
-        np.save(os.path.join(output_gui,"indices_"+size), indices)
-        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
-        output = easygui.msgbox(f"You have {len(coords)}/5 electrodes. Coordinates have been saved !", "Enough Points !",'ok')
-
-        plt.close('all')
-    return indices, coords
-
-
-def onclose(event):
-    global coords
-    global indices
-    global size
-    global output_gui
-    
-    txt = 'Plot is closing. Do you want to save current points ? \n \n'
-    for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords)):
-        txt += f'\t ({xind},{yind})\t: x = {ix},\t y = {iy} \n'
-    output = easygui.ynbox(txt, "Saving on closing")
-    if output:
-        print(f"{len(coords)} electrodes saved :")
-        np.save(os.path.join(output_gui,"indices_"+size), indices)
-        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
-        
-        [print(f'\t ({xind},{yind})\t: x = {ix},\t y = {iy}') for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords))]
-        
-    else:
-        print(f"{len(coords)} electrodes NOT saved on closing:")    
-
-        
-    fig.canvas.mpl_disconnect(cid)
-    fig.canvas.mpl_disconnect(rmv)
-    fig.canvas.mpl_disconnect(cls)
-    
-
-def onkey(event):
-    global size
-    global coords
-    global indices
-    global scattered
-    global txt_scattered
-    global output_gui
-    
-    if event.key == 'backspace':
-        scattered[-1].set_visible(False)
-        scattered.pop()
-        
-        txt_scattered[-1].set_visible(False)
-        txt_scattered.pop()
-        coords.pop()
-        indices.pop()
-        
-        plt.draw()
-        
-    elif event.key in ['e', 'enter']:
-        print(f"{len(coords)} electrodes saved :")
-        np.save(os.path.join(output_gui,"indices_"+size), indices)
-        np.save(os.path.join(output_gui,"coordinates_"+size), coords)
-        
-        [print(f'\t ({xind},{yind})\t: x = {ix},\t y = {iy}') for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords))]
-    
-    elif event.key =='r':
-        try:
-            txt = 'Enter the point id to remove \n \n'
-            for idx, ((xind, yind), (ix, iy)) in enumerate(zip(indices, coords)):
-                txt += f'{idx}\t --> \t ({xind},{yind})\t\n'
-            idx = int(easygui.enterbox(txt))
-            scattered[idx].set_visible(False)
-            scattered.pop(idx)
-
-            txt_scattered[idx].set_visible(False)
-            txt_scattered.pop(idx)
-            coords.pop(idx)
-            indices.pop(idx)
-
-            plt.draw()
-        except:
-            print("Wrong input")
-            pass
-    
-    elif event.key == 'escape':
-        plt.close(fig)
-    else:
-        print(event.key)
 
 def get_ellipse(parameters,factor=2):
         
