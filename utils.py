@@ -912,7 +912,7 @@ def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
 
 ############################    
     if sum(TuneSum)==0:
-        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
+        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0, 'rasters': np.zeros( (4,len(bins)) ),counts':counts, 'maxcount':maxcount, 'bins':bins})
         return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
 ############################
     VxS=VxS/np.amax(TuneSum) 
