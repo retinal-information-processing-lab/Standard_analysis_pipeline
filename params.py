@@ -129,7 +129,7 @@ Only change if you knwo what you are doing. Those parameters are following the s
 
 #the optimal threshhold for detecting stimuli onsets varies with the rig
 if MEA==1: threshold  = 270e+3         
-if MEA==2: threshold  = 50e+3          
+if MEA==2: threshold  = 150e+3          
 if MEA==3: threshold  = 170e+3          
 if MEA==4: threshold  = -3.14470e+5
 
