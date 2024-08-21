@@ -532,7 +532,7 @@ def image_projection(image,mea=params.MEA):
 
     elif mea == 3:
         image = np.fliplr(image)
-        image = np.ones(image.shape)*np.max(image)-image  ## Reversing polarity in mea3
+#         image = np.ones(image.shape)*np.max(image)-image  ## Reversing polarity in mea3
     return image
 
 
