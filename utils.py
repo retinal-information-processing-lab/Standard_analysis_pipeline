@@ -851,7 +851,52 @@ def analyse_sta(sta, cell_id):
         plt.show(block=False)
         return {'Spatial':spatial_sta, 'Temporal':np.zeros(40), 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay':np.nan}
     
+
+### Tom sta analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
+
+def preprocess_fitting_tom(sta):
+
+    shape0,shape1=sta.shape
+    denoised_sta=np.zeros([shape0,shape1])
+    enlarged_sta=np.zeros([shape0+2,shape1+2])
+
+    enlarged_sta[1:shape0+1,1:shape0+1]=sta
+
+    for x in range(shape0):
+        for y in range(shape1):
+            denoised_sta[x,y]=(np.sum(enlarged_sta[x:x+2,y:y+2]*0.2)+enlarged_sta[x+1,y+1]*0.8)/2.4
+
+    sta=denoised_sta
     
+    expon_treat= 1.25
+    vmax_thresh = 2 
+    to0 = 0.2001
+    cmap='RdBu_r'
+    put_to0 = np.exp(np.log(to0)*expon_treat) 
+    
+    sta=np.sign(sta)*np.exp(np.log(abs(sta))*expon_treat)
+    vmax= np.max([np.amax(sta),-np.amin(sta)])  *vmax_thresh
+    sta[abs(sta)<vmax*put_to0]=0
+
+    return sta
+
+
+def analyse_sta_tom(sta, cell_id):
+    sta_3D = sta.copy()
+    
+    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
+    fitting_data = preprocess_fitting_tom(sta_spatial)
+    try :
+        ellipse_params,cov = double_gaussian_fit(fitting_data)
+    except:
+        print(f'Error Could not fit ellipse {cell_id}')
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay' : best[0]}
+    return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':ellipse_params, 'Cell_delay' : best[0]}
+    
+
+
 def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     #magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
@@ -859,6 +904,98 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     if ellipse_params[0] != 0:
         ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='w',linestyles = 'solid', alpha = 0.8)
     return ax
+
+#New display with max and min equal and new coulor
+def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
+
+    gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
+
+    vmax=np.max([np.amax(spatial_sta),-np.amin(spatial_sta)])
+    ax.imshow(spatial_sta,cmap='RdBu_r',vmax=vmax,vmin=-vmax)
+    if ellipse_params[0] != 0:
+        ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='y',linestyles = 'solid', alpha = 0.4,lw=5)
+    return ax
+
+
+### Analysis to quantify the presence of STAs
+
+def SNR_test(sta,contour): #Calculate the SNR of cells
+    
+    path = mpltPath.Path(contour[0][0])
+    points=[]
+    
+    for x_id in range(sta.shape[0]):
+        for y_id in range(sta.shape[1]):
+                points.append([x_id,y_id])
+    
+    inside = path.contains_points(points)
+
+    noise=[]
+    signal=[]
+    for ins_id in range(len(inside)):
+        if inside[ins_id]==False:
+            noise.append(sta[points[ins_id][1],points[ins_id][0]])
+        else:
+            signal.append(sta[points[ins_id][1],points[ins_id][0]])
+            noise.append(0)
+
+    nb_in=len(signal)
+    nb_out=len(noise)
+
+    noise_compression=[]
+
+    for nb_comp in range(sta.shape[0]):
+        noise_compression.append(np.mean(noise[nb_comp*40:(nb_comp+1)*40]))
+        
+    noise=np.sum(np.abs(noise_compression))
+    signal=np.abs(np.sum(signal))
+
+    SNR=signal/noise
+
+    return SNR
+
+
+def PolyArea(x,y): #Used to calculate an area of a polygon
+    return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
+
+
+def check_presence_STA(sta,ellipse_coor,nb_of_pixels_by_check,tresh_snr=2.75,level_factor=0.2): #Used to check the presence of STAs
+
+    pxl_size_dmd=params.pxl_size_dmd
+    
+    gaussian = gaussian2D(sta.shape,*ellipse_coor)
+
+    x0=ellipse_coor[1]
+    y0=ellipse_coor[2]
+
+    #See if the STA is in the center 
+    xshape=sta.shape[0]
+    yshape=sta.shape[1]
+    if x0>0.8*xshape or x0<0.2*xshape or y0>0.8*yshape or y0<0.2*yshape:
+        return [0.1,0.1]
+
+    #See if the STA has a fitted ellipse
+    if ellipse_coor[0] != 0:
+        fig=plt.figure()
+        cs=plt.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))])
+        contour=cs.allsegs
+        plt.close()
+
+        #Verify that the diameter of the ellipse is neither too big nor too small
+        area=PolyArea(contour[0][0][:,0],contour[0][0][:,1])
+        diameter=2*np.sqrt(area/np.pi)*nb_of_pixels_by_check*pxl_size_dmd
+
+        if diameter<100 or diameter>500:
+            return [0.3,diameter]
+
+        #Verify that the SNR is superior to the threshold of the SNR
+        if SNR_test(sta,contour)<tresh_snr:
+            return [0.4,SNR_test(sta,contour)]
+            
+    else:
+        return [0.2,0.2]
+
+    return [1,SNR_test(sta,contour)]
 
 
 #############################################
