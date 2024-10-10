@@ -851,7 +851,52 @@ def analyse_sta(sta, cell_id):
         plt.show(block=False)
         return {'Spatial':spatial_sta, 'Temporal':np.zeros(40), 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay':np.nan}
     
+
+### Tom sta analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
+
+def preprocess_fitting_tom(sta):
+
+    shape0,shape1=sta.shape
+    denoised_sta=np.zeros([shape0,shape1])
+    enlarged_sta=np.zeros([shape0+2,shape1+2])
+
+    enlarged_sta[1:shape0+1,1:shape0+1]=sta
+
+    for x in range(shape0):
+        for y in range(shape1):
+            denoised_sta[x,y]=(np.sum(enlarged_sta[x:x+2,y:y+2]*0.2)+enlarged_sta[x+1,y+1]*0.8)/2.4
+
+    sta=denoised_sta
     
+    expon_treat= 1.25
+    vmax_thresh = 2 
+    to0 = 0.2001
+    cmap='RdBu_r'
+    put_to0 = np.exp(np.log(to0)*expon_treat) 
+    
+    sta=np.sign(sta)*np.exp(np.log(abs(sta))*expon_treat)
+    vmax= np.max([np.amax(sta),-np.amin(sta)])  *vmax_thresh
+    sta[abs(sta)<vmax*put_to0]=0
+
+    return sta
+
+
+def analyse_sta_tom(sta, cell_id):
+    sta_3D = sta.copy()
+    
+    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
+    fitting_data = preprocess_fitting_tom(sta_spatial)
+    try :
+        ellipse_params,cov = double_gaussian_fit(fitting_data)
+    except:
+        print(f'Error Could not fit ellipse {cell_id}')
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay' : best[0]}
+    return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':ellipse_params, 'Cell_delay' : best[0]}
+    
+
+
 def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     #magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
@@ -860,6 +905,16 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
         ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='w',linestyles = 'solid', alpha = 0.8)
     return ax
 
+#New display with max and min equal and new coulour
+def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
+
+    gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
+
+    vmax=np.max([np.amax(spatial_sta),-np.amin(spatial_sta)])
+    ax.imshow(spatial_sta,cmap='RdBu_r',vmax=vmax,vmin=-vmax)
+    if ellipse_params[0] != 0:
+        ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='y',linestyles = 'solid', alpha = 0.4,lw=5)
+    return ax
 
 #############################################
 ######         Drifting Gratings       ######
