@@ -1314,7 +1314,7 @@ Looks for the key to stack repetitions (last 2 digits of the key). Repetition nu
     rasters = defaultdict(list) #more compliant than dict. Allows you to either use an existing key or create it with empty list and than use it if missing.
 
     for key in spikesequences.keys():
-        rasters[key[1:-2]].append(spikesequences[key]-trig_seq[key][0])
+        rasters[key[:-2]].append(spikesequences[key]-trig_seq[key][0])
     return dict(rasters)
 
 def spikeseq2psth(raster, trig_seq, n_bin=40):
@@ -1324,7 +1324,7 @@ def spikeseq2psth(raster, trig_seq, n_bin=40):
         if key=='':
             seq_range  = (0, trig_seq['0'][-1]-trig_seq['0'][0] + np.mean(np.diff(trig_seq['0'])))
         else:
-            seq_range  = (0, trig_seq['1'+key+'00'][-1]-trig_seq['1'+key+'00'][0] + np.mean(np.diff(trig_seq['1'+key+'00'])))
+            seq_range  = (0, trig_seq[key+'00'][-1]-trig_seq[key+'00'][0] + np.mean(np.diff(trig_seq[key+'00'])))
         
         if n_bin =="relative":
             all_spikes_times=[]
