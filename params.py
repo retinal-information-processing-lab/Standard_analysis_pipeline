@@ -141,15 +141,17 @@ Only change if you knwo what you are doing. Those parameters are following the s
 
 
 #the optimal threshhold for detecting stimuli onsets varies with the rig
-if MEA==1: threshold  = 270e+3         
+if MEA==1: threshold  = 270e+3        
+    
 if MEA==2: 
     threshold  = 150e+3
     pxl_size_dmd = 3.5
+    size_dmd = [864, 864]      # dimensions of the DMD, in pixels
 if MEA==3:
     threshold  = 170e+3   
     size_dmd = [760, 1020]      # dimensions of the DMD, in pixels
     pxl_size_dmd = 2.5          # The size of one pixel of the DMD in µm? on the camera or in reality?
-    
+
         
 if MEA==4: threshold  = -3.14470e+5
 
