@@ -1317,7 +1317,7 @@ Looks for the key to stack repetitions (last 2 digits of the key). Repetition nu
         rasters[key[:-2]].append(spikesequences[key]-trig_seq[key][0])
     return dict(rasters)
 
-def spikeseq2psth(raster, trig_seq, n_bin=40):
+def spikeseq2psth(raster, trig_seq, bin_size=0.025):
     psth={}
     for key in raster.keys():
         n_rep = len(raster[key])
@@ -1325,17 +1325,12 @@ def spikeseq2psth(raster, trig_seq, n_bin=40):
             seq_range  = (0, trig_seq['0'][-1]-trig_seq['0'][0] + np.mean(np.diff(trig_seq['0'])))
         else:
             seq_range  = (0, trig_seq[key+'00'][-1]-trig_seq[key+'00'][0] + np.mean(np.diff(trig_seq[key+'00'])))
-        
-        if n_bin =="relative":
-            all_spikes_times=[]
-            for i in range(n_rep):
-                all_spikes_times+=list(raster[key][i])
-            psth[key] = np.histogram(np.array(all_spikes_times), bins=max(1,int(np.sqrt(len(all_spikes_times)))), range=seq_range   )[0]/n_rep
-        else:
-            binned_spike_count = np.zeros((n_rep, n_bin))
-            for i in range(n_rep):
-                binned_spike_count[i,:] = np.histogram(raster[key][i], bins=n_bin, range=seq_range   )[0]
-            psth[key] = np.sum(binned_spike_count, axis=0)/n_rep
+
+        n_bin = int(seq_range[1]/bin_size)
+        binned_spike_count = np.zeros((n_rep, n_bin))
+        for i in range(n_rep):
+            binned_spike_count[i,:] = np.histogram(raster[key][i], bins=n_bin, range=seq_range   )[0]
+        psth[key] = np.sum(binned_spike_count, axis=0)/n_rep
             
     return psth
 
