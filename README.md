@@ -27,7 +27,7 @@ In linux, do :
 	
 One may have issues involving Qt plateform plugin "xcb". In this case, please make sure your drivers are up to date. If you still have an issue, check this solution: https://stackoverflow.com/questions/68036484/qt6-qt-qpa-plugin-could-not-load-the-qt-platform-plugin-xcb-in-even-thou
 
-Baptiste's note (17/12/25): Python 3.10.19 seems more stable ans is compatible. I strongly recommend installing phy in another env.
+Baptiste's note (17/12/25): Python 3.10.19 seems more stable ans is compatible. If you need it, I strongly recommend installing phy in another env (it's the package that really requires numpy==1.23.5 that requires python==3.9.16). =)
 
 ## Dependencies
 - colorama: https://pypi.org/project/colorama/
