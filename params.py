@@ -229,8 +229,12 @@ most_advanced_params = {
 ressources = r"./ressources"
 
 # make all dictionary keys global variable
-# note: this is poor practice, but to minimize
-# disruption
+# note: this is a very poor practice as we have 
+# little control over the variables and packages
+# available at any given time in our environment 
+# This is done to minimize disruption for now.
+# TODO: refactor utils.py to take in an dictionary
+# of parameters as input
 make_dict_keys_global_variables(basic_params)
 make_dict_keys_global_variables(mea_params)
 make_dict_keys_global_variables(advanced_params)
