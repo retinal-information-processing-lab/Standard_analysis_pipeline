@@ -1,0 +1,9 @@
+			#########################################################
+			################### Pipeline Tool Box ###################
+			#########################################################
+
+The goal of this folder is to provide several tools fo you to use at different stages of your analysis.It is mostly 
+small independant and easy to use notebook doing one specific task of the analysis for example you will find a 
+notebook that allows you to plot a channel from a recording for you to perform a sanity check. Use this as you new 
+for debugging. It may not be as efficient as using the whole pipeline but it should be simpler for specific task. If
+you feel an other task could be added in the folder with the same phylosophie, feel free to add more notebooks.

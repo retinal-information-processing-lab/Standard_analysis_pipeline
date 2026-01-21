@@ -11,6 +11,10 @@ import params
 import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
+import itertools
+import time
+from collections import defaultdict
+from math import *
 
 #############################################
 ######          Preprocessing          ######
@@ -18,7 +22,8 @@ from scipy.cluster.hierarchy import dendrogram
 
 
 
-def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory):
+
+def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_link_directory, recording_directory=params.recording_directory, print_warning=True):
     """
     Function to create symbolic links to the recording files for spyking circus needs.
 
@@ -40,15 +45,21 @@ def create_symlinks(recording_names, symbolic_link_directory=params.symbolic_lin
     previously_existing = []
     
     for i_recording, filename in enumerate(recording_names):
-        linkname = "recording_{}.raw".format(i_recording)                                       #Create this iteration link name following spyking circus expected raw files names format (recording_i.raw)
+        linkname = "recording_{}.raw".format(str(i_recording).zfill(2))                                       #Create this iteration link name following spyking circus expected raw files names format (recording_ii.raw)
         linknames_list.append(linkname)                                                        #linknames_list is created with the extention in the names
         if os.path.exists(os.path.join(symbolic_link_directory,linkname)):                      #Check if the symbolic link exists already at given path for this indice
-            print(Fore.YELLOW+"/!\ File {} already exists /!\ May not be a problem if you already run this code for THIS experiment".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
+            if print_warning:
+                print(Fore.YELLOW+r"/!\ File {} already exists /!\ ".format(os.path.join(symbolic_link_directory,linkname))+Style.RESET_ALL)
+                print(Fore.YELLOW+"\t\tMay not be a problem if you already run this code for THIS experiment\n"+Style.RESET_ALL)
             previously_existing.append(' already existed')
             continue                                                                                #If yes, add 'already exists' to previously_existing list and go to next file iteration without rewriting current trig data
-        os.symlink(os.path.join(recording_directory,filename), os.path.join(symbolic_link_directory,linkname))
-        previously_existing.append('')                                                              #If no, create symlink accordinly and add an empty string to 'previously_existing' list
-    return linknames_list, previously_existing                                                  #Return both link names created and the tracking of previously existing links
+        try:
+            os.symlink(os.path.join("../"+os.path.split(recording_directory)[1], filename), os.path.join("../"+os.path.split(symbolic_link_directory)[1],linkname))
+            previously_existing.append('')  #If no, create symlink accordinly and add an empty string to 'previously_existing' list
+        except FileExistsError as e:
+            raise FileExistsError(r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(os.path.join(symbolic_link_directory,linkname))) 
+    return linknames_list, previously_existing  
+                          #Return both link names created and the tracking of previously existing links
         
 
 def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, channel_id=params.visual_channel_id, probe_size=None, voltage_resolution=params.voltage_resolution, disable=False):
@@ -90,20 +101,20 @@ def load_data(input_path, dtype=params.dtype, nb_channels=params.nb_channels, ch
     data = np.empty((nb_samples,), dtype=dtype)
     for k in tqdm(range(nb_samples),disable = disable):
         data[k] = m[nb_channels * k + channel_id]
-    data = data.astype(np.float)
-    data = data - np.iinfo('uint16').min + np.iinfo('int16').min
+    data = data.astype(float)
+    data = data + np.iinfo('int16').min
     data = data / voltage_resolution
     
     return data, nb_samples
 
 
-def is_holographic_rec(input_path, probe_size=params.probe_size, mea = params.MEA):
+def is_holographic_rec(input_path, probe_size=params.fs*params.time, mea = params.MEA, dtype=params.dtype):
     """
     Function to check if a recording was holographic or not
 
     Input :
         - input_path (str) : path to binary file
-        - probe_size (int) : read only part of the recording to reduce useless computation time
+        - probe_size (int) : read only part of the recording to reduce useless computation time (default 10s)
 
         
     Output :
@@ -114,9 +125,9 @@ def is_holographic_rec(input_path, probe_size=params.probe_size, mea = params.ME
         - params.py mea value not on the right rig
         - probe_size has been change and threshold of detection must be ajusted to the new probe_size value to detect holo stims correctly
     """
-    print('Checking if holographic recording...\t',  end ='')
+#     print('Checking if holographic recording...\t',  end ='')
     if mea == 3:
-        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].sum()>-probe_size*1e+5
+        return load_data(input_path=input_path, channel_id=params.holo_channel_id, probe_size=probe_size, disable=True)[0].max()>0
     else :
         return False
 
@@ -292,7 +303,7 @@ def run_minimal_sanity_check(triggers, sampling_rate=params.fs, maximal_jitter=p
     errors = np.where(np.abs(inter_triggers - inter_trigger_value) >= maximal_jitter * sampling_rate)[0]
     
     if errors.size>0:
-        print("Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
+        print(r"Minimal sanity checks :\t/!\ Triggers are not evenly spaced /!\ \nNumber of errors : {}\nMaximum error : {} sampling points compared to {} sampling points per trigger".format(len(errors), max(np.abs(inter_trigger_values)), inter_trigger_value))
     else :
         print("Minimal sanity checks : Ok on all {} triggers".format(len(triggers)))
 
@@ -353,8 +364,13 @@ def extract_all_spike_times_from_phy(directory):
         - .npy files no longer exists
     
     """
+    path_all_spike_clusters = os.path.join(directory, "spike_clusters.npy")
+    if os.path.isfile(path_all_spike_clusters):
+        all_spike_clusters = np.load(path_all_spike_clusters)
+    else:
+        path_all_spike_clusters = os.path.join(directory, "spike_templates.npy")
+        all_spike_clusters = np.load(path_all_spike_clusters)
 
-    all_spike_clusters = np.load(os.path.join(directory, "spike_clusters.npy"))
     all_spike_times = np.load(os.path.join(directory, "spike_times.npy"))
     
     spike_times = {}
@@ -365,7 +381,7 @@ def extract_all_spike_times_from_phy(directory):
         
     return spike_times
 
-
+    
 def extract_cluster_groups(phy_path = params.phy_directory):
     """
         Read phy variables and extract the cluster numbers and their group
@@ -381,18 +397,36 @@ def extract_cluster_groups(phy_path = params.phy_directory):
     """
     cluster_number = []
     good_clusters = []
-
     path_cluster_group = os.path.normpath(os.path.join(phy_path,"cluster_group.tsv"))
-    cluster_file = open(path_cluster_group)
-    read_file = csv.reader(cluster_file, delimiter="\t")
-    next(cluster_file, None)
+    path_spike_clusters = os.path.normpath(os.path.join(phy_path,"spike_clusters.npy"))
+    path_spike_templates = os.path.normpath(os.path.join(phy_path,"spike_templates.npy"))
+    
+    if os.path.isfile(path_cluster_group):
+        print("Extracting Manually Curated 'Good' clusters")
+        cluster_file = open(path_cluster_group)
+        read_file = csv.reader(cluster_file, delimiter="\t")
+        next(cluster_file, None)
 
-    for row in read_file:
-        cluster_number += [int(row[0])]
-        if row[1] == 'good':
-            good_clusters += [int(row[0])]
+        for row in read_file:
+            cluster_number += [int(row[0])]
+            if row[1] == 'good':
+                good_clusters += [int(row[0])]
+    
+    elif os.path.isfile(path_spike_clusters):
+        print("Manual curation not done yet. Extracting all clusters using 'spike_clusters.npy'!")
+        spikes_clusters = np.load(path_spike_clusters)
+        cluster_number  = set(spikes_clusters)
+        good_clusters   = set(spikes_clusters)
+        
+    elif os.path.isfile(path_spike_templates):
+        print("Phy hasn't been opened. Extracting all clusters using 'spike_templates.npy'!")
+        spikes_templates = np.load(path_spike_templates)
+        cluster_number   = set(spikes_templates)
+        good_clusters    = set(spikes_templates)
+    else:
+        print("No phy files could be opened...\n\n")
+
     return cluster_number,good_clusters
-
 
 def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs = params.fs):
     """
@@ -429,10 +463,14 @@ def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs = param
             rec_name=rec
     return data
     
-    
-#################################
-##### Checkerboard Analysis #####
-#################################
+     
+        
+        
+#########################################
+#####     Checkerboard Analysis     #####
+#########################################
+
+
 
 def get_recording_spikes(recording_name,all_recs_spikes):
     rec_spikes = {}
@@ -484,12 +522,17 @@ def build_rasters(cell_spikes, triggers, stim_frequency, nb_frames_by_sequence =
     return analyse
 
 def image_projection(image,mea=params.MEA):
+    """
+    Project the image following setup transformation of image compared to the bin displayed on a computer before the setup
+    image has to be a numpy array. It can have values from 0 to 1 or 0 to 255, both works.
+    """
     if mea == 2:
         image = np.rot90(image)
         image = np.flipud(image)
 
     elif mea == 3:
         image = np.fliplr(image)
+#         image = np.ones(image.shape)*np.max(image)-image  ## Reversing polarity in mea3
     return image
 
 
@@ -558,23 +601,26 @@ def compute_3D_sta(data, checkerboard, stim_frequency, cluster_id=None, nb_frame
     
     nb_sequences = data["counted_spikes"].shape[0]
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype = 'float64')
+    total_spikes = np.sum(data["counted_spikes"])
+    
     for sequence in range(nb_sequences):
         for frame in range(temporal_dimension, int(nb_frames_by_sequence/2)):
-            
+
                 sta_frame_start  = sequence*int(nb_frames_by_sequence/2) + frame - temporal_dimension 
                 sta_frame_end    = sequence*int(nb_frames_by_sequence/2) + frame                      
                 weight = data["counted_spikes"][sequence,frame]
 
                 sta += weight*checkerboard[sta_frame_start:sta_frame_end,:,:]
-
-    if np.sum(data["counted_spikes"]) > 0:
-        sta = sta/np.sum(data["counted_spikes"])
+                
+    if np.max(np.abs(sta)) > 0:        
+        sta = sta/total_spikes
         #Bring values between -1 and 1
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))
     else :
         print(f'Cluster {cluster_id} has no spikes, no sta can be found...')
     return sta
+
 
 def gaussian2D(shape, amp, x0, y0, sigma_x, sigma_y, angle,):
     if sigma_x == 0:
@@ -805,7 +851,52 @@ def analyse_sta(sta, cell_id):
         plt.show(block=False)
         return {'Spatial':spatial_sta, 'Temporal':np.zeros(40), 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay':np.nan}
     
+
+### Tom sta analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
+
+def preprocess_fitting_tom(sta):
+
+    shape0,shape1=sta.shape
+    denoised_sta=np.zeros([shape0,shape1])
+    enlarged_sta=np.zeros([shape0+2,shape1+2])
+
+    enlarged_sta[1:shape0+1,1:shape0+1]=sta
+
+    for x in range(shape0):
+        for y in range(shape1):
+            denoised_sta[x,y]=(np.sum(enlarged_sta[x:x+2,y:y+2]*0.2)+enlarged_sta[x+1,y+1]*0.8)/2.4
+
+    sta=denoised_sta
     
+    expon_treat= 1.25
+    vmax_thresh = 2 
+    to0 = 0.2001
+    cmap='RdBu_r'
+    put_to0 = np.exp(np.log(to0)*expon_treat) 
+    
+    sta=np.sign(sta)*np.exp(np.log(abs(sta))*expon_treat)
+    vmax= np.max([np.amax(sta),-np.amin(sta)])  *vmax_thresh
+    sta[abs(sta)<vmax*put_to0]=0
+
+    return sta
+
+
+def analyse_sta_tom(sta, cell_id):
+    sta_3D = sta.copy()
+    
+    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
+    fitting_data = preprocess_fitting_tom(sta_spatial)
+    try :
+        ellipse_params,cov = double_gaussian_fit(fitting_data)
+    except:
+        print(f'Error Could not fit ellipse {cell_id}')
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':[0, 0, 0, 0.001, 0.001, 0], 'Cell_delay' : best[0]}
+    return {'Spatial':sta_spatial, 'Temporal':sta_temporal, 'EllipseCoor':ellipse_params, 'Cell_delay' : best[0]}
+    
+
+
 def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
     #magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
@@ -814,9 +905,216 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
         ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='w',linestyles = 'solid', alpha = 0.8)
     return ax
 
+#New display with max and min equal and new coulor
+def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
+
+    gaussian = gaussian2D(spatial_sta.shape,*ellipse_params)
+
+    vmax=np.max([np.amax(spatial_sta),-np.amin(spatial_sta)])
+    ax.imshow(spatial_sta,cmap='RdBu_r',vmax=vmax,vmin=-vmax)
+    if ellipse_params[0] != 0:
+        ax.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))], colors='y',linestyles = 'solid', alpha = 0.4,lw=5)
+    return ax
+
+
+### Analysis to quantify the presence of STAs
+
+def SNR_test(sta,contour): #Calculate the SNR of cells
+    
+    path = mpltPath.Path(contour[0][0])
+    points=[]
+    
+    for x_id in range(sta.shape[0]):
+        for y_id in range(sta.shape[1]):
+                points.append([x_id,y_id])
+    
+    inside = path.contains_points(points)
+
+    noise=[]
+    signal=[]
+    for ins_id in range(len(inside)):
+        if inside[ins_id]==False:
+            noise.append(sta[points[ins_id][1],points[ins_id][0]])
+        else:
+            signal.append(sta[points[ins_id][1],points[ins_id][0]])
+            noise.append(0)
+
+    nb_in=len(signal)
+    nb_out=len(noise)
+
+    noise_compression=[]
+
+    for nb_comp in range(sta.shape[0]):
+        noise_compression.append(np.mean(noise[nb_comp*40:(nb_comp+1)*40]))
+        
+    noise=np.sum(np.abs(noise_compression))
+    signal=np.abs(np.sum(signal))
+
+    SNR=signal/noise
+
+    return SNR
+
+
+def PolyArea(x,y): #Used to calculate an area of a polygon
+    return 0.5*np.abs(np.dot(x,np.roll(y,1))-np.dot(y,np.roll(x,1)))
+
+
+def check_presence_STA(sta,ellipse_coor,nb_of_pixels_by_check,tresh_snr=2.75,level_factor=0.2): #Used to check the presence of STAs
+
+    pxl_size_dmd=params.pxl_size_dmd
+    
+    gaussian = gaussian2D(sta.shape,*ellipse_coor)
+
+    x0=ellipse_coor[1]
+    y0=ellipse_coor[2]
+
+    #See if the STA is in the center 
+    xshape=sta.shape[0]
+    yshape=sta.shape[1]
+    if x0>0.8*xshape or x0<0.2*xshape or y0>0.8*yshape or y0<0.2*yshape:
+        return [0.1,0.1]
+
+    #See if the STA has a fitted ellipse
+    if ellipse_coor[0] != 0:
+        fig=plt.figure()
+        cs=plt.contour(np.abs(gaussian),levels = [level_factor*np.max(np.abs(gaussian))])
+        contour=cs.allsegs
+        plt.close()
+
+        #Verify that the diameter of the ellipse is neither too big nor too small
+        area=PolyArea(contour[0][0][:,0],contour[0][0][:,1])
+        diameter=2*np.sqrt(area/np.pi)*nb_of_pixels_by_check*pxl_size_dmd
+
+        if diameter<100 or diameter>500:
+            return [0.3,diameter]
+
+        #Verify that the SNR is superior to the threshold of the SNR
+        if SNR_test(sta,contour)<tresh_snr:
+            return [0.4,SNR_test(sta,contour)]
+            
+    else:
+        return [0.2,0.2]
+
+    return [1,SNR_test(sta,contour)]
+
+
 #############################################
-######          Clustering        ######
+######         Drifting Gratings       ######
 #############################################
+
+
+
+
+def compute_tuning(ch_raster,base_fire, seq_len, seq_sep, n_repeats=4):
+    ###########################################################
+    # computing tuning
+    merged = list(itertools.chain(*ch_raster))   #all the spike times of all the 32 gratings. In this way when I bin I am
+                                                 #binning per each of the 8 angles the responses to all the 4 repetitions of
+                                                 #that angle
+
+    nbins = 8*10*20                 #totoal nb of bins  (1600)
+    binsize = seq_sep*8*1000//nbins #bin size in ms     (100)
+    binsec = 1000//binsize          #nb bins per second  (10)
+    base_fire=base_fire*(seq_sep*8/nbins)*n_repeats
+    
+    bins =  np.linspace(0,seq_sep*8,nbins+1)
+    counts, bins = np.histogram(merged,bins=bins)   #binning the spike times of all the repetitions at once
+    counts=counts-base_fire
+    maxcount = np.amax(counts)
+
+    #for plotting purposes, counts has 1600 bins, 10 each second of the 160 seconds. But some of this bins are fake because
+    #the seq_sep (20 secs for the slow gratings) added in ch_raster is longer than the actual seq_len (12 secs for slow grating),
+    #in which the stimulus was presented. So the last 8 secs after each angle have to have 80 empty.
+    
+        #--------------------------
+    TuneSum = np.zeros(9)
+    VxS=0
+    VyS=0
+
+    for a in np.arange(8):
+        #################################################
+        #per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
+        sel_bins = np.copy(counts[ int(seq_len*1000/6)//binsize + int(seq_sep*binsec*a): int(seq_len*binsec + seq_sep*binsec*a)])  
+        #################################################
+
+        TuneSum[a] = np.sum(sel_bins)    #per each angle these are all the spikes that the cell fired during the 4 repetitions
+                                         #of that angle from 2 to 12 seconds
+        #print(TuneSum[a])
+        VxS+= np.cos(np.pi*a*45/180)*TuneSum[a]
+        VyS+= np.sin(np.pi*a*45/180)*TuneSum[a]
+#             VxM+= np.cos(np.pi*a/180)*TuneMax[a]
+#             VyM+= np.sin(np.pi*a/180)*TuneMax[a]
+        if a==0:
+            TuneSum[a+8] = np.sum(sel_bins)
+
+############################    
+    if sum(TuneSum)==0:
+        DG_data = ({'IDX':0,'Tuning':TuneSum,'atune':0,'Rtune':0, 'rasters': np.zeros( (4,len(bins)) ),'counts':counts, 'maxcount':maxcount, 'bins':bins})
+        return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
+############################
+    VxS=VxS/np.amax(TuneSum) 
+    VyS=VyS/np.amax(TuneSum) 
+
+    TuneSum=TuneSum/np.amax(TuneSum)
+    atune = np.arctan2(VyS,VxS)
+    R = np.sqrt(VyS**2+VxS**2)
+   
+    angle = int(np.round(atune/np.pi*4 ))
+        
+    IDX = (TuneSum[:-1][angle]-TuneSum[:-1][int((angle+4)%8)])/(TuneSum[:-1][angle]+ TuneSum[:-1][int((angle+4)%8)])
+    if IDX<-0.2:
+        angle2=angle+1
+        IDX = (TuneSum[:-1][angle2]-TuneSum[:-1][int((angle2+4)%8)])/(TuneSum[:-1][angle2]+ TuneSum[:-1][int((angle2+4)%8)])
+        angle=angle2
+    if IDX<-0.2:
+        angle2=angle-2
+        IDX = (TuneSum[:-1][angle2]-TuneSum[:-1][int((angle2+4)%8)])/(TuneSum[:-1][angle2]+ TuneSum[:-1][int((angle2+4)%8)])
+        if IDX<-0.2: angle=angle+1
+        IDX = (TuneSum[:-1][angle]-TuneSum[:-1][int((angle+4)%8)])/(TuneSum[:-1][angle]+ TuneSum[:-1][int((angle+4)%8)])
+    
+    DG_data = ({'IDX':IDX,'Tuning':TuneSum,'atune':atune,'Rtune':R, 'rasters': ch_raster, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
+
+    ###########################################################
+    return TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data
+
+
+
+
+#############################################
+######            Clustering           ######
+#############################################
+
+def cell_selection_for_clustering(cells, CT_directory_path, selected_cells_sta=[], selected_cells_chirp=[]):
+    print("Selecting via STA ...")
+    if selected_cells_sta == []:
+        for cell_nb in tqdm(cells):
+            plt.figure(r"Current cell", figsize=(10,10))
+            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
+            plt.imshow(image[50:220,1330:1550])
+            plt.axis('off')
+            plt.show(block=False)
+            time.sleep(0.2)
+            if input("Keep cell {} for clustering using sta? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
+                selected_cells_sta += [cell_nb]
+                
+    print("List of selected cells using sta : ", selected_cells_sta)
+    print("Selecting via chirp ...")
+
+    if selected_cells_chirp == []:
+        for cell_nb in tqdm(cells):
+            plt.figure(r"Current cell", figsize=(50,100))
+            image = np.asarray(plt.imread(os.path.normpath(os.path.join(CT_directory_path,r'{}_Chirp_raster+STA.png'.format(cell_nb)))))
+            plt.imshow(image[:,:1350])
+            plt.show(block=False)
+            time.sleep(0.2)
+            if input("Keep cell {} for clustering using chirp? Type Yes to select as good : ".format(cell_nb)) in ["Y", "Yes", "y", "yes"]:
+                selected_cells_chirp += [cell_nb]
+    print("List of selected cells using chirp : ", selected_cells_chirp)
+    
+    selected_cells = [id for id in selected_cells_sta if id in selected_cells_chirp]
+    
+    return selected_cells, selected_cells_sta, selected_cells_chirp
+
 
 def plot_dendrogram(model, **kwargs):
     # Create linkage matrix and then plot the dendrogram
@@ -844,9 +1142,72 @@ def restrict_array(array, value_min, value_max):
     array = array[array<=value_max]
     return array.tolist()
 
+
+def correlate_PersonPM(cell1,cell2, max_shift=25):
+    assert max_shift<max(len(cell1),len(cell2))
+    center = np.corrcoef(cell1,cell2)[0,1]
+    right  = []
+    left   = []
+    for t in range(1,max_shift+1):
+        right.append(np.corrcoef(cell1[t:],cell2[:-t])[0,1]) 
+        left.append(np.corrcoef(cell1[:-max_shift+t-1],cell2[max_shift-t+1:])[0,1])
+    return np.asarray(left + [center] + right)
+
+
+def noise_and_stim_correlations(resp_cell1, resp_cell2, max_shift=25, shift_time_resolution=1):
+    """
+        Exactly the same as above but manually computed. Not in use.
+    """
+    #resp_cell should be of the form (nb_trials, nb_response points)
+    #THIS MIGHT HAVE NORMALIZATION PROBLEMS IN CASE OF CURRENTS!!!!
+    noise_corr=[]
+    stim_corr=[]
+   
+    for lag in range(-max_shift,max_shift+1,shift_time_resolution):
+        shifted_c2=np.roll(resp_cell2, lag, axis=0)
+       
+        V_1=((resp_cell1-resp_cell1.mean())**2).mean()
+        V_2=((shifted_c2-shifted_c2.mean())**2).mean()
+       
+        nc=( (resp_cell1 -  resp_cell1.mean(axis=0)) * (shifted_c2- shifted_c2.mean(axis=0)) ).mean()-np.sqrt(V_1*V_2)
+        noise_corr.append(nc)
+#         tot_corr=((resp_cell1-resp_cell1.mean())*(shifted_c2-shifted_c2.mean()) ).mean()/np.sqrt(V_1*V_2)
+#         sc=tot_corr-nc
+#         stim_corr.append(sc)
+#     return np.array(noise_corr), np.array(stim_corr)
+    return np.array(noise_corr)
+
+
+
 #############################################
 ######          ID card                ######
 #############################################
+
+def find_Analysis_Directory(dir_type="Checkerboard", output_directory = params.output_directory):
+    """
+        Automatically calls for the analysis folder using names defined in the pipeline :
+            - Checkerboard_Analysis_rec_i
+            - DG_Analysis_rec_i
+            - CellTyping_Analysis_rec_i
+            
+        dir_type should be either "Checkerboard", "DG", or "CellTyping"
+        
+        If severeal analysis has been done for the same type, you will have to input the one to select.
+    """
+    assert dir_type in ["Checkerboard", "DG", "CellTyping"]
+    dirs = sorted([os.path.splitext(f)[0] for f in os.listdir(output_directory) if not (os.path.isfile(os.path.join(output_directory, f))) and dir_type in f])
+    if len(dirs)==1:
+        analysis_directory = dirs[0]
+    elif len(dirs)>1:
+        print(f"\n Several {dir_type} analysis folder has been found :")
+        print(*['{} : {}'.format(i,dirs[i]) for i, recording_name in enumerate(dirs)], sep="\n")
+        analysis_directory = dirs[int(input(f"\n Select the {dir_type} directory to use : "))]
+        print(f"\n Selected folder : {analysis_directory} \n")
+    else:
+        assert len(dirs)>=1, (f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !")
+    
+    return os.path.normpath(os.path.join(output_directory,analysis_directory))
+
 
 def get_cell_rpvs(cells, phy_directory, rpv_len=2.0, fs=20000):
     
@@ -903,6 +1264,194 @@ def compute_refractory_period_violation(spike_times, duration=2.0, cell_nb=None)
         rpv = compute_number_of_rpv_spikes(spike_times, duration)/ float(nb_isis) *100
         return rpv
 
+    
+###########################################################
+###########          Analysis from vec          ###########
+###########################################################
+    
+    
+    
+def split_spikes_between_triggers(spike_train,triggers):
+    """
+Returns a list of spikes includes between 2 triggers in a row. Everything must be in sampling point or sec.
+    """
+    return [spike_train[(spike_train >= triggers[i]) & (spike_train < triggers[i + 1])] for i in range(len(triggers) - 1)]
+
+def get_sequences_triggers(triggers, vec):
+    """
+Spilt all triggers into dict of triggers from the same sequence using the keys provided in vec.
+Same key for the triggers means same sequence.
+
+Could be rewritten without the "defaultdict" trick
+    """
+    from collections import defaultdict
+    sequences = defaultdict(list)
+
+    keys = vec.astype(int).astype(str)
+    for key, trigger in zip(keys, triggers):
+        sequences[key].append(trigger)
+    
+    return dict(sequences) #this dictionnary has its keys ordered as the vec. !! CAUTION !! works for python > 3.7 only
+   
+    
+def get_spikes_sequences(spike_times, trig_seq):
+    """
+Read the first trigger of all sequence and group all spikes between each begining of sequence into a dict with
+sequence key as dict key and a list of spike times with the 0 at the begining of a sequence.
+    """
+    trigs=[[trig_list[0],trig_list[-1]+np.mean(np.diff(np.array(trig_list)))] for trig_list in trig_seq.values()]  #make a list of all first and last trig of each seq    
+    splited_spikes = [split_spikes_between_triggers(spike_times,seq_times)[0] for seq_times in trigs]
+    return dict(zip(trig_seq.keys(), splited_spikes))
+    
+    
+def spikeseq2raster(spikesequences, trig_seq):
+    """
+Makes a raster from a dictionnary of sequences splited with repetition. 
+Looks for the key to stack repetitions (last 2 digits of the key). Repetition number is not representative of when it has been played 
+    """
+    
+    from collections import defaultdict
+    rasters = defaultdict(list) #more compliant than dict. Allows you to either use an existing key or create it with empty list and than use it if missing.
+
+    for key in spikesequences.keys():
+        rasters[key[:-2]].append(spikesequences[key]-trig_seq[key][0])
+    return dict(rasters)
+
+def spikeseq2psth(raster, trig_seq, bin_size=0.025):
+    psth={}
+    for key in raster.keys():
+        n_rep = len(raster[key])
+        if key=='':
+            seq_range  = (0, trig_seq['0'][-1]-trig_seq['0'][0] + np.mean(np.diff(trig_seq['0'])))
+        else:
+            seq_range  = (0, trig_seq[key+'00'][-1]-trig_seq[key+'00'][0] + np.mean(np.diff(trig_seq[key+'00'])))
+
+        n_bin = int(seq_range[1]/bin_size)
+        binned_spike_count = np.zeros((n_rep, n_bin))
+        for i in range(n_rep):
+            binned_spike_count[i,:] = np.histogram(raster[key][i], bins=n_bin, range=seq_range   )[0]
+        psth[key] = np.sum(binned_spike_count, axis=0)/n_rep
+            
+    return psth
+
+def smooth(scalars: list[float], weight: float) -> list[float]:  # Weight between 0 and 1
+    """
+Function to smooth a 1D numpy array before plotting
+    """
+    last = scalars[0]  # First value in the plot (first timestep)
+    smoothed = list()
+    for point in scalars:
+        smoothed_val = last * weight + (1 - weight) * point  # Calculate smoothed value
+        smoothed.append(smoothed_val)                        # Save it
+        last = smoothed_val                                  # Anchor the last smoothed value
+        
+    return smoothed
+
+def reshape_dict(original_dict):
+    """
+This function allows you to reshape dictionnaries by reversing their keys. 
+If you have {Cell1 : {key1: data, key2: data}, Cell2 : {key1: data, key2: data}}
+you will get {key1 : {Cell1: data, Cell2: data}, key2 : {Cell1: data, Cell2: data}}
+    """
+    reshaped_dict = {}
+
+    for cell_number, seq_dict in original_dict.items():
+        for seq_number, data_dict in seq_dict.items():
+            if seq_number not in reshaped_dict:
+                reshaped_dict[seq_number] = {}
+            reshaped_dict[seq_number][cell_number] = data_dict
+
+    return reshaped_dict
+
+###########################################################
+###########          Registration Holo          ###########
+###########################################################
+
+# Functions
+def buildH(t_pre,s,t_post,r=0):
+    H_pre_translation = np.array([[1, 0, t_pre[1]],
+                                  [0, 1, t_pre[0]],
+                                  [0, 0,    1]])
+  
+                          
+    H_rotation = np.array([[cos(r),  -sin(r), 0],
+                          [sin(r),   cos(r), 0],
+                          [0,        0,      1]])
+    
+    H_scaling = np.array([[s[0], 0,   0],
+                          [0,   s[1], 0],
+                          [0,    0,   1]])
+    
+    H_post_translation = np.array([[1, 0, t_post[1]],
+                                   [0, 1, t_post[0]],
+                                   [0, 0, 1]])
+    return H_post_translation@H_rotation@H_scaling@H_pre_translation
 
 
+def transform_coordinates(coordinates, homography):
+    coordinates = np.append(coordinates, np.array([1]))
+    transformation = homography@coordinates.T
+    transformation = transformation / transformation[2]
+    transformed_coordinates = np.array(transformation[:2])
+    return transformed_coordinates
 
+
+def get_ellipse(parameters,factor=2):
+        
+    amplitude, x0, y0, sigma_x, sigma_y, theta = parameters
+    width = factor * 2.0 * sigma_x
+    height = factor * 2.0 * sigma_y
+
+    t = np.linspace(0, 2*np.pi, 360)
+    
+    Ell = np.array([sigma_x*np.cos(t) , sigma_y*np.sin(t)])
+    
+    R_rot = np.array([[np.cos(-np.deg2rad(theta)) , -np.sin(-np.deg2rad(theta))]
+                      ,[np.sin(-np.deg2rad(theta)) , np.cos(-np.deg2rad(theta))]])  
+    
+    Ell = np.dot(R_rot, Ell)
+    Ell[0,:] += x0
+    Ell[1,:] += y0
+    ell_size = np.abs(np.pi*width*height)
+    ell_meas = 1-min(width, height)/max(width, height)
+    
+    return Ell, ell_size, ell_meas
+
+def find_angle(a,b,c):
+    ba = a - b
+    bc = c - b
+
+    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+    angle = np.arccos(cosine_angle)
+    
+    return np.degrees(angle)
+
+def find_aligned_point(point, ellipse, sanity_check=True):
+    ellipse_center = np.mean(ellipse, axis=1)
+    index = 0
+
+    angle = 10000
+    
+    for i in range(360):
+        angle_temp = find_angle(point,ellipse_center, ellipse[:,i])
+        if angle_temp < angle:
+            angle = angle_temp
+            index = i
+            
+    closest_point = ellipse[:,index]
+            
+    if sanity_check:
+            
+        plt.figure()
+        plt.plot(ellipse[1],ellipse[0])
+        plt.scatter(ellipse_center[1],ellipse_center[0], marker='+')
+        plt.scatter(closest_point[1],closest_point[0], color="green")
+        plt.scatter(point[1],point[0], color='r')
+        
+            
+    return closest_point
+
+
+def compute_distance_between_points(point_1, point_2):
+    distance = np.linalg.norm(point_1 - point_2)
+    return distance

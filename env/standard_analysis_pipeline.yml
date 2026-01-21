@@ -1,0 +1,31 @@
+# Setup the conda virtual environment to run on GPU
+#
+# contact: laquitainesteeve@gmail.com
+# 
+# Requirements: 
+#
+#  - conda 23.3.1
+#
+# Move to the root of the repository and install:
+#
+# ```bash
+# conda env create -f env/standard_analysis_pipeline.yml --prefix env/standard_analysis_pipeline
+# conda activate env/standard_analysis_pipeline
+# ```
+# execution time < 1 min
+# 
+# Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K ＠3.2 GHz/5.8 GHz)
+
+name: env
+channels:
+    - conda-forge
+    - huggingface
+dependencies:
+    - Python=3.10.16
+    - ipykernel=7.1.0               # jupyter notebook
+    - matplotlib=3.10.8             # plotting
+    - scipy=1.15.2                  # scientific computing
+    - pylint=3.3.5                  # code linting
+    - black=24.10.0                 # improve readability
+    - tqdm=4.67.1
+    - spikeinterface==0.103.2       # for spike sorting
