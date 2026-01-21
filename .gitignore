@@ -1,4 +1,8 @@
 
+# virtual environment (contact: laquitainesteeve@gmail.com)
+standard_analysis_pipeline
+
+# otehrs
 __pycache__/
 
 .ipynb_checkpoints/
