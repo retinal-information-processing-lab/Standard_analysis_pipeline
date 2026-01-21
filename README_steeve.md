@@ -8,4 +8,5 @@ Major:
     - Fixed hard-coded paths in `import params`
 
 Minor:
-- move comment above code - not readable, particularly on small screen/mobile
+- move long comment above code - not readable, particularly on small screen/mobile
+- ok to keep very small ones on the side
