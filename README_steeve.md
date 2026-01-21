@@ -1,6 +1,9 @@
 
 # README-steeve
 
+
+Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
+
 Major: 
 
 - Added config for conda virtual environment.
@@ -10,7 +13,6 @@ Major:
     - refactored `import params`
         - moved params' variable to a dictionary -> more readable, editable
         - created small unnested functions to replace huge chunks of code -> more readable
-    
 
 Minor:
 
