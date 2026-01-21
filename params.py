@@ -168,7 +168,7 @@ basic_params = {
     "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND"
+        "03_DG_50Hz_50%30ND"
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
