@@ -544,7 +544,7 @@ def checkerboard_from_binary(nb_frames, nb_checks_x, nb_checks_y, checkerboard_f
     
     for frame in tqdm(range(nb_frames)):
         
-        image = np.zeros((nb_checks_x, nb_checks_y), dtype=np.float)
+        image = np.zeros((nb_checks_x, nb_checks_y), dtype=float)
         
         for row in range(nb_checks_x):
             for col in range(nb_checks_y):
