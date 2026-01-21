@@ -22,8 +22,9 @@ channels:
     - huggingface
 dependencies:
     - Python=3.10.16
-    - ipykernel                     # jupyter notebook
-    - matplotlib                    # plotting
-    - scipy                         # scientific computing
+    - ipykernel=7.1.0               # jupyter notebook
+    - matplotlib=3.10.8             # plotting
+    - scipy=1.15.2                  # scientific computing
     - pylint=3.3.5                  # code linting
     - black=24.10.0                 # improve readability
+    - tqdm=4.67.1
