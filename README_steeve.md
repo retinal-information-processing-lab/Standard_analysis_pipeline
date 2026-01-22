@@ -18,9 +18,11 @@ Major:
 - Cleaned up notebook `3-Drifting_Gratings.ipynb` 
     - in first cell: 
         - separate built-in from custom package -> we rarely have to debug built-in packages
+        - this should contain all paths, parameters input
     - refactored `import params`
         - moved params' variable to a dictionary -> more readable, editable
         - created small unnested functions to replace huge chunks of code -> more readable
+    - all functions should be moved to a .py module for versioning
 
 Minor:
 
