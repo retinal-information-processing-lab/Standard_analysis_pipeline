@@ -30,6 +30,25 @@ Minor:
 - move long comment above code - not readable, particularly on small screen/mobile
 - ok to keep very small ones on the side
 
+## Installation 
+
+### Setup the conda virtual environment
+
+TODO!: env/standard_analysis_pipeline.yml must be updated with all the dependencies
+
+Requirements: > conda 23.3.1
+
+Move to the root of the repository and install:
+
+```bash
+conda env create -f env/standard_analysis_pipeline.yml --prefix env/standard_analysis_pipeline
+conda activate env/standard_analysis_pipeline
+```
+
+Execution time < 1 min
+
+Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K ＠3.2 GHz/5.8 GHz)
+
 ## Unit-tests
 
 - Identified the utils.py functions used in Drifting gratings and checkerboard notebook
