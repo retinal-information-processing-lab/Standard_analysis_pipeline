@@ -163,12 +163,18 @@ def make_dict_keys_global_variables(params: dict):
 
 # setup experiment parameters (always check!)
 basic_params = {
-    "root": r"/home/steeve/Desktop/marre_hackathon/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "root": r"./data/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
     "exp": r"20251219_PulsingGratings_PupilSize",  # name of your experiment for saving the triggers
     "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "03_DG_50Hz_50%30ND"
+        "00_AccCheck_30Hz_16px_42sq_50%30ND",
+        "01_Swn_30Hz_48pxCh_6pxL_50%30ND",
+        "02_Chirp_50Hz_50%30ND",
+        "03_DG_50Hz_50%30ND", 
+        "04_PulsingGratings-PS0_40Hz_50%30ND",
+        "05_PulsingGratings-PS1_40Hz_50%30ND",
+        "06_PulsingGratings-PS2_40Hz_50%30ND",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
@@ -181,17 +187,17 @@ mea_params = {
 
 # create paths automatically (change only if your file organization is specific!)
 (
-    recording_directory,
+    recording_directory,            # Link to the actual raw files from the recording listed in the input_file
     symbolic_link_directory,
     sorting_directory,
     phy_directory,
-    output_directory,
-    triggers_directory,
+    output_directory,               # Directory where preprocessing info are saved
+    triggers_directory,             # folder in which the triggers are saved
     binary_source_path,
     raw_filtered_directory,
     registration_frames,
     registration_imgs,
-    recording_names,
+    recording_names,                # Recordings labels available
 ) = create_path_automatically(basic_params)
 
 # setup advanced parameters
@@ -202,7 +208,7 @@ advanced_params = {
     "nb_bytes_by_datapoint": 2,  # Size of a sample in bytes
     "time": 10,  # Time in s at the begining of the recording used to check recording type
     "maximal_jitter": 0.25e-3,  # Maximal error admissible in sec for time gap between triggers
-    "nb_frames_by_sequence": 1200,  # Checkerboard sequences
+    "nb_frames_by_sequence": 1200,  # Number of frames in each checkerboard sequence
     "sta_temporal_dimension": 40,  # number of frames to look in for the lag
     "sta_smooth_value": 0.8,
     "sta_treshold": 0.1,
@@ -218,7 +224,7 @@ most_advanced_params = {
     "nb_channels": 256,  # 256 for standard MEA, 17 for MEA1 Polychrome
     "holo_channel_id": 127,  # MEA channel id containing holographic triggers trace
     "visual_channel_id": 126,
-    "fs": 20000,  # number of triggers samples acquired per second
+    "fs": 20000,  # number of triggers samples acquired per second (Sampling frequency of the MEA)
     "time_after": 10,  # Time (ms) before a trigger to remove from the spyking circus analysis due to photo induced current on mea
     "time_before": 10,  # Time (ms) after a trigger to remove  from the spyking circus analysis due to photo induced current on mea
     "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
