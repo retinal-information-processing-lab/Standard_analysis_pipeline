@@ -163,12 +163,18 @@ def make_dict_keys_global_variables(params: dict):
 
 # setup experiment parameters (always check!)
 basic_params = {
-    "root": r"/home/steeve/Desktop/marre_hackathon/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "root": r"/media/joci/Back_up1/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
     "exp": r"20251219_PulsingGratings_PupilSize",  # name of your experiment for saving the triggers
     "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "03_DG_50Hz_50%30ND"
+        "00_AccCheck_30Hz_16px_42sq_50%30ND",
+        "01_Swn_30Hz_48pxCh_6pxL_50%30ND",
+        "02_Chirp_50Hz_50%30ND",
+        "03_DG_50Hz_50%30ND",
+        "04_PulsingGratings-PS0_40Hz_50%30ND",
+        "05_PulsingGratings-PS1_40Hz_50%30ND",
+        "06_PulsingGratings-PS2_40Hz_50%30ND"
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
