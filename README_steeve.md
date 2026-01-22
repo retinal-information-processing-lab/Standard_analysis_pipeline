@@ -27,7 +27,11 @@ Clean up:
 
 Unit-testing:
 - Identified the utils functions used in Drifting gratings and checkerboard notebook
-
+    - Drifting gratings notebook:
+        - load_obj
+        - compute_tuning
+        - save_obj
+    - checkerboard notebook
 
 Minor:
 
