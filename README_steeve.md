@@ -4,7 +4,7 @@
 
 Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 
-## Issues
+## Refactoring
 
 - Large chunks of code 
     - very hard to debug -> refactor code to make readable, understandable.
@@ -15,20 +15,20 @@ Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 Major: 
 
 Clean up:
+
 - Added config for conda virtual environment.
 - Cleaned up notebook `3-Drifting_Gratings-dev.ipynb` and `2-Analyse_Checker...-dev.ipynb` 
-    - in first cell: 
-        - separate built-in from custom package -> we rarely have to debug built-in packages
-        - this should contain all paths, parameters input
     - refactored `import params`
         - moved params' variable to a dictionary -> more readable, editable
         - created small unnested functions to replace huge chunks of code -> more readable
-    - all functions should be moved to a .py module for versioning
+    - in first cell: 
+        - separate built-in from custom package -> we rarely have to debug built-in packages
+        - ideally should contain all paths, parameters input
+    - I moved notebook functions to a .py module for versioning
 
 Minor:
 
-- move long comment above code - not readable, particularly on small screen/mobile
-- ok to keep very small ones on the side
+- move long comment above code - hard to read on small screen
 
 ## Installation 
 
@@ -79,6 +79,6 @@ Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K 
 ## Recommendations:
 
 - Experimentalist-only can interact with notebooks in a notebooks_for_experimentalist/ folder.
-    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate
-    - they can never modify utils.py; if they do they should not be allowed to push to the master branch.
-- Dev can interact with the entire codebase
+    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate their work.
+    - they cannot push to the develop , nor main if they modify .py modules.
+- Dev. can interact with the entire codebase.
