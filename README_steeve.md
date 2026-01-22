@@ -1,34 +1,10 @@
-
 # README-steeve
 
+List of completed tasks.
+
+## Test dataset used
 
 Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
-
-## Issues
-
-- Large chunks of code 
-    - very hard to debug -> refactor code to make readable, understandable.
-    - notebook too long -> endless scrolling
-- Control of the variables in the environment at anytime must be improved.
-- The code must be modularized for tested/validation/debugging/sharing.
-
-Major: 
-
-Clean up:
-- Added config for conda virtual environment.
-- Cleaned up notebook `3-Drifting_Gratings-dev.ipynb` and `2-Analyse_Checker...-dev.ipynb` 
-    - in first cell: 
-        - separate built-in from custom package -> we rarely have to debug built-in packages
-        - this should contain all paths, parameters input
-    - refactored `import params`
-        - moved params' variable to a dictionary -> more readable, editable
-        - created small unnested functions to replace huge chunks of code -> more readable
-    - all functions should be moved to a .py module for versioning
-
-Minor:
-
-- move long comment above code - not readable, particularly on small screen/mobile
-- ok to keep very small ones on the side
 
 ## Installation 
 
@@ -49,18 +25,47 @@ Execution time < 1 min
 
 Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K ＠3.2 GHz/5.8 GHz)
 
+
+## Basic refactoring
+
+- Large chunks of code 
+    - very hard to debug -> refactor code to make readable, understandable.
+    - notebook too long -> endless scrolling
+    - Use functions:
+        - have control of the variables in the environment at anytime.
+        - modular
+        - enables testing/validation/debugging/sharing.
+
+- Clean up:
+    - Added .yml config. for conda virtual environment.
+    - Refactored `import params`:
+        - moved params' variable to a dictionary -> more readable, editable
+        - created small un-nested functions to replace huge chunks of code -> more readable    
+    - Cleaned up notebook 
+        - `3-Drifting_Gratings_steeve.ipynb`
+        - `2-Analyse_Checkerboard_steeve.ipynb` 
+        - in first cell: 
+            - separate built-in from custom package -> we rarely have to debug built-in packages
+            - ideally should contain all paths, parameters input
+        - moved notebook functions to associated .py module to enable versioning
+    - Create associated modules: 
+        - `drifting_gratings_steeve.py`
+        - `analyse_checkerboard_steeve.py`
+    - move long comments on top of code - else, hard to read on small screen
+
+
 ## Unit-tests
 
-- Identified the utils.py functions used in Drifting gratings and checkerboard notebook
-    - load_obj 
+- Identified the utils.py functions used in Drifting gratings and checkerboard notebooks
+    - `load_obj`
         - Drifting gratings [DONE]
         - Checkerboard
     - compute_tuning
         - Drifting gratings
-    - save_obj [TODO]-w/ Chiara
+    - `save_obj` [DONE]-w/ Chiara
         - Drifting gratings
         - Checkerboard    
-    - get_recording_spikes [TODO]-w/ Chiara
+    - `get_recording_spikes` [DONE]-w/ Chiara
        - Checkerboard    
     - extract_from_sequence [TODO] - requires logic
         - Checkerboard    
@@ -74,11 +79,18 @@ Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K 
         - Checkerboard    
     - analyse_sta [TODO] - requires logic
         - Checkerboard    
-    
+
+- Setup pytest testing in `tests/test_utils.py`
+
+## Branches
+
+- This is pushed on a `"Develop"` branch from which the dev can collaborate
+- Devs create their feature branches from "Develop" and pull request/solve conflicts when done.
+- At the end, we can automate Github launching of automated testing for Pull requests from "Develop" to "Master".
 
 ## Recommendations:
 
-- Experimentalist-only can interact with notebooks in a notebooks_for_experimentalist/ folder.
-    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate
-    - they can never modify utils.py; if they do they should not be allowed to push to the master branch.
-- Dev can interact with the entire codebase
+- Experimentalist-only can only interact with notebooks in a notebooks_for_experimentalist/ folder.
+    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate their work.
+    - they cannot push to the develop , nor main if they modify .py modules.
+- Dev. can interact with the entire codebase.
