@@ -37,16 +37,24 @@ Minor:
         - Drifting gratings
         - Checkerboard
     - compute_tuning
+        - Drifting gratings
     - save_obj
         - Drifting gratings
         - Checkerboard    
     - get_recording_spikes
-        - Drifting gratings
+       - Checkerboard    
     - extract_from_sequence
-        - Drifting gratings
+        - Checkerboard    
     - compute_3D_sta
-        - Drifting gratings
-    save_obj
+        - Checkerboard    
+    - analyse_sta_tom
+        - Checkerboard    
+    - analyse_sta_matias
+        - Checkerboard    
+    - analyse_sta_gab
+        - Checkerboard    
+    - analyse_sta
+        - Checkerboard    
     
 
 ## Recommendations:
