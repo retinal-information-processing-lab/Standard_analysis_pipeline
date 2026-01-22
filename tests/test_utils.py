@@ -14,7 +14,7 @@ Requirements:
 """
 import os
 import pytest
-import utils_drifting_gratings as utils
+import utils
 import pickle 
 import tempfile
 import shutil
