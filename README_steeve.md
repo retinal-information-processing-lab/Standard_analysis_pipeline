@@ -33,33 +33,33 @@ Minor:
 ## Unit-tests
 
 - Identified the utils.py functions used in Drifting gratings and checkerboard notebook
-    - load_obj
-        - Drifting gratings
+    - load_obj 
+        - Drifting gratings [DONE]
         - Checkerboard
     - compute_tuning
         - Drifting gratings
-    - save_obj
+    - save_obj [TODO]-w/ Chiara
         - Drifting gratings
         - Checkerboard    
-    - get_recording_spikes
+    - get_recording_spikes [TODO]-w/ Chiara
        - Checkerboard    
-    - extract_from_sequence
+    - extract_from_sequence [TODO] - requires logic
         - Checkerboard    
-    - compute_3D_sta
+    - compute_3D_sta [TODO] - requires logic
         - Checkerboard    
-    - analyse_sta_tom
+    - analyse_sta_tom [TODO] - requires logic
         - Checkerboard    
-    - analyse_sta_matias
+    - analyse_sta_matias [TODO] - requires logic
         - Checkerboard    
-    - analyse_sta_gab
+    - analyse_sta_gab [TODO] - requires logic
         - Checkerboard    
-    - analyse_sta
+    - analyse_sta [TODO] - requires logic
         - Checkerboard    
     
 
 ## Recommendations:
 
-- Experimentalist-only should only interact with notebooks in a notebooks_for_experimentalist/ folder.
-    - they can copy paste functions from utils to their notebooks
+- Experimentalist-only can interact with notebooks in a notebooks_for_experimentalist/ folder.
+    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate
     - they can never modify utils.py; if they do they should not be allowed to push to the master branch.
 - Dev can interact with the entire codebase
