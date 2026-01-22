@@ -1,5 +1,8 @@
-
 # README-steeve
+
+List of completed tasks.
+
+## Test dataset used
 
 Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 
@@ -38,26 +41,31 @@ Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K 
     - Refactored `import params`:
         - moved params' variable to a dictionary -> more readable, editable
         - created small un-nested functions to replace huge chunks of code -> more readable    
-    - Cleaned up notebook `3-Drifting_Gratings-dev.ipynb` and `2-Analyse_Checker...-dev.ipynb` 
+    - Cleaned up notebook 
+        - `3-Drifting_Gratings_steeve.ipynb`
+        - `2-Analyse_Checkerboard_steeve.ipynb` 
         - in first cell: 
             - separate built-in from custom package -> we rarely have to debug built-in packages
             - ideally should contain all paths, parameters input
         - moved notebook functions to associated .py module to enable versioning
+    - Create associated modules: 
+        - `drifting_gratings_steeve.py`
+        - `analyse_checkerboard_steeve.py`
     - move long comments on top of code - else, hard to read on small screen
 
 
 ## Unit-tests
 
 - Identified the utils.py functions used in Drifting gratings and checkerboard notebooks
-    - load_obj 
+    - `load_obj`
         - Drifting gratings [DONE]
         - Checkerboard
     - compute_tuning
         - Drifting gratings
-    - save_obj [DONE]-w/ Chiara
+    - `save_obj` [DONE]-w/ Chiara
         - Drifting gratings
         - Checkerboard    
-    - get_recording_spikes [DONE]-w/ Chiara
+    - `get_recording_spikes` [DONE]-w/ Chiara
        - Checkerboard    
     - extract_from_sequence [TODO] - requires logic
         - Checkerboard    
@@ -72,11 +80,11 @@ Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K 
     - analyse_sta [TODO] - requires logic
         - Checkerboard    
 
-- Setup pytest testing in tests/test_utils.py
+- Setup pytest testing in `tests/test_utils.py`
 
 ## Branches
 
-- This is pushed on a "Develop" branch from which the dev can collaborate
+- This is pushed on a `"Develop"` branch from which the dev can collaborate
 - Devs create their feature branches from "Develop" and pull request/solve conflicts when done.
 - At the end, we can automate Github launching of automated testing for Pull requests from "Develop" to "Master".
 
