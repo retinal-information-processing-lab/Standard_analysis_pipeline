@@ -33,3 +33,11 @@ Minor:
 
 - move long comment above code - not readable, particularly on small screen/mobile
 - ok to keep very small ones on the side
+
+
+Recommendations:
+
+- Experimentalist-only should only interact with notebooks in a notebooks_for_experimentalist/ folder.
+    - they can copy paste functions from utils to their notebooks
+    - they can never modify utils.py; if they do they should not be allowed to push to the master branch.
+- Dev can interact with the entire codebase
