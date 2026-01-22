@@ -187,17 +187,17 @@ mea_params = {
 
 # create paths automatically (change only if your file organization is specific!)
 (
-    recording_directory,
+    recording_directory,            # Link to the actual raw files from the recording listed in the input_file
     symbolic_link_directory,
     sorting_directory,
     phy_directory,
-    output_directory,
-    triggers_directory,
+    output_directory,               # Directory where preprocessing info are saved
+    triggers_directory,             # folder in which the triggers are saved
     binary_source_path,
     raw_filtered_directory,
     registration_frames,
     registration_imgs,
-    recording_names,
+    recording_names,                # Recordings labels available
 ) = create_path_automatically(basic_params)
 
 # setup advanced parameters
@@ -208,7 +208,7 @@ advanced_params = {
     "nb_bytes_by_datapoint": 2,  # Size of a sample in bytes
     "time": 10,  # Time in s at the begining of the recording used to check recording type
     "maximal_jitter": 0.25e-3,  # Maximal error admissible in sec for time gap between triggers
-    "nb_frames_by_sequence": 1200,  # Checkerboard sequences
+    "nb_frames_by_sequence": 1200,  # Number of frames in each checkerboard sequence
     "sta_temporal_dimension": 40,  # number of frames to look in for the lag
     "sta_smooth_value": 0.8,
     "sta_treshold": 0.1,
@@ -224,7 +224,7 @@ most_advanced_params = {
     "nb_channels": 256,  # 256 for standard MEA, 17 for MEA1 Polychrome
     "holo_channel_id": 127,  # MEA channel id containing holographic triggers trace
     "visual_channel_id": 126,
-    "fs": 20000,  # number of triggers samples acquired per second
+    "fs": 20000,  # number of triggers samples acquired per second (Sampling frequency of the MEA)
     "time_after": 10,  # Time (ms) before a trigger to remove from the spyking circus analysis due to photo induced current on mea
     "time_before": 10,  # Time (ms) after a trigger to remove  from the spyking circus analysis due to photo induced current on mea
     "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
