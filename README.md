@@ -43,3 +43,11 @@ The analysis of this pipeline are nice and most of all are free. Take advantage 
 ## Tests
 
 The notebooks were tested on the 20251219_PulsingGratings_PupilSize dataset.
+
+Run unit-tests with:
+
+```bash
+pytest
+```
+
+Update unit-tests in tests/test_utils.py
