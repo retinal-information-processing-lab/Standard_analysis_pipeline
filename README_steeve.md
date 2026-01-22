@@ -6,7 +6,9 @@ Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 
 Issues:
 
-- Large chunks of code - very hard to debug -> refactor code to make readable, understandable.
+- Large chunks of code 
+    - very hard to debug -> refactor code to make readable, understandable.
+    - notebook too long -> endless scrolling
 - Control of the variables in the environment at anytime must be improved.
 - The code must be modularized for tested/validation/debugging/sharing.
 
