@@ -4,7 +4,7 @@
 
 Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 
-# Issues
+## Issues
 
 - Large chunks of code 
     - very hard to debug -> refactor code to make readable, understandable.
@@ -16,7 +16,7 @@ Major:
 
 Clean up:
 - Added config for conda virtual environment.
-- Cleaned up notebook `3-Drifting_Gratings.ipynb` and `2-Analyse_Cheker....ipynb` 
+- Cleaned up notebook `3-Drifting_Gratings-dev.ipynb` and `2-Analyse_Checker...-dev.ipynb` 
     - in first cell: 
         - separate built-in from custom package -> we rarely have to debug built-in packages
         - this should contain all paths, parameters input
@@ -30,7 +30,7 @@ Minor:
 - move long comment above code - not readable, particularly on small screen/mobile
 - ok to keep very small ones on the side
 
-# Unit-tests
+## Unit-tests
 
 - Identified the utils.py functions used in Drifting gratings and checkerboard notebook
     - load_obj
@@ -49,8 +49,7 @@ Minor:
     save_obj
     
 
-
-Recommendations:
+## Recommendations:
 
 - Experimentalist-only should only interact with notebooks in a notebooks_for_experimentalist/ folder.
     - they can copy paste functions from utils to their notebooks
