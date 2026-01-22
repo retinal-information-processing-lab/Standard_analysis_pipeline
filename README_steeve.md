@@ -4,7 +4,7 @@
 
 Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
 
-Issues:
+# Issues
 
 - Large chunks of code 
     - very hard to debug -> refactor code to make readable, understandable.
@@ -25,18 +25,29 @@ Clean up:
         - created small unnested functions to replace huge chunks of code -> more readable
     - all functions should be moved to a .py module for versioning
 
-Unit-testing:
-- Identified the utils functions used in Drifting gratings and checkerboard notebook
-    - Drifting gratings notebook:
-        - load_obj
-        - compute_tuning
-        - save_obj
-    - checkerboard notebook
-
 Minor:
 
 - move long comment above code - not readable, particularly on small screen/mobile
 - ok to keep very small ones on the side
+
+# Unit-tests
+
+- Identified the utils.py functions used in Drifting gratings and checkerboard notebook
+    - load_obj
+        - Drifting gratings
+        - Checkerboard
+    - compute_tuning
+    - save_obj
+        - Drifting gratings
+        - Checkerboard    
+    - get_recording_spikes
+        - Drifting gratings
+    - extract_from_sequence
+        - Drifting gratings
+    - compute_3D_sta
+        - Drifting gratings
+    save_obj
+    
 
 
 Recommendations:
