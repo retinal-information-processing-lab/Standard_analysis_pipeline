@@ -14,8 +14,9 @@ Issues:
 
 Major: 
 
+Clean up:
 - Added config for conda virtual environment.
-- Cleaned up notebook `3-Drifting_Gratings.ipynb` 
+- Cleaned up notebook `3-Drifting_Gratings.ipynb` and `2-Analyse_Cheker....ipynb` 
     - in first cell: 
         - separate built-in from custom package -> we rarely have to debug built-in packages
         - this should contain all paths, parameters input
@@ -23,6 +24,10 @@ Major:
         - moved params' variable to a dictionary -> more readable, editable
         - created small unnested functions to replace huge chunks of code -> more readable
     - all functions should be moved to a .py module for versioning
+
+Unit-testing:
+- Identified the utils functions used in Drifting gratings and checkerboard notebook
+
 
 Minor:
 
