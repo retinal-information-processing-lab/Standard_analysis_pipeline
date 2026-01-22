@@ -1,5 +1,12 @@
 """unit-tests
 
+author: laquitainesteeve@gmail.com 
+
+Usage:
+
+    # run in git root repository
+    pytest 
+
 Requirements:
 
 - 'data/20251219_PulsingGratings_PupilSize/Analysis/triggers/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl'
