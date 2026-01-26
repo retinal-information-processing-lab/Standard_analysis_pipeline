@@ -23,28 +23,8 @@ import utils
 # EXPERIMENTAL SETUP
 # ==============================================================================
 
-def prompt_user_for_recording(params: dict) -> int:
-    """
-    Display available recordings and prompt user to select one.
-    
-    Args:
-        params: Dictionary containing experiment parameters with 'recording_names' key
-        
-    Returns:
-        Selected recording number as integer
-    """
-    print('Which of the following is the checkerboard: ')
-    for num, rec in enumerate(params.recording_names):
-        print(f'\t{num} --> {rec}')
-    
-    recording_number = int(input('Checkerboard number : '))
-    params.checkerboard_name = params.recording_names[recording_number]
-    print(f'Selected recording: {params.checkerboard_name}\n')
-    
-    return recording_number
 
-
-def prompt_user_for_stimulus_params() -> tuple[int, int, int]:
+def prompt_user_for_checkerboard_params() -> tuple[int, int, int]:
     """
     Prompt user for stimulus parameters.
     
@@ -58,28 +38,7 @@ def prompt_user_for_stimulus_params() -> tuple[int, int, int]:
     return stimulus_frequency, nb_checks_x, nb_checks_y
 
 
-def create_analysis_directory(params: dict, recording_number: int) -> str:
-    """
-    Create directory for checkerboard analysis output.
-    
-    Args:
-        params: Dictionary containing 'output_directory' key
-        recording_number: Recording number for directory naming
-        
-    Returns:
-        Path to created directory
-    """
-    check_directory = os.path.normpath(
-        os.path.join(params.output_directory, f'Checkerboard_Analysis_rec_{recording_number}')
-    )
-    
-    if not os.path.isdir(check_directory):
-        os.makedirs(check_directory)
-    
-    return check_directory
-
-
-def get_inputs(params: dict) -> tuple[int, int, int, int, str]:
+def get_all_inputs_for_checkerboard_analysis(params: dict) -> tuple[int, int, int, int, str]:
     """
     Get all input parameters for checkerboard experiment analysis.
     
@@ -99,9 +58,9 @@ def get_inputs(params: dict) -> tuple[int, int, int, int, str]:
             - nb_checks_y: Number of checkerboard squares in y dimension
             - check_directory: Path to analysis output directory
     """
-    recording_number = prompt_user_for_recording(params)
-    stimulus_frequency, nb_checks_x, nb_checks_y = prompt_user_for_stimulus_params()
-    check_directory = create_analysis_directory(params, recording_number)
+    recording_number, recording_name = utils.prompt_user_for_recording(params, "checkerboard")
+    stimulus_frequency, nb_checks_x, nb_checks_y = prompt_user_for_checkerboard_params()
+    check_directory = utils.create_analysis_directory(params.output_directory, recording_number, "Checkerboard")
     
     return recording_number, stimulus_frequency, nb_checks_x, nb_checks_y, check_directory
 
@@ -109,46 +68,6 @@ def get_inputs(params: dict) -> tuple[int, int, int, int, str]:
 # ==============================================================================
 # DATA LOADING
 # ==============================================================================
-
-def load_triggers(params: dict) -> tuple[np.ndarray, dict]:
-    """
-    Load trigger data from saved file.
-    
-    Args:
-        params: Dictionary with 'triggers_directory', 'exp', and 'checkerboard_name'
-        
-    Returns:
-        Tuple of (triggers array, triggers_data dict)
-    """
-    triggers_file = os.path.normpath(os.path.join(
-        params.triggers_directory,
-        f"{params.exp}_{params.checkerboard_name}_triggers.pkl"
-    ))
-    triggers_data = utils.load_obj(triggers_file)
-    triggers = triggers_data['indices'] / params.fs
-    
-    return triggers, triggers_data
-
-
-def load_spike_data(params: dict) -> tuple[dict, list]:
-    """
-    Load spike data for checkerboard recording.
-    
-    Args:
-        params: Dictionary with experiment parameters
-        
-    Returns:
-        Tuple of (checkerboard_spikes dict, cells_id list)
-    """
-    neurons_file = os.path.normpath(os.path.join(
-        params.output_directory,
-        f'{params.exp}_fullexp_neurons_data.pkl'
-    ))
-    all_recs_spikes = utils.load_obj(neurons_file)
-    checkerboard_spikes = utils.get_recording_spikes(params.checkerboard_name, all_recs_spikes)
-    cells_id = list(checkerboard_spikes.keys())
-    
-    return checkerboard_spikes, cells_id
 
 
 def calculate_experiment_stats(triggers_data: dict, triggers: np.ndarray, params: dict, 
@@ -177,7 +96,7 @@ def calculate_experiment_stats(triggers_data: dict, triggers: np.ndarray, params
     return nb_repeats, duration_sequence
 
 
-def load_or_create_stimulus(nb_repeats: int, nb_checks_x: int, nb_checks_y: int,
+def load_or_create_checkerboard_stimulus(nb_repeats: int, nb_checks_x: int, nb_checks_y: int,
                             check_directory: str, params: dict) -> np.ndarray:
     """
     Load existing stimulus array or create new one.
@@ -203,7 +122,7 @@ def load_or_create_stimulus(nb_repeats: int, nb_checks_x: int, nb_checks_y: int,
         checkerboard = np.load(stimulus_path)
     else:
         print("Reconstructing the stimulus...")
-        checkerboard = checkerboard_from_binary(
+        checkerboard = utils.checkerboard_from_binary(
             nb_frames, nb_checks_x, nb_checks_y,
             checkerboard_file=stimulus_path,
             binary_source_path=params.binary_source_path
@@ -235,10 +154,10 @@ def load_checkerboard_experiment_data(params: dict, check_directory: str,
             - cells_id: List of cell IDs
             - checkerboard: Stimulus array
     """
-    triggers, triggers_data = load_triggers(params)
-    checkerboard_spikes, cells_id = load_spike_data(params)
+    triggers, triggers_data = utils.load_triggers(params, params.checkerboard_name)
+    cells_id, checkerboard_spikes = utils.load_spike_trains(params, params.checkerboard_name)
     nb_repeats, _ = calculate_experiment_stats(triggers_data, triggers, params, stimulus_frequency)
-    checkerboard = load_or_create_stimulus(nb_repeats, nb_checks_x, nb_checks_y, check_directory, params)
+    checkerboard = load_or_create_checkerboard_stimulus(nb_repeats, nb_checks_x, nb_checks_y, check_directory, params)
     
     print(f'Total : {len(checkerboard_spikes.keys())} neurons loaded\n\nClusters id :\n{cells_id}\n')
     
@@ -248,31 +167,6 @@ def load_checkerboard_experiment_data(params: dict, check_directory: str,
 # ==============================================================================
 # RASTER ANALYSIS
 # ==============================================================================
-
-def compute_rasters(checkerboard_spikes: dict, triggers: np.ndarray, 
-                   nb_repeats: int, stimulus_frequency: int) -> dict:
-    """
-    Compute raster data for all cells.
-    
-    Args:
-        checkerboard_spikes: Dict mapping cell IDs to spike times
-        triggers: Array of trigger times
-        nb_repeats: Number of stimulus repetitions
-        stimulus_frequency: Stimulus frequency in Hz
-        
-    Returns:
-        Dictionary mapping cell IDs to raster data
-    """
-    print('Computing rasters...')
-    raster_data = {}
-    
-    for cell_id, spike_times in tqdm(checkerboard_spikes.items()):
-        raster_data[cell_id] = utils.extract_from_sequence(
-            spike_times, triggers, nb_repeats, stim_frequency=stimulus_frequency
-        )
-    
-    return raster_data
-
 
 def create_raster_grid(cells_id: list) -> tuple:
     """
