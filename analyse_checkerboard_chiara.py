@@ -1,13 +1,6 @@
 """Module of functions for the checkerboard analysis
 
-contact: laquitainesteeve@gmail.com
-"""
-
-"""
-Checkerboard experiment analysis module.
-
-This module provides functions for analyzing neuronal responses to checkerboard
-visual stimuli, including spike-triggered averages and receptive field mapping.
+boscarino.idv@gmail.com
 """
 
 import os
@@ -17,6 +10,7 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 from tqdm import tqdm
 import utils
+
 
 
 # ==============================================================================
@@ -686,3 +680,18 @@ def plot_sta_fitted_with_ellipse_by_tom(raster_data: dict, cells_id: list,
         
         plt.clf()
         plt.close(fig)
+
+
+
+def main():
+
+    import params
+    # ask user to input the experiment parameters
+    # e.g., for the test dataset enter inputs: 0, 30, 42, 42
+    recording_number, stimulus_frequency, nb_checks_x, nb_checks_y, check_directory = get_inputs(params)
+
+    # load checkerboard experiment data
+    checkerboard_spikes, triggers, nb_repeats, cells_id, checkerboard = load_checkerboard_experiment_data(params, check_directory, nb_checks_x, nb_checks_y, stimulus_frequency) 
+    
+if __name__ == "__main__":
+    main()
