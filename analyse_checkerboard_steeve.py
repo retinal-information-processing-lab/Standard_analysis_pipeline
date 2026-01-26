@@ -129,7 +129,7 @@ def load_checkerboard_experiment_data(params: dict, check_directory:str,
     else:
         # else save
         print("Reconstructing the stimulus...")
-        checkerboard = checkerboard_from_binary(
+        checkerboard = utils.checkerboard_from_binary(
             nb_frames, nb_checks_x, nb_checks_y, 
             checkerboard_file=stimulus_path, 
             binary_source_path=params.binary_source_path
@@ -410,7 +410,7 @@ def plot_sta_fitted_with_ellipse(cells_id, cells_to_plot:list, check_directory:s
         ax.set(title = "Fitted Ellipse")
 
         try:
-            ax = plot_sta(ax, sta['Spatial'], sta['EllipseCoor'])
+            ax = utils.plot_sta(ax, sta['Spatial'], sta['EllipseCoor'])
         except:
             ax.imshow(sta_data[cell_id]["center_analyse"]['Spatial'])
 
@@ -451,7 +451,7 @@ def plot_sta_fitted_with_ellipse_by_tom(raster_data, cells_id, cells_to_plot:lis
         ax.set(title = "Fitted Ellipse")
 
         try:
-            ax = plot_sta_tom(ax, sta['Spatial'],sta['EllipseCoor'])
+            ax = utils.plot_sta_tom(ax, sta['Spatial'],sta['EllipseCoor'])
         except: 
             ax.imshow(sta_data[cell_id]["center_analyse"]['Spatial'])
 
