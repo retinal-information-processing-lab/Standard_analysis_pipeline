@@ -1,5 +1,4 @@
-"""Module of functions for the drifting gratings analysis
-"""
+"""Module of functions for the drifting gratings analysis"""
 
 """
 Drifting Gratings (DG) analysis module
@@ -28,6 +27,7 @@ import utils
 # Loading utilities
 # ==========================
 
+
 def prompt_user_for_dg_speed():
     """
     Prompt user to select drifting grating speed.
@@ -53,6 +53,7 @@ def prompt_user_for_dg_speed():
         return 12, 20, 50 * 12, "SLOW"
 
     raise ValueError("Invalid grating speed selection.")
+
 
 def get_all_inputs_for_dg_analysis(params):
     """
@@ -87,7 +88,9 @@ def get_all_inputs_for_dg_analysis(params):
         Output directory for DG analysis.
     """
     rec_idx, rec = utils.prompt_user_for_recording(params, "DG recording")
-    DG_directory = utils.create_analysis_directory(params.output_directory, rec_idx, "DG")
+    DG_directory = utils.create_analysis_directory(
+        params.output_directory, rec_idx, "DG"
+    )
 
     seq_len, seq_sep, trigsinrep, _ = prompt_user_for_dg_speed()
     stim_onsets, _ = utils.load_triggers(params, rec)
@@ -100,6 +103,7 @@ def get_all_inputs_for_dg_analysis(params):
 # Raster computation
 # ==========================
 
+
 def get_dg_sequence():
     """
     Return drifting grating angle sequence.
@@ -109,15 +113,45 @@ def get_dg_sequence():
     np.ndarray
         Angle indices (0–7) for 32 gratings.
     """
-    DG_seq = [0, 1, 2, 3, 4, 5, 6, 7,
-              4, 1, 5, 2, 0, 3, 7, 6,
-              1, 4, 0, 3, 2, 5, 6, 7,
-              5, 2, 3, 6, 1, 4, 7, 0]
+    DG_seq = [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        4,
+        1,
+        5,
+        2,
+        0,
+        3,
+        7,
+        6,
+        1,
+        4,
+        0,
+        3,
+        2,
+        5,
+        6,
+        7,
+        5,
+        2,
+        3,
+        6,
+        1,
+        4,
+        7,
+        0,
+    ]
 
     return (np.ones(32) * 7 - DG_seq).astype(int)
 
 
-def compute_rep_starts(stim_onsets, trigsinrep):
+def compute_dg_rep_starts(stim_onsets, trigsinrep):
     """
     Compute stimulus repetition start times.
 
@@ -171,18 +205,15 @@ def build_ch_raster(spike_times, dg_rep_starts, DG_seq, seq_len, seq_sep):
         angle = DG_seq[n]
         rep = dg_count[angle]
 
-        ch_raster[rep] = np.append(
-            ch_raster[rep],
-            rep_sptimes - t0 + angle * seq_sep
-        )
+        ch_raster[rep] = np.append(ch_raster[rep], rep_sptimes - t0 + angle * seq_sep)
         dg_count[angle] += 1
 
     return ch_raster
 
 
-def compute_dg_rasters(cells, spike_times, stim_onsets,
-                       trigsinrep, seq_len, seq_sep,
-                       DG_directory, params):
+def compute_dg_rasters(
+    cells, spike_times, stim_onsets, trigsinrep, seq_len, seq_sep, DG_directory, params
+):
     """
     Compute drifting grating rasters and tuning metrics.
 
@@ -210,12 +241,11 @@ def compute_dg_rasters(cells, spike_times, stim_onsets,
     DG_seq = get_dg_sequence()
     DG_set = {}
 
-    dg_rep_starts = compute_rep_starts(stim_onsets, trigsinrep)
+    dg_rep_starts = compute_dg_rep_starts(stim_onsets, trigsinrep)
 
     for i, clus in enumerate(tqdm(cells, desc="Computing Direction Selectivity")):
         ch_raster = build_ch_raster(
-            spike_times[i], dg_rep_starts,
-            DG_seq, seq_len, seq_sep
+            spike_times[i], dg_rep_starts, DG_seq, seq_len, seq_sep
         )
 
         if not list(itertools.chain(*ch_raster)):
@@ -223,22 +253,136 @@ def compute_dg_rasters(cells, spike_times, stim_onsets,
 
         base_fire = 0  # baseline firing rate (not estimated here)
 
-        (TuneSum, atune, R, IDX,
-         counts, maxcount, bins,
-         DG_data) = utils.compute_tuning(
-            ch_raster, base_fire, seq_len, seq_sep
+        (TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data) = (
+            utils.compute_tuning(ch_raster, base_fire, seq_len, seq_sep)
         )
 
         DG_set[clus] = DG_data
 
     savef = os.path.join(DG_directory, f"DG_data_exp{params.exp}")
     utils.save_obj(DG_set, savef)
-    print('--- Cell Done ---')
+    print("--- Cell Done ---")
 
 
 # ==========================
 # Plotting
 # ==========================
+def plot_dg_cell(DG_set, cell, seq_sep, seq_len, fig_directory, exp, show=False):
+    """
+    Plot DG rasters and tuning for a single cell.
+    Parameters
+    ----------
+    DG_set : dict
+        DG data for all cells.
+    cell : np.uint32
+        Cluster identifier.
+    seq_sep : float
+        Grating separation.
+    seq_len : float
+        Grating duration.
+    fig_directory : str
+        Directory to save figures.
+    exp : int
+        Experiment identifier.
+    show : bool, optional
+        Whether to display the figure, by default False.
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Generated figure.
+    """
+
+    # --------plot the rasters-------------------
+    fig = plt.figure(figsize=(12, 8))
+    plt.suptitle("Cell {}".format(cell))
+
+    gs = fig.add_gridspec(
+        5, 8, left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.7
+    )
+
+    ax = fig.add_subplot(gs[0:2, 0:8])
+    ax.eventplot(DG_set[cell]["rasters"][:], color="k", lw=1, linelengths=0.95)
+    for a in np.arange(8):
+        ax.axvline(a * seq_sep, color="gray", lw=2)
+        ax.axvline(a * seq_sep + seq_len, color="gray", lw=2)
+        ax.axvline(a * seq_sep + seq_len / 6, color="gray", ls="--", lw=1.5)
+
+    ax.set_xlim([-seq_sep / 2, seq_sep * 8])
+    ax.set_ylim([-0.5, 3.5 + 2 + 4 + 2])
+    ax.set_yticks(np.arange(4))
+    ax.set_ylabel("Repetition               Counts       ", size=10)
+    ax.set_xlabel("Time (s) {8 angles}", size=10)
+    # fig.suptitle(ttext+'    cluster '+str(clus) + '      '+'% spikes: ' +str(round(len(dg_sptimes)/len(sp_times)*100,1))+'    Nspikes '+str(Nspikes))
+    plt.rc(
+        "axes.spines", **{"bottom": False, "left": False, "right": False, "top": False}
+    )
+    ax.text(
+        5,
+        12,
+        "0                      45                      90                    135                    180                   225                    270                   315",
+    )
+    ax.axhline(3.5 + 2, color="k", lw=0.5)  # base_firing
+
+    # --------------------------plot the histograms------------------------
+    counts = DG_set[cell]["counts"] / DG_set[cell]["maxcount"] * 4 + 3.5 + 2
+    ax.hist(
+        DG_set[cell]["bins"][:-1],
+        DG_set[cell]["bins"],
+        histtype="step",
+        lw=1.5,
+        color="darkblue",
+        weights=counts,
+    )
+
+    # --------------------------plot the polar plot left--------------
+
+    ax = fig.add_subplot(gs[2:5, 1:4], polar=True)
+
+    theta = np.linspace(0, 2 * np.pi, 9)
+    # Arrange the grid into number of sales equal parts in degrees
+    lines, labels = plt.thetagrids(range(0, 360, int(360 / 8)), np.arange(0, 360, 45))
+
+    # Plot actual sales graph
+    ax.plot(theta, DG_set[cell]["Tuning"])
+    ax.fill(theta, DG_set[cell]["Tuning"], "b", alpha=0.1)
+    #         ax.plot(theta, TuneMax,'orange')
+
+    ax.plot(
+        [DG_set[cell]["atune"], DG_set[cell]["atune"]], [0, DG_set[cell]["Rtune"]], "b-"
+    )
+    ax.plot([DG_set[cell]["atune"]], [DG_set[cell]["Rtune"]], "bo")
+
+    ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
+    ax.set_yticklabels([])
+    ax.set_ylim([0, 1])
+
+    ax.text(
+        np.pi * 1 / 5, 1.3, "IDX = " + str(np.round(DG_set[cell]["IDX"], 1)), size=18
+    )
+    ax.text(
+        np.pi * 1 / 8, 1.25, "R = " + str(np.round(DG_set[cell]["Rtune"], 1)), size=18
+    )
+
+    # ---------------------------plot the polar plot right (same as left but not limited between 0 and 1)------
+    ax = fig.add_subplot(gs[2:5, 5:8], polar=True)
+
+    ax.plot(
+        [DG_set[cell]["atune"], DG_set[cell]["atune"]], [0, DG_set[cell]["Rtune"]], "b-"
+    )
+    ax.plot([DG_set[cell]["atune"]], [DG_set[cell]["Rtune"]], "bo")
+    ax.plot(theta, DG_set[cell]["Tuning"])
+    ax.fill(theta, DG_set[cell]["Tuning"], "b", alpha=0.1)
+
+    ax.set_yticks([0, 0.5, 1, 1.5, 2])
+    ax.set_yticklabels([0, "", 1, "", 2])
+
+    # -----------------------------------------------------------------------------------
+    fsave = os.path.join(fig_directory, "DG_resp_exp{}_Cell_{}".format(exp, cell))
+    if show:
+        print(cell)
+        plt.show(block=False)
+    return fig
+
 
 def plot_dg_rasters(DG_directory, seq_sep, seq_len, params):
     """
@@ -260,20 +404,16 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params):
     matplotlib.figure.Figure
         Last generated figure.
     """
-    DG_set = utils.load_obj(
-        os.path.join(DG_directory, f"DG_data_exp{params.exp}")
-    )
+    DG_set = utils.load_obj(os.path.join(DG_directory, f"DG_data_exp{params.exp}"))
 
     fig_directory = os.path.join(DG_directory, "DG_figs")
     os.makedirs(fig_directory, exist_ok=True)
 
     for cell in tqdm(DG_set.keys(), desc="Plotting"):
-        fig = utils.plot_dg_cell(
-            DG_set[cell], cell,
-            seq_sep, seq_len,
-            fig_directory, params.exp
+        fig = plot_dg_cell(
+            DG_set[cell], cell, seq_sep, seq_len, fig_directory, params.exp
         )
         plt.close(fig)
 
-    print('--- Cell Done ---')
+    print("--- Cell Done ---")
     return fig
