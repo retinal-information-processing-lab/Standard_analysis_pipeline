@@ -22,7 +22,6 @@ from math import *
 # ==========================
 
 
-
 def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
     """
     Display available recordings and prompt user to select one.
@@ -259,6 +258,43 @@ def compute_rasters(spikes: dict, triggers: np.ndarray,
     
     return raster_data
 
+def plot_single_raster(ax, spike_trains):
+    """
+    Plot raster for a single cell.
+    From data directly.
+
+    Args:
+        ax: Matplotlib axis
+        raster_data: Dictionary with raster data
+        cell_nb: Cell number to plot
+    """
+    ax.eventplot(spike_trains, colors='darkblue', linelengths=0.95)
+    ax.set(title="Raster plot", ylabel="N Repetitions", xlabel="Time in sec",)
+    
+def plot_single_psth_from_raster_data(ax, raster_data, cell_nb, params: dict):
+    """
+    Plot PSTH for a single cell.
+    From raster data directly to extract all information automatically.
+
+    Args:
+        ax: Matplotlib axis
+        raster_data: Dictionary with raster data
+        cell_nb: Cell number to plot
+        params: Dictionary with 'nb_frames_by_sequence'
+    """
+    width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
+        params.nb_frames_by_sequence / 2
+    )
+    seq_length = (
+        raster_data[cell_nb]["repeated_sequences_times"][0][1]
+        - raster_data[cell_nb]["repeated_sequences_times"][0][0]
+    )
+
+    x_vals = (
+        np.linspace(0, seq_length, int(params.nb_frames_by_sequence / 2)) + width / 2
+    )
+    ax.bar(x_vals, raster_data[cell_nb]["psth"], width=1.3 * width)
+    ax.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
 
 
 #############################################

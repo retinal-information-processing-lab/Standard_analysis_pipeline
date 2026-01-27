@@ -301,7 +301,7 @@ def plot_dg_cell(DG_set, cell, seq_sep, seq_len, fig_directory, exp, show=False)
     )
 
     ax = fig.add_subplot(gs[0:2, 0:8])
-    ax.eventplot(DG_set[cell]["rasters"][:], color="k", lw=1, linelengths=0.95)
+    utils.plot_single_raster(ax, DG_set[cell]["rasters"][:])
     for a in np.arange(8):
         ax.axvline(a * seq_sep, color="gray", lw=2)
         ax.axvline(a * seq_sep + seq_len, color="gray", lw=2)
