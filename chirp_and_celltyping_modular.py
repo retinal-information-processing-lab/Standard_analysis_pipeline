@@ -680,6 +680,333 @@ def compute_sta_pca(STA_time_course: np.ndarray, n_components: int):
         return None, None
 
 
+def build_clustering_dataset(psth_pca: np.ndarray, sta_tc_pca: np.ndarray, 
+                             ell_size_normalized: np.ndarray, n_components_psth: int,
+                             n_components_sta_tc: int):
+    """Combine PCA features and ellipse sizes into clustering dataset.
+
+    Args:
+        psth_pca (np.ndarray): PCA components from PSTH, shape (n_cells, n_components_psth)
+        sta_tc_pca (np.ndarray or None): PCA components from STA, shape (n_cells, n_components_sta)
+                                         or None if not using STA
+        ell_size_normalized (np.ndarray): Normalized ellipse sizes, shape (n_cells,)
+        n_components_psth (int): Number of PSTH PCA components
+        n_components_sta_tc (int): Number of STA PCA components (0 if not using STA)
+
+    Returns:
+        np.ndarray: Combined dataset for clustering, 
+                   shape (n_cells, n_components_psth + n_components_sta_tc + 1)
+    """
+    n_cells = psth_pca.shape[0]
+    cluster_dataset = np.zeros((n_cells, n_components_psth + n_components_sta_tc + 1))
+    
+    # Add PSTH PCA components
+    cluster_dataset[:, :n_components_psth] = psth_pca
+    
+    # Add STA PCA components if available
+    if n_components_sta_tc > 0 and sta_tc_pca is not None:
+        cluster_dataset[:, n_components_psth:n_components_psth + n_components_sta_tc] = sta_tc_pca
+    
+    # Add ellipse size as last feature
+    cluster_dataset[:, -1] = ell_size_normalized
+    
+    return cluster_dataset
+
+
+def perform_agglomerative_clustering(cluster_dataset: np.ndarray, dist_thres: float):
+    """Perform hierarchical agglomerative clustering.
+
+    Args:
+        cluster_dataset (np.ndarray): Feature matrix for clustering, shape (n_cells, n_features)
+        dist_thres (float): Distance threshold for clustering. Adjust to get ~50 clusters.
+
+    Returns:
+        AgglomerativeClustering: Fitted clustering model with labels in model.labels_
+    """
+    from sklearn.cluster import AgglomerativeClustering
+    
+    model = AgglomerativeClustering(distance_threshold=dist_thres, n_clusters=None)
+    model = model.fit(cluster_dataset)
+    
+    return model
+
+
+def plot_pca_variance(pca_transformer, n_components: int, title: str):
+    """Plot cumulative explained variance for PCA.
+
+    Args:
+        pca_transformer: Fitted PCA transformer object with explained_variance_ratio_ attribute
+        n_components (int): Number of components to plot
+        title (str): Title for the plot (e.g., 'Chirp PSTH' or 'STA')
+
+    Returns:
+        None. Displays matplotlib plot.
+    """
+    plt.plot(np.arange(n_components) + 1, 
+             np.cumsum(pca_transformer.explained_variance_ratio_) * 100)
+    plt.axhline(y=80, color='k')
+    plt.xlabel(f'Number of PCs from {title}')
+    plt.ylabel('% of Cumulative Explained Variance')
+    plt.show()
+
+
+def plot_dendrogram(model, truncate_mode: str = 'level', p: int = 0):
+    """Create a dendrogram plot for hierarchical clustering.
+
+    Args:
+        model: Fitted AgglomerativeClustering model
+        truncate_mode (str): Mode for truncating dendrogram. Default 'level'.
+        p (int): Depth parameter for truncation. Default 0.
+
+    Returns:
+        None. Displays matplotlib plot.
+    
+    Note:
+        This is a helper function used by plot_clustering_diagnostics.
+    """
+    from scipy.cluster.hierarchy import dendrogram
+    
+    # Create linkage matrix from sklearn model
+    counts = np.zeros(model.children_.shape[0])
+    n_samples = len(model.labels_)
+    
+    for i, merge in enumerate(model.children_):
+        current_count = 0
+        for child_idx in merge:
+            if child_idx < n_samples:
+                current_count += 1
+            else:
+                current_count += counts[child_idx - n_samples]
+        counts[i] = current_count
+    
+    linkage_matrix = np.column_stack([
+        model.children_,
+        model.distances_,
+        counts
+    ]).astype(float)
+    
+    dendrogram(linkage_matrix, truncate_mode=truncate_mode, p=p)
+
+
+
+# =============================================================================
+# NOISE CORRELATION FUNCTIONS
+# =============================================================================
+
+def correlate_PersonPM(signal1: np.ndarray, signal2: np.ndarray, max_shift: int):
+    """Compute Pearson correlation between two signals with time shifts.
+
+    Args:
+        signal1 (np.ndarray): First signal
+        signal2 (np.ndarray): Second signal
+        max_shift (int): Maximum time shift in bins (positive and negative)
+
+    Returns:
+        np.ndarray: Correlation values at each time shift, length 2*max_shift + 1
+
+    Note:
+        This should be defined in utils or imported from scipy.signal.correlate.
+        Placeholder for the correlation function used in the original code.
+    """
+    # This is a placeholder - the actual implementation should be in utils
+    from scipy.signal import correlate
+    from scipy.stats import pearsonr
+    
+    correlations = []
+    for shift in range(-max_shift, max_shift + 1):
+        if shift < 0:
+            corr = np.corrcoef(signal1[:shift], signal2[-shift:])[0, 1]
+        elif shift > 0:
+            corr = np.corrcoef(signal1[shift:], signal2[:-shift])[0, 1]
+        else:
+            corr = np.corrcoef(signal1, signal2)[0, 1]
+        correlations.append(corr)
+    
+    return np.array(correlations)
+
+
+def compute_pairwise_correlations(cell: int, cell_data: dict, sta_results: dict,
+                                  idx_cluster: list, selected_cells: list,
+                                  nb_repetitions: int, max_shift: int):
+    """Compute noise correlations between one cell and all others in its cluster.
+
+    Args:
+        cell (int): Target cell ID
+        cell_data (dict): Dictionary containing noise data for all cells
+        sta_results (dict): Dictionary containing STA spatial information
+        idx_cluster (list): Indices of cells in the same cluster
+        selected_cells (list): List of all selected cell IDs
+        nb_repetitions (int): Number of stimulus repetitions
+        max_shift (int): Maximum time shift for cross-correlation
+
+    Returns:
+        tuple: Contains:
+            - corrs (list): Time-shifted correlations for each cell pair
+            - dist (list): Spatial distances between cell pairs
+            - max_corr (list): Maximum correlation (at zero lag) for each pair
+    """
+    cell1 = np.sum(cell_data[cell]["noise_small_bin"], axis=0) / nb_repetitions
+    corrs = []
+    dist = []
+    max_corr = []
+    
+    # Get current cell's RF center
+    cell_center = np.asarray(sta_results[cell]["center_analyse"]['EllipseCoor'][1:3])
+    
+    for index_corr in [idx for idx in idx_cluster if selected_cells[idx] != cell]:
+        cell_corr = selected_cells[index_corr]
+        
+        # Compute time-shifted correlation
+        cell2 = np.sum(cell_data[cell_corr]["noise_small_bin"], axis=0) / nb_repetitions
+        corrs.append(correlate_PersonPM(cell2, cell1, max_shift=max_shift))
+        
+        # Compute spatial distance
+        cell_corr_center = np.asarray(
+            sta_results[cell_corr]["center_analyse"]['EllipseCoor'][1:3]
+        )
+        dist.append(np.linalg.norm(cell_corr_center - cell_center))
+        
+        # Compute zero-lag correlation on large bins
+        corr_zero_lag = np.corrcoef(
+            np.sum(cell_data[cell]["noise_large_bin"], axis=0) / nb_repetitions,
+            np.sum(cell_data[cell_corr]["noise_large_bin"], axis=0) / nb_repetitions
+        )[0, 1]
+        max_corr.append(corr_zero_lag)
+    
+    return corrs, dist, max_corr
+
+
+def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_cells: list, n_bins: int, max_shift: int, n_repetitions = 30) -> dict:
+    """Compute noise correlations within each cluster.
+
+    Args:
+        cell_data (dict): Dictionary containing spike data for all cells
+        sta_results (dict): Dictionary containing STA spatial information
+        selected_cells (list): List of cell IDs included in clustering
+        n_bins (int): Number of time bins (not used, kept for compatibility)
+        max_shift (int): Maximum time shift for cross-correlation analysis
+        n_repetitions (int): Number of stimulus repetitions
+
+    Returns:
+        dict: Updated cell_data with added fields for each cell:
+            - 'corrs': List of time-shifted correlations with cluster members
+            - 'mean_corr': Mean correlation across cluster members
+            - 'distances': Spatial distances to cluster members
+            - 'max_corr': Zero-lag correlations with cluster members
+
+    Note:
+        Only computes correlations for cells that were assigned to clusters.
+        Cells marked as 'Not assigned' are skipped.
+    """
+    # Get stimulus parameters
+    nb_repetitions = n_repetitions
+    
+    # Get unique cluster IDs (excluding 'Not assigned')
+    cluster_ids = list(set([
+        cell_data[cell]["type"] 
+        for cell in cell_data.keys() 
+        if cell_data[cell]["type"] != 'Not assigned'
+    ]))
+    
+    # Compute correlations within each cluster
+    for icluster in tqdm(cluster_ids, desc="Computing noise correlations within cell types"):
+        # Get indices of cells in this cluster
+        idx_cluster = sorted(list(np.where(np.asarray([
+            cell_data[cell]["type"] 
+            for cell in selected_cells 
+            if cell_data[cell]["type"] != 'Not assigned'
+        ]) == icluster)[0]))
+        
+        # Compute pairwise correlations for each cell in cluster
+        for index in idx_cluster:
+            cell = selected_cells[index]
+            
+            corrs, dist, max_corr = compute_pairwise_correlations(
+                cell, cell_data, sta_results, idx_cluster, 
+                selected_cells, nb_repetitions, max_shift
+            )
+            
+            # Store results
+            cell_data[cell]["corrs"] = corrs
+            cell_data[cell]["mean_corr"] = np.mean(np.asarray(corrs), axis=0) if corrs else []
+            cell_data[cell]["distances"] = dist
+            cell_data[cell]["max_corr"] = max_corr
+    
+    return cell_data
+
+# =============================================================================
+# SUMMARY FIGURE FUNCTIONS
+# =============================================================================
+
+def load_dg_and_stimulus_data(exp: str, old: bool):
+    """Load direction/orientation selectivity data and chirp stimulus vector.
+
+    Args:
+        exp (str): Experiment name
+        old (bool): If True, load old chirp. If False, load new chirp.
+
+    Returns:
+        tuple: Contains:
+            - DG_set (dict): Direction/orientation selectivity data
+            - euler_vec (np.ndarray): Chirp stimulus vector
+    """
+    # Load direction selectivity data
+    DG_set = utils.load_obj(os.path.join(
+        utils.find_Analysis_Directory(dir_type="DG"),
+        f'DG_data_exp{exp}'
+    ))
+    
+    # Load chirp stimulus vector
+    if old:
+        vec_path = os.path.join('./ressources', "EulerStim180530.vec")
+        euler_vec = -np.genfromtxt(vec_path)
+    else:
+        vec_path = os.path.join('./ressources', "Euler_50Hz_20reps_1024x768pix.vec")
+        euler_vec = np.genfromtxt(vec_path)
+    
+    return DG_set, euler_vec
+
+
+def plot_sta_with_ellipse(ax, spatial_sta: np.ndarray, ellipse_params: list):
+    """Plot spatial STA with ellipse overlay.
+
+    Args:
+        ax: Matplotlib axis object
+        spatial_sta (np.ndarray): 2D spatial STA
+        ellipse_params (list): Ellipse parameters [amplitude, x0, y0, sigma_x, sigma_y, theta]
+
+    Returns:
+        matplotlib.axes.Axes: Modified axis object
+    
+    Note:
+        Assumes gaussian2D function is available (should be in utils).
+    """
+    x0 = ellipse_params[1]
+    y0 = ellipse_params[2]
+    
+    # Apply nonlinear transformation for visualization
+    spatial = spatial_sta**2 * np.sign(spatial_sta)
+    
+    cmap = 'RdBu_r'
+    image = ax.imshow(spatial, cmap=cmap, interpolation='gaussian')
+    
+    # Set color limits
+    abs_max = 0.5 * max(np.max(spatial), abs(np.min(spatial)))
+    image.set_clim(-abs_max, abs_max)
+    
+    ax.set_xlim(x0 - 4, x0 + 4)
+    ax.set_ylim(y0 + 4, y0 - 4)
+    ax.set_aspect('equal')
+    ax.set_xticks([])
+    ax.set_yticks([])
+    
+    return ax
+
+
+# =============================================================================
+# CLUSTERING FUNCTIONS (CONTINUED)
+# =============================================================================
+
 def compute_ellipse_sizes(sta_results: dict, selected_cells: list):
     """Extract and normalize RF ellipse sizes for selected cells.
 
@@ -973,6 +1300,7 @@ def save_cluster_number_for_cells(selected_cells: list, cell_data: dict, model):
     
     return cell_data
 
+
 # =============================================================================
 # NOISE CORRELATION FUNCTIONS
 # =============================================================================
@@ -1060,7 +1388,8 @@ def compute_pairwise_correlations(cell: int, cell_data: dict, sta_results: dict,
     return corrs, dist, max_corr
 
 
-def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_cells: list, n_bins: int, max_shift: int, n_repetitions = 30) -> dict:
+def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_cells: list,
+                                   n_bins: int, max_shift: int, old: bool):
     """Compute noise correlations within each cluster.
 
     Args:
@@ -1069,7 +1398,7 @@ def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_
         selected_cells (list): List of cell IDs included in clustering
         n_bins (int): Number of time bins (not used, kept for compatibility)
         max_shift (int): Maximum time shift for cross-correlation analysis
-        n_repetitions (int): Number of stimulus repetitions
+        old (bool): If True, use old chirp parameters (30 reps). If False, use new (20 reps).
 
     Returns:
         dict: Updated cell_data with added fields for each cell:
@@ -1083,7 +1412,10 @@ def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_
         Cells marked as 'Not assigned' are skipped.
     """
     # Get stimulus parameters
-    nb_repetitions = n_repetitions
+    if old:
+        nb_repetitions = 30
+    else:
+        nb_repetitions = 20
     
     # Get unique cluster IDs (excluding 'Not assigned')
     cluster_ids = list(set([
@@ -1117,6 +1449,7 @@ def compute_intracluster_crosscorr(cell_data: dict, sta_results: dict, selected_
             cell_data[cell]["max_corr"] = max_corr
     
     return cell_data
+
 
 # =============================================================================
 # SUMMARY FIGURE FUNCTIONS
@@ -1349,7 +1682,337 @@ def create_single_cell_row(fig, gs, line: int, cell_nb: int, cell_data: dict,
     
     # Add cell label
     ax = fig.add_subplot(gs[line, 3])
-    ax.axis("off")
-    ax.text(0.5, 0.5, f'Cell {cell_nb}', horizontalalignment='center', 
-            verticalalignment='center', fontsize=12)
+    ax.annotate(f'Cluster {cell_nb}', (0, 0.5), (0, 0.5), fontsize=15)
+    ax.axis('off')
     
+    # Plot orientation selectivity
+    ax = fig.add_subplot(gs[line, 0], polar=True)
+    plot_orientation_tuning(ax, DG_set[cell_nb])
+    
+    return temporal_sta, cum_dist, cum_corr
+
+
+def create_cluster_header(fig, gs, euler_vec: np.ndarray, psth_z: np.ndarray,
+                          idx_cluster: list, STAs_avg: np.ndarray):
+    """Create header section of cluster summary figure showing averages.
+
+    Args:
+        fig: Matplotlib figure object
+        gs: GridSpec object
+        euler_vec (np.ndarray): Chirp stimulus vector
+        psth_z (np.ndarray): Z-scored PSTHs for all cells
+        idx_cluster (list): Indices of cells in this cluster
+        STAs_avg (np.ndarray): Average temporal STA for cluster
+
+    Returns:
+        None. Modifies figure in place.
+    """
+    # Plot average temporal STA
+    ax = fig.add_subplot(gs[0, 3])
+    ax.plot(np.linspace(-21/30, 0, 21), STAs_avg, 'k', lw=2)
+    ax.set_aspect(0.175)
+    ax.axis("off")
+    ax.set_title('Temp STA')
+    
+    # Plot mean chirp PSTH
+    ax = fig.add_subplot(gs[0, 4:8])
+    ax.set_title('Chirp psth')
+    ax.plot(np.linspace(0, 32, 800), np.mean(psth_z[idx_cluster, :], 0), 'b')
+    ax.axis("off")
+    
+    # Plot chirp stimulus
+    ax = fig.add_subplot(gs[1, 4:8])
+    ax.plot(np.linspace(0, 32, 1600), euler_vec[0+151:151+1600, 1] * 1., color='k')
+    ax.set_yticks([])
+    ax.set_ylim([-100, 350])
+    ax.set_xlabel('Time(s)')
+    ax.spines['right'].set_visible(False)
+    ax.spines['bottom'].set_visible(True)
+    ax.spines['left'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+
+
+def create_cluster_summary_figure(cell_data: dict, psth_z: np.ndarray, sta_results: dict,
+                                  params: dict, CT_directory: str, old: bool,
+                                  selected_cells: list):
+    """Create comprehensive summary figures for each cluster showing all cells.
+
+    Args:
+        cell_data (dict): Dictionary containing chirp response data for all cells
+        psth_z (np.ndarray): Z-scored PSTHs, shape (n_cells, n_time_bins)
+        sta_results (dict): Dictionary containing STA analysis results
+        params (dict): Experiment parameters containing 'exp' field
+        CT_directory (str): Path to cell typing output directory
+        old (bool): If True, use old chirp parameters. If False, use new chirp.
+        selected_cells (list): List of cell IDs included in clustering
+
+    Returns:
+        None. Saves summary figures to CT_directory/Cell_typing/
+
+    Note:
+        Creates one figure per cluster showing:
+        - Individual cell responses (orientation tuning, STA, chirp PSTH, correlations)
+        - Cluster averages (mean STA, mean PSTH, RF positions)
+        - Spatial correlation structure
+    """
+    from matplotlib.gridspec import GridSpec
+    
+    exp = params.exp
+    
+    # Load necessary data
+    DG_set, euler_vec = load_dg_and_stimulus_data(exp, old)
+    
+    # Create output directory
+    fig_directory = os.path.normpath(os.path.join(CT_directory, 'Cell_typing'))
+    if not os.path.isdir(fig_directory):
+        os.makedirs(fig_directory)
+    
+    # Get unique cluster IDs
+    cluster_ids = list(set([
+        cell_data[cell]["type"] 
+        for cell in cell_data.keys() 
+        if cell_data[cell]["type"] != 'Not assigned'
+    ]))
+    
+    # Create figure for each cluster
+    for icluster in tqdm(cluster_ids, desc="Creating cluster summary figures"):
+        idx_cluster = sorted(list(np.where(np.asarray([
+            cell_data[cell]["type"] 
+            for cell in selected_cells 
+            if cell_data[cell]["type"] != 'Not assigned'
+        ]) == icluster)[0]))
+        
+        print(f'Number of cells in cluster {icluster}: {len(idx_cluster)}')
+        
+        # Setup figure
+        gs = GridSpec(len(idx_cluster) + 2, 10)
+        
+        if len(idx_cluster) < 7:
+            yspan = 2
+        else:
+            yspan = -2
+        
+        fig = plt.figure(figsize=(22, (len(idx_cluster) + yspan) * 1.75))
+        plt.suptitle(f"Cell group {icluster}.\n {len(idx_cluster)} cells.")
+        
+        # Create axes for summary plots
+        ax0 = fig.add_subplot(gs[0:2, 1:3])
+        ax0.set_title('Ellipses')
+        ax0.set_aspect('equal')
+        ax0.set_xticks([])
+        ax0.set_yticks([])
+        
+        ax_dist_corr = fig.add_subplot(gs[0:2, 8:])
+        ax_dist_corr.set_title("Correlations")
+        ax_dist_corr.set_zorder(20)
+        
+        # Initialize accumulators
+        STAs = np.zeros(21)
+        STAcount = 0
+        cum_dist = []
+        cum_corr = []
+        
+        # Plot each cell in cluster
+        line = 2
+        for index in sorted(idx_cluster):
+            cell_nb = selected_cells[index]
+            
+            temporal_sta, cum_dist, cum_corr = create_single_cell_row(
+                fig, gs, line, cell_nb, cell_data, sta_results, DG_set,
+                selected_cells, ax0, ax_dist_corr, cum_dist, cum_corr
+            )
+            
+            STAs += temporal_sta
+            STAcount += 1
+            line += 1
+        
+        # Create cluster header with averages
+        STAs_avg = STAs / STAcount
+        create_cluster_header(fig, gs, euler_vec, psth_z, idx_cluster, STAs_avg)
+        
+        # Plot summary distance-correlation relationship
+        plot_distance_correlation_summary(ax_dist_corr, cum_dist, cum_corr)
+        
+        # Save figure
+        fsave = os.path.join(fig_directory, f'Cluster_{icluster}')
+        fig.savefig(fsave + '.png', format='png', dpi=250)
+        plt.close(fig)
+
+
+# =============================================================================
+# UTILITY FUNCTIONS
+# =============================================================================
+
+def restrict_array(arr: np.ndarray, start: float, end: float):
+    """Restrict array values to a time window.
+
+    Args:
+        arr (np.ndarray): Array of time values
+        start (float): Start of time window
+        end (float): End of time window
+
+    Returns:
+        np.ndarray: Values within [start, end]
+    """
+    return arr[(arr >= start) & (arr <= end)]
+
+
+def gaussian2D(shape: tuple, amplitude: float, x0: float, y0: float, 
+               sigma_x: float, sigma_y: float, theta: float):
+    """Create 2D Gaussian for RF fitting.
+
+    Args:
+        shape (tuple): Shape of output array (height, width)
+        amplitude (float): Peak amplitude
+        x0 (float): X center position
+        y0 (float): Y center position  
+        sigma_x (float): X standard deviation
+        sigma_y (float): Y standard deviation
+        theta (float): Rotation angle in radians
+
+    Returns:
+        np.ndarray: 2D Gaussian with given parameters
+
+    Note:
+        This is a helper function for STA visualization.
+        Should match the gaussian2D used in STA fitting.
+    """
+    y, x = np.indices(shape)
+    
+    # Rotate coordinates
+    x_rot = (x - x0) * np.cos(theta) - (y - y0) * np.sin(theta)
+    y_rot = (x - x0) * np.sin(theta) + (y - y0) * np.cos(theta)
+    
+    # Compute Gaussian
+    gaussian = amplitude * np.exp(-(x_rot**2 / (2 * sigma_x**2) + 
+                                   y_rot**2 / (2 * sigma_y**2)))
+    
+    return gaussian
+
+
+def save_obj(obj, filepath: str):
+    """Save object to pickle file.
+
+    Args:
+        obj: Python object to save
+        filepath (str): Path to save file (without extension)
+
+    Returns:
+        None. Saves to filepath.pkl
+    """
+    with open(filepath + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
+
+
+# =============================================================================
+# MAIN WORKFLOW WRAPPER
+# =============================================================================
+
+def run_complete_cell_typing_workflow(params: dict, old: bool = False,
+                                     dist_thres: float = 2.0,
+                                     n_components_psth: int = 10,
+                                     n_components_sta_tc: int = 2,
+                                     max_shift: int = 50,
+                                     compute_correlations: bool = True):
+    """Run complete cell typing analysis workflow from loading to final figures.
+
+    Args:
+        params (dict): Experiment parameters from params.py
+        old (bool): If True, use old chirp. Default False.
+        dist_thres (float): Distance threshold for clustering. Default 2.0.
+        n_components_psth (int): Number of PSTH PCA components. Default 10.
+        n_components_sta_tc (int): Number of STA PCA components. Default 2.
+        max_shift (int): Maximum time shift for correlations in bins. Default 50.
+        compute_correlations (bool): Whether to compute noise correlations. Default True.
+
+    Returns:
+        dict: Results dictionary containing:
+            - 'cell_data': Complete cell response data
+            - 'selected_cells': List of cells used in clustering
+            - 'model': Fitted clustering model
+            - 'psth_z': Z-scored PSTHs
+            - 'sta_results': STA analysis results
+
+    Note:
+        This is a convenience wrapper that runs the entire analysis pipeline.
+        For more control, use individual functions.
+    """
+    # Step 1: Load data
+    print("\n" + "="*60)
+    print("STEP 1: Loading triggers and spikes")
+    print("="*60)
+    cells, spike_times, spike_trains, trig_data, stim_onsets, check_directory, CT_directory, old = \
+        load_triggers_and_spikes_select_chirp_type(params, old)
+    
+    # Step 2: Compute chirp responses
+    print("\n" + "="*60)
+    print("STEP 2: Computing chirp rasters and PSTHs")
+    print("="*60)
+    cell_data = compute_chirp_rasters(cells, spike_times, stim_onsets, old)
+    
+    # Step 3: Plot chirp rasters
+    print("\n" + "="*60)
+    print("STEP 3: Plotting chirp rasters")
+    print("="*60)
+    plot_chirp_rasters(cells, cell_data, CT_directory, check_directory, old)
+    
+    # Step 4: Cell selection (interactive - requires user input)
+    print("\n" + "="*60)
+    print("STEP 4: Cell selection for clustering")
+    print("="*60)
+    print("Please manually review cells and provide good_sta_cells and good_chirp_cells")
+    print("Or load previously saved selection...")
+    
+    selected_cells, selected_cells_sta, selected_cells_chirp = \
+        load_or_initialize_cell_selection(CT_directory, params.exp)
+    
+    if not selected_cells:
+        print("WARNING: No cells selected. Please run cell selection manually.")
+        return None
+    
+    # Step 5: Run clustering
+    print("\n" + "="*60)
+    print("STEP 5: Running agglomerative clustering")
+    print("="*60)
+    psth_z, sta_results, model = run_cell_typing_AC(
+        dist_thres, n_components_psth, n_components_sta_tc,
+        cell_data, selected_cells, check_directory
+    )
+    
+    # Step 6: Save cluster assignments
+    print("\n" + "="*60)
+    print("STEP 6: Saving cluster assignments")
+    print("="*60)
+    cell_data = save_cluster_number_for_cells(selected_cells, cell_data, model)
+    
+    # Step 7: Compute noise correlations (optional)
+    if compute_correlations:
+        print("\n" + "="*60)
+        print("STEP 7: Computing intra-cluster noise correlations")
+        print("="*60)
+        cell_data = compute_intracluster_crosscorr(
+            cell_data, sta_results, selected_cells,
+            n_bins=800, max_shift=max_shift, old=old
+        )
+    
+    # Step 8: Create summary figures
+    print("\n" + "="*60)
+    print("STEP 8: Creating cluster summary figures")
+    print("="*60)
+    create_cluster_summary_figure(
+        cell_data, psth_z, sta_results, params, CT_directory, old, selected_cells
+    )
+    
+    print("\n" + "="*60)
+    print("ANALYSIS COMPLETE!")
+    print("="*60)
+    print(f"Results saved to: {CT_directory}")
+    
+    return {
+        'cell_data': cell_data,
+        'selected_cells': selected_cells,
+        'model': model,
+        'psth_z': psth_z,
+        'sta_results': sta_results,
+        'CT_directory': CT_directory
+    }
