@@ -24,90 +24,6 @@ import utils
 # DATA LOADING FUNCTIONS
 # =============================================================================
 
-def load_chirp_stimulus_vector(vec_filename: str = "Euler_50Hz_20reps_1024x768pix.vec"):
-    """Load chirp stimulus vector for plotting.
-
-    Args:
-        vec_filename (str): Filename of the stimulus vector in ./ressources/.
-                           Default "Euler_50Hz_20reps_1024x768pix.vec".
-
-    Returns:
-        np.ndarray: Chirp stimulus vector with shape (n_frames, n_channels)
-    """
-    vec_path = os.path.join('./ressources', vec_filename)
-    euler_vec = np.genfromtxt(vec_path)
-    return euler_vec
-
-
-def load_checkerboard_rasters(check_directory: str):
-    """Load checkerboard raster data.
-
-    Args:
-        check_directory (str): Path to checkerboard analysis directory
-
-    Returns:
-        dict: Checkerboard raster data with cell IDs as keys
-    """
-    check_rast = np.load(
-        os.path.join(check_directory, 'Check_rasters_data.npy'),
-        allow_pickle=True
-    ).item()
-    return check_rast
-
-
-def load_direction_selectivity_data(DG_directory: str, exp: str):
-    """Load direction/orientation selectivity data.
-
-    Args:
-        DG_directory (str): Path to direction selectivity analysis directory
-        exp (str): Experiment name
-
-    Returns:
-        dict: Direction selectivity data with cell IDs as keys
-    """
-    DG_data = np.load(
-        os.path.join(DG_directory, f'DG_data_exp{exp}.pkl'),
-        allow_pickle=True
-    )
-    return DG_data
-
-
-def load_sta_results(check_directory: str):
-    """Load STA (spike-triggered average) analysis results.
-
-    Args:
-        check_directory (str): Path to checkerboard analysis directory
-
-    Returns:
-        tuple: Contains:
-            - sta_results (dict): STA analysis results with cell IDs as keys
-            - cells (list): List of cell IDs
-    """
-    sta_results = np.load(
-        os.path.join(check_directory, 'sta_data_3D_fitted.pkl'),
-        allow_pickle=True
-    )
-    cells = list(sta_results.keys())
-    return sta_results, cells
-
-
-def load_chirp_data(CT_directory: str, exp: str):
-    """Load chirp stimulus response data.
-
-    Args:
-        CT_directory (str): Path to cell typing analysis directory
-        exp (str): Experiment name
-
-    Returns:
-        dict: Chirp response data with cell IDs as keys
-    """
-    Chirp_data = np.load(
-        os.path.join(CT_directory, f'{exp}_cell_typing_data.pkl'),
-        allow_pickle=True
-    )
-    return Chirp_data
-
-
 def import_data_to_plot(params: dict):
     """Load all data required for generating ID card plots.
 
@@ -148,12 +64,11 @@ def import_data_to_plot(params: dict):
     CT_directory = utils.find_Analysis_Directory(dir_type="CellTyping")
 
     # Load data
-    euler_vec = load_chirp_stimulus_vector()
-    check_rast = load_checkerboard_rasters(check_directory)
-    DG_data = load_direction_selectivity_data(DG_directory, exp)
-    sta_results, cells = load_sta_results(check_directory)
-    Chirp_data = load_chirp_data(CT_directory, exp)
-
+    euler_vec = utils.load_chirp_stimulus_vector()
+    check_rast = utils.load_checkerboard_rasters(check_directory)
+    DG_data = utils.load_direction_selectivity_data(DG_directory, exp)
+    sta_results, cells = utils.load_sta_results(check_directory)
+    Chirp_data = utils.load_chirp_data(CT_directory, exp)
     return (exp, output_directory, phy_directory, check_directory, DG_directory,
             CT_directory, euler_vec, check_rast, DG_data, sta_results, cells, Chirp_data)
 
