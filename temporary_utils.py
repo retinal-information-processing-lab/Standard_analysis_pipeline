@@ -16,6 +16,8 @@ import time
 from collections import defaultdict
 from math import *
 
+from utils import extract_from_sequence
+
 # ==========================
 # Loading utilities
 # ==========================
@@ -27,7 +29,7 @@ def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
     
     Args:
         params: Dictionary containing experiment parameters with 'recording_names' key
-        
+
     Returns:
         Selected recording number as integer
         Selected recording name as string
@@ -35,7 +37,7 @@ def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
     print(f'Which of the following is the {stim_name}: ')
     for num, rec in enumerate(params.recording_names):
         print(f'\t{num} --> {rec}')
-    
+
     recording_number = int(input(f'{stim_name} number : '))
     recording_name = params.recording_names[recording_number]
     print(f'Selected recording: {recording_name}\n')
@@ -260,19 +262,18 @@ def compute_rasters(spikes: dict, triggers: np.ndarray,
     
     return raster_data
 
-def plot_single_raster(ax, spike_trains):
+def plot_single_raster(ax, spike_trains, color='darkblue', linelength=0.8):
     """
     Plot raster for a single cell.
     From data directly.
 
     Args:
-        ax: Matplotlib axis
-        raster_data: Dictionary with raster data
-        cell_nb: Cell number to plot
+        ax: Matplotlib axis 
+        spike_trains: List of spike trains
     """
-    ax.eventplot(spike_trains, colors='darkblue', linelengths=0.95)
+    ax.eventplot(spike_trains, colors=color, linelengths=linelength)
     ax.set(title="Raster plot", ylabel="N Repetitions", xlabel="Time in sec",)
-    
+
 def plot_single_psth_from_raster_data(ax, raster_data, cell_nb, params: dict):
     """
     Plot PSTH for a single cell.
@@ -297,4 +298,3 @@ def plot_single_psth_from_raster_data(ax, raster_data, cell_nb, params: dict):
     )
     ax.bar(x_vals, raster_data[cell_nb]["psth"], width=1.3 * width)
     ax.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
-
