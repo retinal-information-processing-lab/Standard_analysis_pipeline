@@ -32,6 +32,11 @@ We can wait Guilhem is available to do this.
 
 ### Standard stimuli analysis notebooks
 2026-01-26-10:30 (Baptiste) asked claude to do first modularization and cleaning pass on `analyse_checkerboard_steeve.py` -> `analyse_checkerboard_baptiste.py`
+
 2026-01-26-11:12 (Chiara) starting refactoring Checkerboard analysis `analyse_checkerboard_baptiste.py` -> `analyse_checkerboard_chiara.py`: merged analyse_checkerboard_baptiste and first cells of steeve's notebook to check is running before starting modularization. Interrupted due to missing function reference in .py (in steeve and transmitted to baptiste) see issue #28.
+
+2026-01-26-15:30 (Baptiste) Moved prompt_user_for_recording to utils, Prompt parameters not moved, Moved create_analysis_directory to utils, Moved find_Analysis_directory, Moved load_triggers, Moved load_spike_trains, Each notebook has its own specific loader that calls the smaller ones, That should wrap up the loading part, (For notebook 2,3,4,5), Now to raster plots
+=> this we may want to move back to the notebook asap
+
 
 
