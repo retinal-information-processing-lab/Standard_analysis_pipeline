@@ -341,7 +341,7 @@ class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
         self.params = MagicMock()
         self.params.fs = 20000  # Example sampling frequency
     
-    @patch('your_module.load_obj')  # Replace 'your_module' with actual module name
+    @patch('utils.load_obj') 
     def test_basic_loading_and_conversion(self, mock_load_obj):
         """Test that triggers are loaded and converted to seconds correctly."""
         mock_load_obj.return_value = {
@@ -356,7 +356,7 @@ class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
         np.testing.assert_array_equal(stim_onsets, np.array([0.0, 1.0, 2.0, 3.0]))
         self.assertEqual(triggers_data['trigger_type'], 'checkerboard')
     
-    @patch('your_module.load_obj')
+    @patch('utils.load_obj')
     def test_empty_triggers(self, mock_load_obj):
         """Test handling of empty trigger data."""
         mock_load_obj.return_value = {

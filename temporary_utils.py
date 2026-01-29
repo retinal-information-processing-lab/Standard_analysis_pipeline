@@ -27,39 +27,7 @@ from utils import extract_from_sequence, load_obj
 # Loading utilities
 # ==========================
 
-
 ### Shouldn't be here, load directly instead
-def load_spike_trains(params, rec):
-    """
-    Load spike times for all neurons for a given recording.
-
-    Parameters
-    ----------
-    params : object
-        Experiment parameters.
-    rec : str
-        Recording name.
-
-    Returns
-    -------
-    list[np.uint32]
-        Cell/cluster identifiers.
-    list[np.ndarray]
-        Spike times per cell (seconds).
-    """
-    spike_trains = load_obj(
-        os.path.join(params.output_directory,
-                     f"{params.exp}_fullexp_neurons_data.pkl")
-    )
-
-    cells = list(spike_trains.keys())
-    spike_times = [spike_trains[cell][rec] for cell in cells]
-
-    print(f"\nTotal : {len(cells)} neurons loaded")
-    print(f"Clusters id :\n{cells}\n")
-
-    return cells, spike_times
-
 # ==============================================================================
 # PSTH + RASTER ANALYSIS
 # ==============================================================================

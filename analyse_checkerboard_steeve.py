@@ -181,7 +181,7 @@ def load_checkerboard_data(
         )
     )
     stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
-    cells_id, checkerboard_spikes = utils.load_spike_trains(
+    cells_id, checkerboard_spikes = utils.load_spike_times(
         params, params.checkerboard_name
     )
     nb_repeats, _ = calculate_checkerboard_experiment_stats(

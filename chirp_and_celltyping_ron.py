@@ -91,7 +91,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
     stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
 
     # Load spike trains
-    cells, spike_times = utils.load_spike_trains(params, rec)
+    cells, spike_times = utils.load_spike_times(params, rec)
 
     print(f"Total : {len(spike_times)} neurons loaded \n\nClusters id :\n{cells}\n")
 

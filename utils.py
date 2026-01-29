@@ -19,7 +19,37 @@ from math import *
 # Baptiste testedd utils => To move in the right area
 # ==========================
 
-# Verify usefulness of all functions + check for double in utils.py
+def load_spike_times(params, rec, verbose = False):
+    """
+    Load spike times for all neurons for a given recording from the fullexp_neurons_data.pkl file.
+
+    Parameters
+    ----------
+    params : object
+        Experiment parameters.
+    rec : str
+        Recording name.
+
+    Returns
+    -------
+    list[np.uint32]
+        Cell/cluster identifiers.
+    list[np.ndarray]
+        Spike times per cell (seconds).
+    """
+    spike_trains = load_obj(
+        os.path.join(params.output_directory,
+                     f"{params.exp}_fullexp_neurons_data.pkl")
+    )
+
+    cells = list(spike_trains.keys())
+    spike_times = [spike_trains[cell][rec] for cell in cells]
+    if verbose :
+        print(f"\nTotal : {len(cells)} neurons loaded")
+        print(f"Clusters id :\n{cells}\n")
+
+    return cells, spike_times
+
 def load_stim_onset_from_triggers_path(triggers_path: str, params: dict, verbose: bool = False) -> tuple[np.ndarray, dict]:
     """
     Load trigger data from saved file and give the stim onset aleady converted in second.
