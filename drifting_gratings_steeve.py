@@ -13,92 +13,90 @@ from matplotlib import pyplot as plt
 
 # import custom packages
 import utils
+import temporary_utils
 
-def load_trigger_times_and_load_spikes(params: dict):
-    """Load trigger times and load spikes
+# ==========================
+# Loading utilities
+# ==========================
 
-    Args:
-        params (dict): experiment parameters
-    
-    Returns:
-        cells (list[np.uint32]): TODO! ??
-        spike_times (list[np.array]): TODO! ??
-        stim_onsets (np.array): TODO! ??
-        trigsinrep (int): TODO! ??
-        seq_sep (int): TODO! ??
-        seq_len (int): TODO! ??
-        DG_directory (str): TODO! ??
 
-    Note:
-        Do not change values here unless debug/specific use!
-        
-        All the variables used in this part of the cell should always refer to your 'params.py' file
-        unless you want to manually change them only for this run (i.e. debugging). 
-        You may have to add those variable into the function you want to adapt as only the minimal 
-        amount of var are currently given to functions as inputs.
+def prompt_user_for_dg_speed():
     """
-    # Experiment name
-    exp = params.exp
+    Prompt user to select drifting grating speed.
 
-    # select DG recording
-    recording_names = params.recording_names
-    output_directory = params.output_directory
-    fs = params.fs
+    Returns
+    -------
+    seq_len : float
+        Duration (s) of one grating sweep.
+    seq_sep : float
+        Temporal separation (s) between gratings (for plotting).
+    trigsinrep : int
+        Number of trigger samples per repetition.
+    ttext : str
+        Human-readable speed label.
+    """
+    T = int(input("\nSelect Grating's speed (T=0 fast, T=1 medium, T=2 slow) : "))
 
-    # Input ------------------------------------
+    if T == 0:
+        return 3.96, 9, int(50 * 3.96), "FAST"
+    if T == 1:
+        return 6, 10, 50 * 6, "MEDIUM"
+    if T == 2:
+        return 12, 20, 50 * 12, "SLOW"
 
-    # Input to select to recording number
-    print(*['{} : {}'.format(i,recording_name) for i, recording_name in enumerate(recording_names)], sep="\n")
-    recording_number = int(input("\nSelect DG recording : "))
-    rec    = recording_names[recording_number]
-    print("\nSelected file : {}".format(rec))
+    raise ValueError("Invalid grating speed selection.")
 
-    DG_directory = os.path.normpath(os.path.join(output_directory,r'DG_Analysis_rec_{}'.format(recording_number)))
-    if not os.path.isdir(DG_directory): os.makedirs(DG_directory)
 
-    # select grating's speed
-    # T = 2  # T=0 = fast, T=1 medium,  T=2 slow
-    T = int(input("\nSelect Grating's speed (T=0 = fast, T=1 medium,  T=2 slow (default)) : "))
-        
-    # Processing ------------------------------------
+def get_all_inputs_for_dg_analysis(params):
+    """
+    High-level loader for DG analysis.
 
-    
-    # Load triggers
-    trig_data = utils.load_obj(os.path.normpath(os.path.join(params.triggers_directory,'{}_{}_triggers.pkl'.format(exp,rec))))
-    
-    # convert them in seconds
-    stim_onsets = trig_data['indices']/fs  
-    
-    if T==0: 
-        seq_len=3.96
-        seq_sep=9
-        trigsinrep = int(50 * seq_len)
-        ttext = 'FAST'
-    if T==1: 
-        seq_len=6
-        seq_sep=10
-        trigsinrep = 50 * seq_len
-        ttext = 'MEDIUM'
-    if T==2: 
-        seq_len=12
-        seq_sep=20
-        trigsinrep = 50 * seq_len
-        ttext = 'SLOW'
+    This function:
+    - Prompts user for recording and speed
+    - Loads trigger onsets
+    - Loads spike trains
+    - Prepares output directories
 
-    output_directory=params.output_directory
-    spike_trains=utils.load_obj(os.path.join(output_directory, r'{}_fullexp_neurons_data.pkl'.format(exp)))
+    Parameters
+    ----------
+    params : object
+        Experiment parameters.
 
-    # Load spikes of the selected recording
-    cells=list(spike_trains.keys())
-    spike_times=[]
-    for cell in cells:
-        spike_times.append(spike_trains[cell][rec])
-    
-    # report 
-    print('\nTotal : {} neurons loaded \n\nClusters id :\n{}\n'.format(len(spike_trains.keys()),cells))
-    print('--- Cell Done ---')
+    Returns
+    -------
+    cells : list[np.uint32]
+        Cluster identifiers.
+    spike_times : list[np.ndarray]
+        Spike times per cluster.
+    stim_onsets : np.ndarray
+        Stimulus onset times (s).
+    trigsinrep : int
+        Number of trigger samples per repetition.
+    seq_sep : float
+        Separation between gratings (s).
+    seq_len : float
+        Duration of a grating (s).
+    DG_directory : str
+        Output directory for DG analysis.
+    """
+    rec_idx, rec = temporary_utils.prompt_user_for_recording(params, "DG recording")
+    DG_directory = utils.create_analysis_directory(
+        params.output_directory, rec_idx, "DG"
+    )
+
+    seq_len, seq_sep, trigsinrep, _ = prompt_user_for_dg_speed()
+    stim_onsets, _ = temporary_utils.load_triggers(params, rec)
+    cells, spike_times = temporary_utils.load_spike_trains(params, rec)
+
     return cells, spike_times, stim_onsets, trigsinrep, seq_sep, seq_len, DG_directory
 
+
+# ==========================
+# Specific DG analysis
+# ==========================
+
+# ==========================
+# Baptiste : I only did the plot_single_raster function for this part
 
 def compute_dg_rasters(cells:list[np.uint32], 
                        spike_times: list[np.array], 
@@ -108,21 +106,31 @@ def compute_dg_rasters(cells:list[np.uint32],
                        seq_sep: int, 
                        DG_directory: str,
                        params: dict):
-    """Compute the DG rasters
-
-    Args:
-        cells (list[np.uint32]): TODO! ??
-        spike_times (list[np.array]): TODO! ??
-        stim_onsets (np.array): TODO! ??
-        trigsinrep (int): TODO! ??
-        seq_len (int): TODO! ??
-        seq_sep (int): TODO! ??
-        DG_directory (str): TODO! ??
-        params (dict): 
-    
-    Returns:
-        saves data as a pickle file
     """
+    Compute drifting grating rasters and tuning metrics.
+
+    Results are saved as a pickle file.
+
+    Parameters
+    ----------
+    cells : list[np.uint32]
+        Cell identifiers list.
+    spike_times : list[np.ndarray]
+        Spike times per cell.
+    stim_onsets : np.ndarray
+        Stimulus onset times.
+    trigsinrep : int
+        Triggers per repetition.
+    seq_len : float
+        Grating duration.
+    seq_sep : float
+        Grating separation.
+    DG_directory : str
+        Output directory.
+    params : object
+        Experiment parameters.
+    """
+    
     # Processsing -----------------------------------------
     exp = params.exp
 
@@ -228,7 +236,7 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params):
                     wspace=0.3, hspace=0.7)
 
         ax = fig.add_subplot(gs[0:2, 0:8])
-        ax.eventplot(DG_set[cell]["rasters"][:],color='k',lw=1,linelengths=0.95)
+        temporary_utils.plot_single_raster(ax, DG_set[cell]["rasters"][:])
         for a in np.arange(8):
             ax.axvline(a*seq_sep,color='gray',lw=2)
             ax.axvline(a*seq_sep + seq_len,color='gray',lw=2)

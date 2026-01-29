@@ -16,12 +16,18 @@ import time
 from collections import defaultdict
 from math import *
 
-from utils import extract_from_sequence
+from utils import extract_from_sequence, load_obj
+
+# LIST OF THINGS MISSING
+
+# - Something to align spike trains and well split repetitions ? (will need to be done using the standard VEC files using the 5th column as sequence + rep ID)
+
 
 # ==========================
 # Loading utilities
 # ==========================
 
+# Verify usefulness of all functions + check for double in utils.py
 
 def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
     """
@@ -90,6 +96,7 @@ def find_Analysis_Directory(dir_type="Checkerboard", output_directory = params.o
     
     return os.path.normpath(os.path.join(output_directory,analysis_directory))
 
+### Shouldn't be here, load directly instead
 def load_triggers(params: dict, rec_name: str) -> tuple[np.ndarray, dict]:
     """
     Load trigger data from saved file and convert indices to seconds.
@@ -144,97 +151,11 @@ def load_spike_trains(params, rec):
     return cells, spike_times
 
 # ==============================================================================
-# LOAD PIPELINE OUTPUTS
+# PSTH + RASTER ANALYSIS
 # ==============================================================================
 
-#n USe one loader instead: load_obj
-
-def load_chirp_stimulus_vector(vec_filename: str = "Euler_50Hz_20reps_1024x768pix.vec"):
-    """Load chirp stimulus vector for plotting.
-
-    Args:
-        vec_filename (str): Filename of the stimulus vector in ./ressources/.
-                           Default "Euler_50Hz_20reps_1024x768pix.vec".
-
-    Returns:
-        np.ndarray: Chirp stimulus vector with shape (n_frames, n_channels)
-    """
-    vec_path = os.path.join('./ressources', vec_filename)
-    euler_vec = np.genfromtxt(vec_path)
-    return euler_vec
-
-
-def load_checkerboard_rasters(check_directory: str):
-    """Load checkerboard raster data.
-
-    Args:
-        check_directory (str): Path to checkerboard analysis directory
-
-    Returns:
-        dict: Checkerboard raster data with cell IDs as keys
-    """
-    check_rast = np.load(
-        os.path.join(check_directory, 'Check_rasters_data.npy'),
-        allow_pickle=True
-    ).item()
-    return check_rast
-
-
-def load_direction_selectivity_data(DG_directory: str, exp: str):
-    """Load direction/orientation selectivity data.
-
-    Args:
-        DG_directory (str): Path to direction selectivity analysis directory
-        exp (str): Experiment name
-
-    Returns:
-        dict: Direction selectivity data with cell IDs as keys
-    """
-    DG_data = np.load(
-        os.path.join(DG_directory, f'DG_data_exp{exp}.pkl'),
-        allow_pickle=True
-    )
-    return DG_data
-
-
-def load_sta_results(check_directory: str):
-    """Load STA (spike-triggered average) analysis results.
-
-    Args:
-        check_directory (str): Path to checkerboard analysis directory
-
-    Returns:
-        tuple: Contains:
-            - sta_results (dict): STA analysis results with cell IDs as keys
-            - cells (list): List of cell IDs
-    """
-    sta_results = np.load(
-        os.path.join(check_directory, 'sta_data_3D_fitted.pkl'),
-        allow_pickle=True
-    )
-    cells = list(sta_results.keys())
-    return sta_results, cells
-
-
-def load_chirp_data(CT_directory: str, exp: str):
-    """Load chirp stimulus response data.
-
-    Args:
-        CT_directory (str): Path to cell typing analysis directory
-        exp (str): Experiment name
-
-    Returns:
-        dict: Chirp response data with cell IDs as keys
-    """
-    Chirp_data = np.load(
-        os.path.join(CT_directory, f'{exp}_cell_typing_data.pkl'),
-        allow_pickle=True
-    )
-    return Chirp_data
-
-# ==============================================================================
-# RASTER ANALYSIS
-# ==============================================================================
+# Important part 
+# Some of it is already done in utils.py
 
 def compute_rasters(spikes: dict, triggers: np.ndarray, 
                    nb_repeats: int, stimulus_frequency: int) -> dict:
