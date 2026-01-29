@@ -79,10 +79,16 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
         params, recording_number, "CellTyping"
     )
 
-    check_directory = utils.find_Analysis_Directory(dir_type="Checkerboard")
+    check_directory = utils.find_analysis_directory(dir_type="Checkerboard")
 
     # Load triggers
-    stim_onsets, trig_data = utils.load_triggers(params, rec)
+    triggers_path = os.path.normpath(
+        os.path.join(
+            params.triggers_directory,
+            f"{params.exp}_{rec}_triggers.pkl"
+        )
+    )
+    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
 
     # Load spike trains
     cells, spike_times = utils.load_spike_trains(params, rec)
@@ -92,8 +98,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
     return (
         cells,
         spike_times,
-        spike_times,
-        trig_data,
+        spike_times
         stim_onsets,
         check_directory,
         CT_directory,
@@ -836,7 +841,7 @@ def create_cluster_summary_figure(
     # Name of the experiment
     exp = params.exp
     DG_set = utils.load_obj(
-        os.path.join(utils.find_Analysis_Directory(dir_type="DG"), f"DG_data_exp{exp}")
+        os.path.join(utils.find_analysis_directory(dir_type="DG"), f"DG_data_exp{exp}")
     )
 
     fig_directory = os.path.normpath(os.path.join(CT_directory, r"Cell_typing"))

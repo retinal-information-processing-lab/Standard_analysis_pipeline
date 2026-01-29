@@ -77,13 +77,13 @@ def get_all_inputs_for_checkerboard_analysis(
 
 
 def calculate_checkerboard_experiment_stats(
-    triggers_data: dict, triggers: np.ndarray, params: dict, stimulus_frequency: int
+    stim_onsets: dict, triggers: np.ndarray, params: dict, stimulus_frequency: int
 ) -> tuple[int, int]:
     """
     Calculate and display experiment statistics.
 
     Args:
-        triggers_data: Dictionary containing trigger duration
+        stim_onsets: Dictionary containing trigger duration
         triggers: Array of trigger times
         params: Dictionary with 'fs' and 'nb_frames_by_sequence'
         stimulus_frequency: Stimulus frequency in Hz
@@ -95,7 +95,7 @@ def calculate_checkerboard_experiment_stats(
     duration_sequence = int(params.nb_frames_by_sequence / stimulus_frequency)
 
     print(f"\nCheckerboard Stats :")
-    print(f"\t- {int(triggers_data['duration']/params.fs/60)} min total duration")
+    print(f"\t- {int(stim_onsets['duration']/params.fs/60)} min total duration")
     print(f"\t- {len(triggers)} triggers")
     print(f"\t- {nb_repeats} complete sequences")
     print(f"\t- {duration_sequence} seconds per sequence\n")
@@ -174,12 +174,18 @@ def load_checkerboard_data(
             - cells_id: List of cell IDs
             - checkerboard: Stimulus array
     """
-    triggers, triggers_data = utils.load_triggers(params, params.checkerboard_name)
+    triggers_path = os.path.normpath(
+        os.path.join(
+            params.triggers_directory,
+            f"{params.exp}_{params.checkerboard_name}_triggers.pkl",
+        )
+    )
+    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
     cells_id, checkerboard_spikes = utils.load_spike_trains(
         params, params.checkerboard_name
     )
     nb_repeats, _ = calculate_checkerboard_experiment_stats(
-        triggers_data, triggers, params, stimulus_frequency
+        stim_onsets, stim_onsets, params, stimulus_frequency
     )
     checkerboard = load_or_create_checkerboard_stimulus(
         nb_repeats, nb_checks_x, nb_checks_y, check_directory, params
@@ -189,13 +195,109 @@ def load_checkerboard_data(
         f"Total : {len(checkerboard_spikes.keys())} neurons loaded\n\nClusters id :\n{cells_id}\n"
     )
 
-    return checkerboard_spikes, triggers, nb_repeats, cells_id, checkerboard
+    return checkerboard_spikes, stim_onsets, nb_repeats, cells_id, checkerboard
 
 
-###################################
 # rasters and psths ---------------
-###################################
 
+
+def compute_rasters(checkerboard_spikes, triggers, nb_repeats, stimulus_frequency):
+
+    # initialiser raster output
+    raster_data = {}
+
+    # report status
+    print('Computing rasters...')
+
+    # loop over the spikes recorded during the checkerboard experiment
+    # get the rasters on repeated sequence
+    for (cell_id, spike_times) in tqdm(checkerboard_spikes.items()):
+        raster_data[cell_id] = utils.extract_from_sequence(spike_times, triggers, nb_repeats, stim_frequency = stimulus_frequency)
+    return raster_data
+
+
+def plot_rasters(raster_data, cells_id, ploting:bool=True):
+
+    # Plot all the rasters. Takes a few seconds.
+    if ploting:
+        size = int(math.sqrt(len(cells_id)))+1
+
+        # setup subplots
+        fig, axs = plt.subplots(nrows = size, ncols=size, figsize = (50,50))
+        print('Ploting...')
+        for i in tqdm(range(size**2)):
+            ax = axs[i//size,i%size]
+            if i < len(cells_id):
+                ax.eventplot(raster_data[cells_id[i]]["spike_trains"])
+                ax.set(title = "Cell {}".format(cells_id[i]),xlabel='Time in sec', ylabel='N Repetitions')
+            else : ax.set_visible(False)
+
+        # format and close
+        plt.tight_layout()
+        plt.show(block=False)
+        plt.close('all')
+
+
+def save_plots(raster_data, cells_id, recording_number:int, 
+               check_directory:str, params:dict):
+    """Create a folder path with the saved raster and 
+    psths plots, a file per cell.
+    
+    Args:
+        raster_data
+        cells_id
+        recording_number (int): 
+        check_directory (str):
+        params (dict):
+
+    Returns:
+    """
+    # report status
+    print("Saving rasters ...")
+    
+    # figure path
+    fig_directory = os.path.normpath(os.path.join(
+        check_directory, r'Rasters_figs'.format(recording_number)))
+    
+    # ensure path figure exists
+    if not os.path.isdir(fig_directory): 
+        os.makedirs(fig_directory)
+    
+    # loop over cells
+    for cell_nb in tqdm(cells_id):
+
+        # setup subplots
+        fig, axs = plt.subplots(nrows = 2,ncols = 1, sharex=True, gridspec_kw={'height_ratios': [3, 1]}, figsize=(10,10))
+
+        # add title
+        plt.suptitle(f'Cell {cell_nb}')
+        
+        # plot raster
+        ax_rast = axs[0]
+        ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
+        ax_rast.set(title = "Raster plot", ylabel='N Repetitions')
+
+        # plot firing rate psth
+        ax_psth = axs[1]
+        width = (raster_data[cell_nb]["repeated_sequences_times"][0][0]/int(params.nb_frames_by_sequence/2))
+        seq_lenght = raster_data[cell_nb]["repeated_sequences_times"][0][1]-raster_data[cell_nb]["repeated_sequences_times"][0][0]
+        ax_psth.bar(np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence/2)) + width/2, 
+                    raster_data[cell_nb]["psth"], width=1.3*width)
+        ax_psth.set(xlabel='Time in sec', ylabel='Firing rate (spikes/s)')
+
+        # format figure
+        plt.subplots_adjust(wspace=0, hspace=0)
+
+        # save figure
+        fig_file = os.path.join(fig_directory,f'Cell_{cell_nb}.png')
+        plt.savefig(fig_file, dpi=fig.dpi)
+
+        # clear and close figure
+        plt.clf()
+        plt.close()
+    
+    # save raster data
+    np.save(os.path.join(check_directory,'Check_rasters_data'), raster_data)
 
 def plot_all_cells_rasters(raster_data: dict, cells_id: list, plotting: bool = True):
     """
@@ -410,7 +512,7 @@ def fit_ellipse_to_spike_triggered_average(
         Dictionary with fitted parameters or empty arrays if fitting failed
     """
     # File loading the 3D sta dictionnary saved above in this notebook
-    check_directory = temporary_utils.find_Analysis_Directory("Checkerboard")
+    check_directory = utils.find_analysis_directory("Checkerboard")
     sta_data_file = os.path.normpath(os.path.join(check_directory, "sta_data_3D.pkl"))
     sta_data = utils.load_obj(sta_data_file)
 

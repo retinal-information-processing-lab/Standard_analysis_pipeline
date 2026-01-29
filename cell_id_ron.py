@@ -19,7 +19,6 @@ from math import *
 # Above is just everything from original utils.  Likely overkill but prevents annoying errors from not having a needed module.
 
 
-import temporary_utils
 import utils
 
 
@@ -58,9 +57,9 @@ def import_data_to_plot(params: dict):
     phy_directory = params.phy_directory
 
     # Find analysis directories
-    check_directory = temporary_utils.find_Analysis_Directory(dir_type="Checkerboard")
-    DG_directory = temporary_utils.find_Analysis_Directory(dir_type="DG")
-    CT_directory = temporary_utils.find_Analysis_Directory(dir_type="CellTyping")
+    check_directory = utils.find_analysis_directory(dir_type="Checkerboard")
+    DG_directory = utils.find_analysis_directory(dir_type="DG")
+    CT_directory = utils.find_analysis_directory(dir_type="CellTyping")
 
     # Load data
     # load chirp stimulus for plotting the profile

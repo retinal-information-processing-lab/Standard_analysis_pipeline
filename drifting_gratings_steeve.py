@@ -85,7 +85,11 @@ def get_all_inputs_for_dg_analysis(params):
     )
 
     seq_len, seq_sep, trigsinrep, _ = prompt_user_for_dg_speed()
-    stim_onsets, _ = temporary_utils.load_triggers(params, rec)
+    triggers_path = os.path.normpath(os.path.join(
+        params.triggers_directory,
+        f"{params.exp}_{rec}_triggers.pkl"
+    ))
+    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
     cells, spike_times = temporary_utils.load_spike_trains(params, rec)
 
     return cells, spike_times, stim_onsets, trigsinrep, seq_sep, seq_len, DG_directory
