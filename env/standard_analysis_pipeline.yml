@@ -29,5 +29,6 @@ dependencies:
     - black=24.10.0                 # improve readability
     - tqdm=4.67.1
     - pytest=8.4.2                 # unit-testing
+    - scikit-learn=1.6.1           # machine learning
     - pip:
         - spikeinterface==0.103.2       # for spike sorting
