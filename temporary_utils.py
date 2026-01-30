@@ -32,8 +32,9 @@ from utils import extract_from_sequence, load_obj
 # PSTH + RASTER ANALYSIS
 # ==============================================================================
 
-# Important part 
-# Some of it is already done in utils.py
+# This is just a sketch of functions tha could be useful
+# Some of it is already handled in utils.py in build_rasters or etract_from_sequence
+# But it needs to be be slightly reworked to be more general and reusable
 
 def compute_rasters(spikes: dict, triggers: np.ndarray, 
                    nb_repeats: int, stimulus_frequency: int) -> dict:
