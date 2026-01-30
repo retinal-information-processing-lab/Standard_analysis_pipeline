@@ -1407,7 +1407,7 @@ def SNR_test(sta, contour):  # Calculate the SNR of cells
     noise = []
     signal = []
     for ins_id in range(len(inside)):
-        if inside[ins_id] == False:
+        if inside[ins_id] is False:
             noise.append(sta[points[ins_id][1], points[ins_id][0]])
         else:
             signal.append(sta[points[ins_id][1], points[ins_id][0]])
