@@ -171,7 +171,7 @@ def create_path_automatically(params: dict):
         os.makedirs(symbolic_link_directory)
         print(f'- Created "Sorting" path: {symbolic_link_directory}')
     else:
-        print(f'- "Sorting" path already exists')
+        print('- "Sorting" path already exists')
 
     # copy path
     sorting_directory = symbolic_link_directory
@@ -188,7 +188,7 @@ def create_path_automatically(params: dict):
         os.makedirs(output_directory)
         print(f'- Created "output" path: {output_directory}')
     else:
-        print(f'- "output" path already exists')
+        print('- "output" path already exists')
 
     # Link to the folder in which triggers will be saved.
     # If doesn't exist, will be created.
@@ -197,7 +197,7 @@ def create_path_automatically(params: dict):
         os.makedirs(triggers_directory)
         print(f'- Created "triggers" path: {triggers_directory}')
     else:
-        print(f'- "triggers" path already exists')
+        print('- "triggers" path already exists')
 
     # Path to the checkerboard binary file used to generate stimuli
     binary_source_path = "./ressources/binarysource1000Mbits"

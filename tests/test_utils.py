@@ -19,7 +19,6 @@ import pickle
 import tempfile
 import shutil
 import unittest
-import shutil
 import numpy as np
 from unittest.mock import patch, MagicMock
 from io import StringIO

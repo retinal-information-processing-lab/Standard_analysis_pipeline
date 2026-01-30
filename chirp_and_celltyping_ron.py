@@ -1,24 +1,11 @@
 import numpy as np
-import pickle
 import os
-import glob
-import re
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
-import csv
-from colorama import Fore, Style
-import params
-import math
-from scipy.optimize import curve_fit
-from scipy.cluster.hierarchy import dendrogram
-import itertools
-import time
-from collections import defaultdict
 from math import *
 from matplotlib.gridspec import GridSpec
 from sklearn.decomposition import PCA, SparsePCA
 import scipy as sc
-from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import AgglomerativeClustering
 
 
@@ -152,7 +139,7 @@ def compute_chirp_rasters(
     cell_data = {}
 
     for idx, cell_nb in tqdm(enumerate(cells[:]), desc="Extraction"):
-        if not cell_nb in cell_data.keys():
+        if cell_nb not in cell_data.keys():
             cell_data[cell_nb] = {}
 
         # Get spike_times

@@ -94,7 +94,7 @@ def calculate_checkerboard_experiment_stats(
     nb_repeats = int(len(triggers) / params.nb_frames_by_sequence)
     duration_sequence = int(params.nb_frames_by_sequence / stimulus_frequency)
 
-    print(f"\nCheckerboard Stats :")
+    print("\nCheckerboard Stats :")
     print(f"\t- {int(stim_onsets[-1]/60)} min total duration")
     print(f"\t- {len(triggers)} triggers")
     print(f"\t- {nb_repeats} complete sequences")
@@ -268,7 +268,7 @@ def save_plots(
 
     # figure path
     fig_directory = os.path.normpath(
-        os.path.join(check_directory, r"Rasters_figs".format(recording_number))
+        os.path.join(check_directory, r"Rasters_figs")
     )
 
     # ensure path figure exists
