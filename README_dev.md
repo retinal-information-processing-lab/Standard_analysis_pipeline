@@ -118,6 +118,8 @@ I included and tested the following function
 
 Those changes have been implemented up to the notebook (which I tested)
 
+- I've added the test_utils as an action on guthub for commit and push (test are run automatically by Git and you receive a notification if you broke something)
+
 ### Note on Utils
 
 - There are still some magic variables (fixed params in CAPITAL letters) that should be removed

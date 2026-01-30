@@ -7,7 +7,6 @@ from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import csv
 from colorama import Fore, Style
-import params
 import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
@@ -15,6 +14,8 @@ import itertools
 import time
 from collections import defaultdict
 from math import *
+
+import params
 # ==========================
 # Baptiste testedd utils => To move in the right area
 # ==========================

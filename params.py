@@ -13,7 +13,52 @@ Raises:
 Returns:
     _type_: _description_
 """
+
 import os
+
+# setup experiment parameters (always check!)
+
+basic_params = {
+    "root": r"./data/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20251219_PulsingGratings_PupilSize",  # name of your experiment for saving the triggers
+    "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
+    "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
+    "recording_names": [
+        "00_AccCheck_30Hz_16px_42sq_50%30ND",
+        "01_Swn_30Hz_48pxCh_6pxL_50%30ND",
+        "02_Chirp_50Hz_50%30ND",
+        "03_DG_50Hz_50%30ND",
+        "04_PulsingGratings-PS0_40Hz_50%30ND",
+        "05_PulsingGratings-PS1_40Hz_50%30ND",
+        "06_PulsingGratings-PS2_40Hz_50%30ND",
+    ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
+    "registration_directory": r"",
+}
+
+# setup MEA parameters (always check!)
+mea_params = {
+    "mea_spacing": 30,  # the spacing between two electrodes of the MEA in µm for registration
+    "n_electrodes": 16,  # number of electrodes on one side of the MEA. N tot electrodes = n_electrodes**2
+}
+
+# setup advanced parameters
+# Default values used in utils functions. If a function has a wrong behaviour, you may want to look in here.
+advanced_params = {
+    "dtype": "uint16",  # Datatype used to open rawfiles recordings
+    "voltage_resolution": 0.1042,  # µV / DC level, Resolution of one step of mea signal amplitude in micro volts
+    "nb_bytes_by_datapoint": 2,  # Size of a sample in bytes
+    "time": 10,  # Time in s at the begining of the recording used to check recording type
+    "maximal_jitter": 0.25e-3,  # Maximal error admissible in sec for time gap between triggers
+    "nb_frames_by_sequence": 1200,  # Number of frames in each checkerboard sequence
+    "sta_temporal_dimension": 40,  # number of frames to look in for the lag
+    "sta_smooth_value": 0.8,
+    "sta_treshold": 0.1,
+    "temporal_dimension": 30,
+}
+
+
+# Setup most advanced parameters (Only if you know what you are doing!).
+# Those parameters are following the setups specs of january 2023
 
 def setup_threshold_pxl_size_size_dmd(params: dict):
     """setup the optimal threshold for detecting stimuli,
@@ -45,38 +90,30 @@ def setup_threshold_pxl_size_size_dmd(params: dict):
     return threshold, pxl_size_dmd, size_dmd
 
 
-def make_dict_keys_global_variables(params: dict):
-    for k, v in params.items():
-        globals()[k] = v
-
-# setup experiment parameters (always check!)
-basic_params = {
-    "root": r"./data/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20251219_PulsingGratings_PupilSize",  # name of your experiment for saving the triggers
-    "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
-    "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
-    "recording_names": [
-        "00_AccCheck_30Hz_16px_42sq_50%30ND",
-        "01_Swn_30Hz_48pxCh_6pxL_50%30ND",
-        "02_Chirp_50Hz_50%30ND",
-        "03_DG_50Hz_50%30ND", 
-        "04_PulsingGratings-PS0_40Hz_50%30ND",
-        "05_PulsingGratings-PS1_40Hz_50%30ND",
-        "06_PulsingGratings-PS2_40Hz_50%30ND",
-    ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
-    "registration_directory": r"",
+most_advanced_params = {
+    "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[0],
+    "pxl_size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[1],
+    "size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[2],
+    "nb_channels": 256,  # 256 for standard MEA, 17 for MEA1 Polychrome
+    "holo_channel_id": 127,  # MEA channel id containing holographic triggers trace
+    "visual_channel_id": 126,
+    "fs": 20000,  # number of triggers samples acquired per second (Sampling frequency of the MEA)
+    "time_after": 10,  # Time (ms) before a trigger to remove from the spyking circus analysis due to photo induced current on mea
+    "time_before": 10,  # Time (ms) after a trigger to remove  from the spyking circus analysis due to photo induced current on mea
+    "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
 }
 
-# setup MEA parameters (always check!)
-mea_params = {
-    "mea_spacing": 30,  # the spacing between two electrodes of the MEA in µm for registration
-    "n_electrodes": 16,  # number of electrodes on one side of the MEA. N tot electrodes = n_electrodes**2
-}
+# setup pipeline parameters
+# relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
+ressources = r"./ressources"
 
 
 ########################################################
 # Path Utils
 ########################################################
+def make_dict_keys_global_variables(params: dict):
+    for k, v in params.items():
+        globals()[k] = v
 
 def find_files(path: str):
     """
@@ -176,6 +213,11 @@ def create_path_automatically(params: dict):
     )
 
     # Do not use this unless you know how !!!
+    if not os.path.exists(recording_directory):
+        print(f'Creating "recording_directory" path: {recording_directory}')
+        print('Please make sure to fill it with your raw files!')
+        os.makedirs(recording_directory)
+    
     recording_names = find_files(recording_directory)
     return (
         recording_directory,
@@ -190,59 +232,27 @@ def create_path_automatically(params: dict):
         registration_imgs,
         recording_names,
     )
-    
+
+
 # create paths automatically (change only if your file organization is specific!)
-( recording_directory,            # Link to the actual raw files from the recording listed in the input_file
+(   recording_directory,  # Link to the actual raw files from the recording listed in the input_file
     symbolic_link_directory,
     sorting_directory,
     phy_directory,
-    output_directory,               # Directory where preprocessing info are saved
-    triggers_directory,             # folder in which the triggers are saved
+    output_directory,  # Directory where preprocessing info are saved
+    triggers_directory,  # folder in which the triggers are saved
     binary_source_path,
     raw_filtered_directory,
     registration_frames,
     registration_imgs,
-    recording_names,                # Recordings labels available
+    recording_names,  # Recordings labels available
 ) = create_path_automatically(basic_params)
 
-# setup advanced parameters
-# Default values used in utils functions. If a function has a wrong behaviour, you may want to look in here.
-advanced_params = {
-    "dtype": "uint16",  # Datatype used to open rawfiles recordings
-    "voltage_resolution": 0.1042,  # µV / DC level, Resolution of one step of mea signal amplitude in micro volts
-    "nb_bytes_by_datapoint": 2,  # Size of a sample in bytes
-    "time": 10,  # Time in s at the begining of the recording used to check recording type
-    "maximal_jitter": 0.25e-3,  # Maximal error admissible in sec for time gap between triggers
-    "nb_frames_by_sequence": 1200,  # Number of frames in each checkerboard sequence
-    "sta_temporal_dimension": 40,  # number of frames to look in for the lag
-    "sta_smooth_value": 0.8,
-    "sta_treshold": 0.1,
-    "temporal_dimension": 30,
-}
-
-# Setup most advanced parameters (Only if you know what you are doing!).
-# Those parameters are following the setups specs of january 2023
-most_advanced_params = {
-    "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[0],
-    "pxl_size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[1],
-    "size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[2],
-    "nb_channels": 256,  # 256 for standard MEA, 17 for MEA1 Polychrome
-    "holo_channel_id": 127,  # MEA channel id containing holographic triggers trace
-    "visual_channel_id": 126,
-    "fs": 20000,  # number of triggers samples acquired per second (Sampling frequency of the MEA)
-    "time_after": 10,  # Time (ms) before a trigger to remove from the spyking circus analysis due to photo induced current on mea
-    "time_before": 10,  # Time (ms) after a trigger to remove  from the spyking circus analysis due to photo induced current on mea
-    "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
-}
-
-# setup pipeline parameters
-# relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
-ressources = r"./ressources"
 
 # make all dictionary keys global variable
-# note: this is a very poor practice as we have 
+# note: this is a very poor practice as we have
 # little control over the variables and packages
-# available at any given time in our environment 
+# available at any given time in our environment
 # This is done to minimize disruption for now.
 # TODO: refactor utils.py to take in an dictionary
 # of parameters as input
@@ -250,4 +260,3 @@ make_dict_keys_global_variables(basic_params)
 make_dict_keys_global_variables(mea_params)
 make_dict_keys_global_variables(advanced_params)
 make_dict_keys_global_variables(most_advanced_params)
-
