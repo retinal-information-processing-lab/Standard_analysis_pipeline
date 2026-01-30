@@ -133,6 +133,10 @@ Those changes have been implemented up to the notebook (which I tested)
 - Test should be mainly unitest that used fake generated little dataset
 - Regression test using real data that we know what the analysis should look like will be to complicated (Visual inspection of the graphs is already here for that)
 
+- Finally I did Ruff pass to improve code quality (only allowed undefined-local-with-import-star and bare-except)
+
+- Ruff will be run automatically by git or manually using python tasks.py fix-formatting
+- 
 ### Noteds PSTH + RASTER ANALYSIS
 
 This is just a sketch of functions tha could be useful.
