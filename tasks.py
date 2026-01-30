@@ -17,7 +17,7 @@ def run(cmd):
 def fix_formatting():
     """Fix code formatting"""
     print("🔧 Fixing formatting issues...")
-    # run("ruff check . --fix")
+    run("ruff check . --fix")
     run("ruff format .")
     print("✅ Formatting fixed!")
 
@@ -25,7 +25,7 @@ def fix_formatting():
 def check_formatting():
     """Check code formatting"""
     print("🔍 Checking formatting...")
-    # run("ruff check .")
+    run("ruff check .")
     run("ruff format --check .")
     print("✅ Formatting check complete!")
 
