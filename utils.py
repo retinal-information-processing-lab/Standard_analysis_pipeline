@@ -11,6 +11,7 @@ from scipy.cluster.hierarchy import dendrogram
 import itertools
 import time
 from collections import defaultdict
+import matplotlib.path as mpltPath
 
 import params
 
@@ -155,9 +156,9 @@ def find_analysis_directory(
         ]
         print(f"\n Selected folder : {analysis_directory} \n")
     else:
-        assert len(dirs) >= 1, (
-            f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
-        )
+        assert (
+            len(dirs) >= 1
+        ), f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
 
     return os.path.normpath(os.path.join(output_directory, analysis_directory))
 
@@ -230,7 +231,7 @@ def create_symlinks(
             )  # If no, create symlink accordinly and add an empty string to 'previously_existing' list
         except FileExistsError:
             raise FileExistsError(
-                r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ ".format(
+                r"/!\ Old missmatching SymLinks already in your sorting folder. Delete them and retry ! /!\ path : {}".format(
                     os.path.join(symbolic_link_directory, linkname)
                 )
             )
@@ -1157,7 +1158,9 @@ def smooth_sta(sta, alpha, max_time_window=15):
                 1:-1,
                 x + pading_size - 1 : x + pading_size + 2,
                 y + pading_size - 1 : y + pading_size + 2,
-            ].sum(axis=(1, 2))
+            ].sum(
+                axis=(1, 2)
+            )
 
     best = np.unravel_index(
         np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
@@ -1512,7 +1515,8 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
         # per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
         sel_bins = np.copy(
             counts[
-                int(seq_len * 1000 / 6) // binsize + int(seq_sep * binsec * a) : int(
+                int(seq_len * 1000 / 6) // binsize
+                + int(seq_sep * binsec * a) : int(
                     seq_len * binsec + seq_sep * binsec * a
                 )
             ]
