@@ -122,7 +122,18 @@ def select_and_save_good_cells(
     return good_cells
 
 
-def create_id_cards_and_plots(cells, cell_rpvs, output_directory, sta_results, check_rast, Chirp_data, DG_data, euler_vec, exp, rpv_len=0.002):
+def create_id_cards_and_plots(
+    cells,
+    cell_rpvs,
+    output_directory,
+    sta_results,
+    check_rast,
+    Chirp_data,
+    DG_data,
+    euler_vec,
+    exp,
+    rpv_len=0.002,
+):
     """Generate and save ID cards for all cells.
 
     Args:
@@ -137,7 +148,7 @@ def create_id_cards_and_plots(cells, cell_rpvs, output_directory, sta_results, c
         Creates comprehensive ID cards showing multiple stimulus responses
         and quality metrics for each cell. Handles missing data gracefully.
         RWD self-note: not clear if figures are the ID cards or ID cards and figures in this function are separate thing
-    
+
     """
     # Input----------------------------------------------------------
 
@@ -148,7 +159,6 @@ def create_id_cards_and_plots(cells, cell_rpvs, output_directory, sta_results, c
     # Plotting--------------------------------------------------------
 
     for cell_nb in tqdm(cells[:]):
-
         # Create the figure
         fig = plt.figure(figsize=(10, 12))
 
@@ -337,7 +347,6 @@ def create_id_cards_and_plots(cells, cell_rpvs, output_directory, sta_results, c
             plt.close(fig)
 
         except:
-
             fsave = os.path.join(
                 fig_directory, "Group{}_cell{}".format(cluster, cell_nb)
             )

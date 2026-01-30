@@ -1,21 +1,22 @@
 """unit-tests
 
-author: laquitainesteeve@gmail.com 
+author: laquitainesteeve@gmail.com
 
 Usage:
 
     # run in git root repository, in the terminal
-    pytest 
+    pytest
 
 Requirements:
 
 - 'data/20251219_PulsingGratings_PupilSize/Analysis/triggers/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl'
 
 """
+
 import os
 import pytest
 import utils
-import pickle 
+import pickle
 import tempfile
 import shutil
 import unittest
@@ -23,35 +24,33 @@ import numpy as np
 from unittest.mock import patch, MagicMock
 from io import StringIO
 
+
 class TestLoadObj:
-    """Test suite for load_obj function
-    
-    """
-    
+    """Test suite for load_obj function"""
+
     def test_load_obj_type(self):
-        """test output type with Pulsing Gratings 
+        """test output type with Pulsing Gratings
         known trigger data
         """
         # size (152K)
-        test_data_path = 'tests/test_data/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl'
-        
+        test_data_path = "tests/test_data/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl"
+
         # load data
         output = utils.load_obj(test_data_path)
 
         # test
         assert isinstance(output, dict)
 
-
     def test_load_obj_keys(self):
-        """test output keys with Pulsing Gratings 
+        """test output keys with Pulsing Gratings
         known trigger data
         """
         # size (152K)
-        test_data_path = 'tests/test_data/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl'
+        test_data_path = "tests/test_data/20251219_PulsingGratings_PupilSize_03_DG_50Hz_50%30ND_triggers.pkl"
 
         # expected output keys
-        expected_keys = ['indices', 'duration', 'trigger_type', 'indice_errors']
-        
+        expected_keys = ["indices", "duration", "trigger_type", "indice_errors"]
+
         # load data
         output = utils.load_obj(test_data_path)
 
@@ -69,21 +68,20 @@ class TestSaveObj:
         yield temp_path
         # Cleanup after test
         shutil.rmtree(temp_path)
-    
 
     def test_save_simple_object(self, temp_dir):
         """Test saving a simple object"""
         obj = {"key": "value", "number": 42}
         filepath = os.path.join(temp_dir, "test_file.pkl")
-        
+
         # call the function to test
         utils.save_obj(obj, filepath)
-        
+
         # Verify file exists
         assert os.path.exists(filepath)
-        
+
         # Verify content
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             loaded_obj = pickle.load(f)
         assert loaded_obj == obj
 
@@ -91,15 +89,15 @@ class TestSaveObj:
         """Test that .pkl extension is added if missing"""
         obj = [1, 2, 3, 4, 5]
         filepath = os.path.join(temp_dir, "test_file")  # No extension
-        
+
         # call function
         utils.save_obj(obj, filepath)
-        
+
         # Check that .pkl was added
         expected_path = filepath + ".pkl"
         assert os.path.exists(expected_path)
-        
-        with open(expected_path, 'rb') as f:
+
+        with open(expected_path, "rb") as f:
             loaded_obj = pickle.load(f)
         assert loaded_obj == obj
 
@@ -107,10 +105,10 @@ class TestSaveObj:
         """Test that .pkl extension is not duplicated"""
         obj = "test string"
         filepath = os.path.join(temp_dir, "test_file.pkl")
-        
+
         # call function
         utils.save_obj(obj, filepath)
-        
+
         # should not create test_file.pkl.pkl
         assert os.path.exists(filepath)
         assert not os.path.exists(filepath + ".pkl")
@@ -119,13 +117,13 @@ class TestSaveObj:
         """Test that nested directories are created"""
         obj = {"nested": True}
         filepath = os.path.join(temp_dir, "level1", "level2", "level3", "test.pkl")
-        
+
         # call function
         utils.save_obj(obj, filepath)
-        
+
         # test
         assert os.path.exists(filepath)
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             loaded_obj = pickle.load(f)
         assert loaded_obj == obj
 
@@ -141,21 +139,21 @@ class TestSaveObj:
             (1, 2, 3),  # tuple
             None,  # None
         ]
-        
+
         for i, obj in enumerate(test_objects):
             filepath = os.path.join(temp_dir, f"test_{i}.pkl")
 
             # call function
             utils.save_obj(obj, filepath)
-            
-            with open(filepath, 'rb') as f:
+
+            with open(filepath, "rb") as f:
                 loaded_obj = pickle.load(f)
             assert loaded_obj == obj
 
     def test_overwrite_existing_file(self, temp_dir):
         """Test that existing files are overwritten"""
         filepath = os.path.join(temp_dir, "test.pkl")
-        
+
         # Save first object
         obj1 = {"version": 1}
 
@@ -167,9 +165,9 @@ class TestSaveObj:
 
         # call function
         utils.save_obj(obj2, filepath)
-        
+
         # Verify second object was saved
-        with open(filepath, 'rb') as f:
+        with open(filepath, "rb") as f:
             loaded_obj = pickle.load(f)
         assert loaded_obj == obj2
         assert loaded_obj != obj1
@@ -177,7 +175,7 @@ class TestSaveObj:
 
 class TestGetRecordingSpikes:
     """Test suite for get_recording_spikes function"""
-    
+
     @pytest.fixture
     def sample_all_recs_spikes(self):
         """
@@ -188,24 +186,24 @@ class TestGetRecordingSpikes:
             "cell1": {
                 "checkerboard": [0.1, 0.2, 0.3],
                 "recording1": [1.1, 1.2, 1.3],
-                "recording2": [2.1, 2.2, 2.3]
+                "recording2": [2.1, 2.2, 2.3],
             },
             "cell2": {
                 "checkerboard": [0.5, 0.6, 0.7],
                 "recording1": [1.5, 1.6, 1.7],
-                "recording2": [2.5, 2.6, 2.7]
+                "recording2": [2.5, 2.6, 2.7],
             },
             "cell3": {
                 "checkerboard": [0.9, 1.0, 1.1],
                 "recording1": [1.9, 2.0, 2.1],
-                "recording2": [2.9, 3.0, 3.1]
-            }
+                "recording2": [2.9, 3.0, 3.1],
+            },
         }
-    
+
     def test_get_checkerboard_spikes(self, sample_all_recs_spikes):
         """Test retrieving checkerboard recording spikes"""
         result = utils.get_recording_spikes("checkerboard", sample_all_recs_spikes)
-        
+
         assert isinstance(result, dict)
         assert len(result) == 3
         assert "cell1" in result
@@ -218,7 +216,7 @@ class TestGetRecordingSpikes:
     def test_get_recording1_spikes(self, sample_all_recs_spikes):
         """Test retrieving recording1 spikes"""
         result = utils.get_recording_spikes("recording1", sample_all_recs_spikes)
-        
+
         assert isinstance(result, dict)
         assert len(result) == 3
         assert result["cell1"] == [1.1, 1.2, 1.3]
@@ -234,139 +232,134 @@ class TestGetRecordingSpikes:
         """Test with empty dictionary"""
         all_recs_spikes = {}
         result = utils.get_recording_spikes("any_name", all_recs_spikes)
-        
+
         assert isinstance(result, dict)
         assert len(result) == 0
 
     def test_empty_spike_lists(self):
         """Test cells with empty spike lists"""
         all_recs_spikes = {
-            "cell1": {
-                "checkerboard": []
-            },
-            "cell2": {
-                "checkerboard": [0.5, 0.6]
-            }
+            "cell1": {"checkerboard": []},
+            "cell2": {"checkerboard": [0.5, 0.6]},
         }
-        
+
         result = utils.get_recording_spikes("checkerboard", all_recs_spikes)
-        
+
         assert result["cell1"] == []
         assert result["cell2"] == [0.5, 0.6]
-        
+
+
 class TestCreateAnalysisDirectory(unittest.TestCase):
-    
     def setUp(self):
         """Create a temporary directory for testing."""
         self.test_dir = tempfile.mkdtemp()
-    
+
     def tearDown(self):
         """Remove the temporary directory after testing."""
         shutil.rmtree(self.test_dir)
-    
+
     def test_creates_new_directory(self):
         """Test creating a new analysis directory."""
         params = MagicMock()
         params.output_directory = self.test_dir
-        
-        result = utils.create_analysis_directory(params, 1, 'DG')
-        
+
+        result = utils.create_analysis_directory(params, 1, "DG")
+
         self.assertTrue(os.path.isdir(result))
-        self.assertIn('DG_Analysis_rec_1', result)
-    
+        self.assertIn("DG_Analysis_rec_1", result)
+
     def test_existing_directory(self):
         """Test that existing directory is not recreated."""
         params = MagicMock()
         params.output_directory = self.test_dir
-        
+
         # Create directory first time
-        result1 = utils.create_analysis_directory(params, 2, 'Checkerboard')
+        result1 = utils.create_analysis_directory(params, 2, "Checkerboard")
         # Call again with same parameters
-        result2 = utils.create_analysis_directory(params, 2, 'Checkerboard')
-        
+        result2 = utils.create_analysis_directory(params, 2, "Checkerboard")
+
         self.assertEqual(result1, result2)
         self.assertTrue(os.path.isdir(result2))
-    
+
     def test_different_analysis_types(self):
         """Test creating directories for different analysis types."""
         params = MagicMock()
         params.output_directory = self.test_dir
-        
-        dg_dir = utils.create_analysis_directory(params, 0, 'DG')
-        check_dir = utils.create_analysis_directory(params, 0, 'Checkerboard')
-        
-        self.assertIn('DG_Analysis_rec_0', dg_dir)
-        self.assertIn('Checkerboard_Analysis_rec_0', check_dir)
+
+        dg_dir = utils.create_analysis_directory(params, 0, "DG")
+        check_dir = utils.create_analysis_directory(params, 0, "Checkerboard")
+
+        self.assertIn("DG_Analysis_rec_0", dg_dir)
+        self.assertIn("Checkerboard_Analysis_rec_0", check_dir)
         self.assertTrue(os.path.isdir(dg_dir))
         self.assertTrue(os.path.isdir(check_dir))
 
 
 class TestFindAnalysisDirectory(unittest.TestCase):
-    
     def setUp(self):
         """Create a temporary directory with test folders."""
         self.test_dir = tempfile.mkdtemp()
-    
+
     def tearDown(self):
         """Remove the temporary directory after testing."""
         shutil.rmtree(self.test_dir)
-    
+
     def test_single_directory_found(self):
         """Test finding a single matching directory."""
-        os.makedirs(os.path.join(self.test_dir, 'Checkerboard_Analysis_rec_0'))
-        
-        result = utils.find_analysis_directory('Checkerboard', self.test_dir)
-        
-        self.assertIn('Checkerboard_Analysis_rec_0', result)
-    
-    @patch('builtins.input', return_value='1')
-    @patch('sys.stdout', new_callable=StringIO)
+        os.makedirs(os.path.join(self.test_dir, "Checkerboard_Analysis_rec_0"))
+
+        result = utils.find_analysis_directory("Checkerboard", self.test_dir)
+
+        self.assertIn("Checkerboard_Analysis_rec_0", result)
+
+    @patch("builtins.input", return_value="1")
+    @patch("sys.stdout", new_callable=StringIO)
     def test_multiple_directories_found(self, mock_stdout, mock_input):
         """Test selecting from multiple matching directories."""
-        os.makedirs(os.path.join(self.test_dir, 'DG_Analysis_rec_0'))
-        os.makedirs(os.path.join(self.test_dir, 'DG_Analysis_rec_1'))
-        
-        result = utils.find_analysis_directory('DG', self.test_dir)
-        
-        self.assertIn('DG_Analysis_rec_1', result)
-    
+        os.makedirs(os.path.join(self.test_dir, "DG_Analysis_rec_0"))
+        os.makedirs(os.path.join(self.test_dir, "DG_Analysis_rec_1"))
+
+        result = utils.find_analysis_directory("DG", self.test_dir)
+
+        self.assertIn("DG_Analysis_rec_1", result)
+
     def test_no_directory_found_raises_assertion(self):
         """Test that assertion is raised when no matching directory exists."""
         with self.assertRaises(AssertionError):
-            utils.find_analysis_directory('CellTyping', self.test_dir)
-            
+            utils.find_analysis_directory("CellTyping", self.test_dir)
+
+
 class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
-    
     def setUp(self):
         """Set up mock parameters."""
         self.params = MagicMock()
         self.params.fs = 20000  # Example sampling frequency
-    
-    @patch('utils.load_obj') 
+
+    @patch("utils.load_obj")
     def test_basic_loading_and_conversion(self, mock_load_obj):
         """Test that triggers are loaded and converted to seconds correctly."""
         mock_load_obj.return_value = {
-            'indices': np.array([0, 20000, 40000, 60000]),
-            'trigger_type': 'checkerboard'
+            "indices": np.array([0, 20000, 40000, 60000]),
+            "trigger_type": "checkerboard",
         }
-        
+
         stim_onsets = utils.load_stim_onset_from_triggers_path(
-            'fake_path.pkl', self.params, verbose=False
+            "fake_path.pkl", self.params, verbose=False
         )
-        
+
         np.testing.assert_array_equal(stim_onsets, np.array([0.0, 1.0, 2.0, 3.0]))
-    
-    @patch('utils.load_obj')
+
+    @patch("utils.load_obj")
     def test_empty_triggers(self, mock_load_obj):
         """Test handling of empty trigger data."""
         mock_load_obj.return_value = {
-            'indices': np.array([]),
-            'trigger_type': 'checkerboard'
+            "indices": np.array([]),
+            "trigger_type": "checkerboard",
         }
-        
+
         stim_onsets = utils.load_stim_onset_from_triggers_path(
-            'fake_path.pkl', self.params, verbose=False
+            "fake_path.pkl", self.params, verbose=False
         )
-        
+
         self.assertEqual(len(stim_onsets), 0)
         np.testing.assert_array_equal(stim_onsets, np.array([]))

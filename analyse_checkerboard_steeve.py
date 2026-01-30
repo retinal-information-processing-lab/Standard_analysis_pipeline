@@ -95,7 +95,7 @@ def calculate_checkerboard_experiment_stats(
     duration_sequence = int(params.nb_frames_by_sequence / stimulus_frequency)
 
     print("\nCheckerboard Stats :")
-    print(f"\t- {int(stim_onsets[-1]/60)} min total duration")
+    print(f"\t- {int(stim_onsets[-1] / 60)} min total duration")
     print(f"\t- {len(triggers)} triggers")
     print(f"\t- {nb_repeats} complete sequences")
     print(f"\t- {duration_sequence} seconds per sequence\n")
@@ -205,7 +205,6 @@ def load_checkerboard_data(
 
 
 def compute_rasters(checkerboard_spikes, triggers, nb_repeats, stimulus_frequency):
-
     # initialiser raster output
     raster_data = {}
 
@@ -222,7 +221,6 @@ def compute_rasters(checkerboard_spikes, triggers, nb_repeats, stimulus_frequenc
 
 
 def plot_rasters(raster_data, cells_id, ploting: bool = True):
-
     # Plot all the rasters. Takes a few seconds.
     if ploting:
         size = int(math.sqrt(len(cells_id))) + 1
@@ -267,9 +265,7 @@ def save_plots(
     print("Saving rasters ...")
 
     # figure path
-    fig_directory = os.path.normpath(
-        os.path.join(check_directory, r"Rasters_figs")
-    )
+    fig_directory = os.path.normpath(os.path.join(check_directory, r"Rasters_figs"))
 
     # ensure path figure exists
     if not os.path.isdir(fig_directory):
@@ -277,7 +273,6 @@ def save_plots(
 
     # loop over cells
     for cell_nb in tqdm(cells_id):
-
         # setup subplots
         fig, axs = plt.subplots(
             nrows=2,
@@ -327,40 +322,54 @@ def save_plots(
     np.save(os.path.join(check_directory, "Check_rasters_data"), raster_data)
 
 
-def plot_one_cell_raster_and_psth(raster_data, checkerboard_spikes, cells_id, params: dict):
-
+def plot_one_cell_raster_and_psth(
+    raster_data, checkerboard_spikes, cells_id, params: dict
+):
     # report number of neurons
-    print('Total : {} neurons found \n\nClusters id :\n{}\n'.format(len(checkerboard_spikes.keys()), cells_id))
+    print(
+        "Total : {} neurons found \n\nClusters id :\n{}\n".format(
+            len(checkerboard_spikes.keys()), cells_id
+        )
+    )
 
     # ask the user to select a cell
     cell_nb = int(input("Select a cell: "))
 
     # setup plot
     fig, axs = plt.subplots(
-        nrows = 2, ncols = 1, 
-        sharex=True, 
-        gridspec_kw={'height_ratios': [3, 1]}, 
-        figsize=(10, 10))
+        nrows=2,
+        ncols=1,
+        sharex=True,
+        gridspec_kw={"height_ratios": [3, 1]},
+        figsize=(10, 10),
+    )
 
     # plot raster
     ax_rast = axs[0]
     ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
-    ax_rast.set(title = "Raster plot", ylabel='N Repetitions')
+    ax_rast.set(title="Raster plot", ylabel="N Repetitions")
 
     # plot psth
     ax_psth = axs[1]
-    width = (raster_data[cell_nb]["repeated_sequences_times"][0][0]/int(params.nb_frames_by_sequence/2))
-    seq_lenght = raster_data[cell_nb]["repeated_sequences_times"][0][1] - raster_data[cell_nb]["repeated_sequences_times"][0][0]
+    width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
+        params.nb_frames_by_sequence / 2
+    )
+    seq_lenght = (
+        raster_data[cell_nb]["repeated_sequences_times"][0][1]
+        - raster_data[cell_nb]["repeated_sequences_times"][0][0]
+    )
     ax_psth.bar(
-        np.linspace(0,seq_lenght, int(params.nb_frames_by_sequence/2))+width/2, 
-        raster_data[cell_nb]["psth"], width=1.3*width)
-    ax_psth.set(xlabel='Time in sec', ylabel='Firing rate (spikes/s)')
+        np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence / 2)) + width / 2,
+        raster_data[cell_nb]["psth"],
+        width=1.3 * width,
+    )
+    ax_psth.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
 
     # format
-    plt.suptitle(f'Cell {cell_nb}')
+    plt.suptitle(f"Cell {cell_nb}")
     plt.subplots_adjust(wspace=0, hspace=0)
     plt.show(block=False)
-    
+
     # close
     plt.close(fig)
 
@@ -403,7 +412,6 @@ def compute_spike_triggered_average(
 
     # loop over spikes of checkerboard experiment
     for cell_id, spike_times in tqdm(checkerboard_spikes.items()):
-
         # Get spikes on random sequences
         sta_data[cell_id] = utils.extract_from_sequence(
             spike_times,
@@ -482,7 +490,6 @@ def fit_ellipse_to_spike_triggered_average(
 
     # loop over cells
     for cell_id in tqdm(sta_data):
-
         # get 3D sta
         sta_3D = sta_data[cell_id]["sta_3D"]
 
@@ -559,7 +566,6 @@ def plot_sta_fitted_with_ellipse(
 
     # loop over all cells
     for cell_id in tqdm(cells_id[0:]):
-
         # get cell sta data
         sta = sta_data[cell_id]["center_analyse"]
 
@@ -625,7 +631,6 @@ def plot_sta_fitted_with_ellipse_by_tom(
 
     # loop over cells
     for cell_id in tqdm(cells_id[0:]):
-
         # setup subplots
         fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
 

@@ -11,7 +11,6 @@ from scipy.cluster.hierarchy import dendrogram
 import itertools
 import time
 from collections import defaultdict
-from math import *
 
 import params
 
@@ -156,9 +155,9 @@ def find_analysis_directory(
         ]
         print(f"\n Selected folder : {analysis_directory} \n")
     else:
-        assert (
-            len(dirs) >= 1
-        ), f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        assert len(dirs) >= 1, (
+            f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        )
 
     return os.path.normpath(os.path.join(output_directory, analysis_directory))
 
@@ -558,7 +557,6 @@ def write_dead_times_file(
     with open(
         os.path.join(output_directory, "{}_dead_times.dead".format(exp)), "w"
     ) as f:
-
         if len(triggers_list) != len(onsets):
             print(
                 "Onsets list and triggers_list must be the same length. triggers_list must contain a list of reconding triggers not directly the triggers!"
@@ -685,7 +683,6 @@ def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs=params.
 
         is_first_iteration = True
         for rec, onset in onsets.items():
-
             if is_first_iteration:
                 rec_name = rec
                 recording_start_time = onset
@@ -737,7 +734,6 @@ def build_rasters(
     stim_frequency,
     nb_frames_by_sequence=params.nb_frames_by_sequence,
 ):
-
     nb_sequences = int(len(triggers) / nb_frames_by_sequence)
     duration_sequence = int(nb_frames_by_sequence / stim_frequency)
 
@@ -747,7 +743,6 @@ def build_rasters(
 
     analyse = {}
     for i in range(nb_sequences):
-
         # Get the repeated sequence times for the specified position
         time_start_id = i * nb_frames_by_sequence + int(nb_frames_by_sequence / 2)
         time_end_id = (i + 1) * nb_frames_by_sequence
@@ -805,12 +800,10 @@ def checkerboard_from_binary(
     binary_source_path=params.binary_source_path,
     mea=params.MEA,
 ):
-
     binary_source_file = open(binary_source_path, mode="rb")
     checkerboard = np.zeros((nb_frames, nb_checks_x, nb_checks_y), dtype="uint8")
 
     for frame in tqdm(range(nb_frames)):
-
         image = np.zeros((nb_checks_x, nb_checks_y), dtype=float)
 
         for row in range(nb_checks_x):
@@ -841,7 +834,6 @@ def extract_from_sequence(
     sequence_portion=(0.5, 1),
     nb_frames_by_sequence=params.nb_frames_by_sequence,
 ):
-
     nb_sequences = int(len(triggers) / nb_frames_by_sequence)
     duration_sequence = int(nb_frames_by_sequence / stim_frequency)
 
@@ -851,7 +843,6 @@ def extract_from_sequence(
 
     analyse = {}
     for i in range(nb_sequences):
-
         # Get the repeated sequence times for the specified position
         time_start_id = i * nb_frames_by_sequence + int(
             sequence_portion[0] * nb_frames_by_sequence
@@ -899,14 +890,12 @@ def compute_3D_sta(
     nb_frames_by_sequence=params.nb_frames_by_sequence,
     temporal_dimension=params.sta_temporal_dimension,
 ):
-
     nb_sequences = data["counted_spikes"].shape[0]
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype="float64")
     total_spikes = np.sum(data["counted_spikes"])
 
     for sequence in range(nb_sequences):
         for frame in range(temporal_dimension, int(nb_frames_by_sequence / 2)):
-
             sta_frame_start = (
                 sequence * int(nb_frames_by_sequence / 2) + frame - temporal_dimension
             )
@@ -975,7 +964,6 @@ def reduced_gaussian2D(
     sigma_y,
     angle,
 ):
-
     shape = (int(x[0]), int(x[1]))
     x0 = int(x[2])
     y0 = int(x[3])
@@ -1009,7 +997,6 @@ def reduced_gaussian2D_flat(x, amp, rx, ry, rot):
 
 
 def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
-
     level = amp * 0.5
 
     theta = 3.14 * angle / 180
@@ -1060,12 +1047,11 @@ def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
 
 
 def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_factor=2):
-
     data = sta_3D[-nb_frames:, :, :]
 
     # smoothing along time
     kernel = np.ones(kernel_lenght)[:, None, None] / kernel_lenght
-    data = convolve(data, kernel, mode="nearest")
+    data = math.convolve(data, kernel, mode="nearest")
 
     ## Take variance
     data = data.var(0)
@@ -1083,13 +1069,12 @@ def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_fac
 
 
 def gabriel_temporal_sta(sta_3D, gaussian_params):
-
     shape = (sta_3D.shape[1], sta_3D.shape[2])
     smoothing_kernel = gaussian2D(shape, *gaussian_params)
     smoothing_kernel /= np.sum(smoothing_kernel)
 
     # Find max in space
-    smoothed_sta = convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
+    smoothed_sta = math.convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
     x_max, y_max = np.unravel_index(np.argmax(smoothed_sta), shape=shape)
     # Gaussian weighting kernel
 
@@ -1102,7 +1087,6 @@ def gabriel_temporal_sta(sta_3D, gaussian_params):
 
 
 def fit_gaussian(sta_spatial):
-
     center = np.unravel_index(np.argmax(sta_spatial, axis=None), sta_spatial.shape)
     guess = [np.max(sta_spatial), center[1], center[0], 1, 1, 0]
 
@@ -1128,20 +1112,25 @@ def fit_gaussian(sta_spatial):
 
 def analyse_sta_gab(sta, cell_id):
     sta_3D = sta.copy()
-    fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
+
     try:
+        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
         ellipse_params, cov = fit_gaussian(fitting_data)
-    except:
+        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+
+    except Exception as e:
         print(f"Error Could not fit ellipse {cell_id}")
+        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
+        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
         plt.imshow(fitting_data)
         plt.show(block=False)
         return {
-            "Spatial": sta_spatial,
-            "Temporal": sta_temporal,
+            "Spatial": spatial_sta,
+            "Temporal": temporal_sta,
             "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
             "Cell_delay": np.nan,
         }
-    temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+        print(e)
 
     return {
         "Spatial": spatial_sta,
@@ -1168,9 +1157,7 @@ def smooth_sta(sta, alpha, max_time_window=15):
                 1:-1,
                 x + pading_size - 1 : x + pading_size + 2,
                 y + pading_size - 1 : y + pading_size + 2,
-            ].sum(
-                axis=(1, 2)
-            )
+            ].sum(axis=(1, 2))
 
     best = np.unravel_index(
         np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
@@ -1193,7 +1180,6 @@ def get_cell_shift(sta):
 
 
 def preprocess_fitting_matias(spatial, treshold=0.1):
-
     sta_spa = spatial.copy()
     sta_treshold = np.max(np.abs(spatial)) * treshold
     sta_spa[np.abs(sta_spa) < sta_treshold] = 0
@@ -1202,7 +1188,7 @@ def preprocess_fitting_matias(spatial, treshold=0.1):
 
 def matias_temporal_spatial_sta(sta_3D):
     if np.max(np.abs(sta_3D)) == 0:
-        print(f"Cell {cell_id} : Could not find sta")
+        # print(f"Cell {cell_id} : Could not find sta")
         return "Error detected : 3D sta empty", "Error detected : 3D sta empty"
 
     (best_t, best_x, best_y) = get_cell_shift(sta_3D)
@@ -1214,7 +1200,6 @@ def matias_temporal_spatial_sta(sta_3D):
 
 
 def double_gaussian_fit(spatial):
-
     center = np.unravel_index(np.argmax(np.abs(spatial), axis=None), spatial.shape)
     ydata = spatial.flatten()
 
@@ -1317,7 +1302,6 @@ def analyse_sta(sta, cell_id):
 
 
 def preprocess_fitting_tom(sta):
-
     shape0, shape1 = sta.shape
     denoised_sta = np.zeros([shape0, shape1])
     enlarged_sta = np.zeros([shape0 + 2, shape1 + 2])
@@ -1388,7 +1372,6 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
 
 # New display with max and min equal and new coulor
 def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
-
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
 
     vmax = np.max([np.amax(spatial_sta), -np.amin(spatial_sta)])
@@ -1409,7 +1392,6 @@ def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
 
 
 def SNR_test(sta, contour):  # Calculate the SNR of cells
-
     path = mpltPath.Path(contour[0][0])
     points = []
 
@@ -1451,7 +1433,6 @@ def PolyArea(x, y):  # Used to calculate an area of a polygon
 def check_presence_STA(
     sta, ellipse_coor, nb_of_pixels_by_check, tresh_snr=2.75, level_factor=0.2
 ):  # Used to check the presence of STAs
-
     pxl_size_dmd = params.pxl_size_dmd
 
     gaussian = gaussian2D(sta.shape, *ellipse_coor)
@@ -1531,8 +1512,7 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
         # per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
         sel_bins = np.copy(
             counts[
-                int(seq_len * 1000 / 6) // binsize
-                + int(seq_sep * binsec * a) : int(
+                int(seq_len * 1000 / 6) // binsize + int(seq_sep * binsec * a) : int(
                     seq_len * binsec + seq_sep * binsec * a
                 )
             ]
@@ -1751,14 +1731,12 @@ def noise_and_stim_correlations(
 
 
 def get_cell_rpvs(cells, phy_directory, rpv_len=2.0, fs=20000):
-
     spike_clusters = np.load(os.path.join(phy_directory, "spike_clusters.npy"))
     spike_times = np.load(os.path.join(phy_directory, "spike_times.npy"))
 
     cell_rpv = {}
 
     for cell_nb in cells:
-
         cell_rpv[cell_nb] = {}
 
         sp_times = (
@@ -1783,12 +1761,10 @@ def get_cell_rpvs(cells, phy_directory, rpv_len=2.0, fs=20000):
 
 
 def compute_interspike_intervals(spike_times):
-
     return np.diff(spike_times).astype(np.float64)
 
 
 def compute_number_of_rpv_spikes(spike_times, duration=2.0):
-
     isis = compute_interspike_intervals(spike_times)
     nb_rpv = np.count_nonzero(isis <= 1e-3 * duration)
 
@@ -1947,7 +1923,9 @@ def reshape_dict(original_dict):
 def buildH(t_pre, s, t_post, r=0):
     H_pre_translation = np.array([[1, 0, t_pre[1]], [0, 1, t_pre[0]], [0, 0, 1]])
 
-    H_rotation = np.array([[cos(r), -sin(r), 0], [sin(r), cos(r), 0], [0, 0, 1]])
+    H_rotation = np.array(
+        [[math.cos(r), -math.sin(r), 0], [math.sin(r), math.cos(r), 0], [0, 0, 1]]
+    )
 
     H_scaling = np.array([[s[0], 0, 0], [0, s[1], 0], [0, 0, 1]])
 
@@ -1964,7 +1942,6 @@ def transform_coordinates(coordinates, homography):
 
 
 def get_ellipse(parameters, factor=2):
-
     amplitude, x0, y0, sigma_x, sigma_y, theta = parameters
     width = factor * 2.0 * sigma_x
     height = factor * 2.0 * sigma_y
@@ -2014,7 +1991,6 @@ def find_aligned_point(point, ellipse, sanity_check=True):
     closest_point = ellipse[:, index]
 
     if sanity_check:
-
         plt.figure()
         plt.plot(ellipse[1], ellipse[0])
         plt.scatter(ellipse_center[1], ellipse_center[0], marker="+")

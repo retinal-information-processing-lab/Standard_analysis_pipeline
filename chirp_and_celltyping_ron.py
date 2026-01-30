@@ -255,7 +255,6 @@ def plot_chirp_rasters(
 
     time_bin = rep_lenght / n_bins  # in seconds
     for cell_nb in tqdm(cells[:]):
-
         fig = plt.figure(figsize=(19, 6))
         gs = GridSpec(
             8,
@@ -415,9 +414,7 @@ def modify_cells_for_clustering(
         Function to review entirely completely
     """
 
-    exp = (
-        params.exp
-    )  # Otherwise it can think that exp means the built in function exp not the experiment from params.
+    exp = params.exp  # Otherwise it can think that exp means the built in function exp not the experiment from params.
 
     # 2026-01-22 Leaving for now but this looks like a typo.  First line seems like it should be selected_cells_chirp and second selected_cells_sta, not both _sta
     selected_cells_sta = list(

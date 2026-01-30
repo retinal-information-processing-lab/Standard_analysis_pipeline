@@ -60,6 +60,7 @@ advanced_params = {
 # Setup most advanced parameters (Only if you know what you are doing!).
 # Those parameters are following the setups specs of january 2023
 
+
 def setup_threshold_pxl_size_size_dmd(params: dict):
     """setup the optimal threshold for detecting stimuli,
     the size of one pixel of the DMD in µm?
@@ -115,6 +116,7 @@ def make_dict_keys_global_variables(params: dict):
     for k, v in params.items():
         globals()[k] = v
 
+
 def find_files(path: str):
     """
     Function to get all recording files name from either a txt file name or a folder.
@@ -136,10 +138,8 @@ def find_files(path: str):
     """
     # Check if given path is a file and if it exist
     if os.path.isfile(os.path.normpath(path)):
-
         # If yes, than open in variable "file"
         with open(os.path.normpath(path)) as file:
-
             # return the text of each line as a file name ordered from top to bottom
             return file.read().splitlines()
 
@@ -157,7 +157,6 @@ def find_files(path: str):
 
 
 def create_path_automatically(params: dict):
-
     print("\n-------- Creating all paths ---------\n")
 
     # Link to the actual raw files frome the recording
@@ -215,9 +214,9 @@ def create_path_automatically(params: dict):
     # Do not use this unless you know how !!!
     if not os.path.exists(recording_directory):
         print(f'Creating "recording_directory" path: {recording_directory}')
-        print('Please make sure to fill it with your raw files!')
+        print("Please make sure to fill it with your raw files!")
         os.makedirs(recording_directory)
-    
+
     recording_names = find_files(recording_directory)
     return (
         recording_directory,
@@ -235,7 +234,8 @@ def create_path_automatically(params: dict):
 
 
 # create paths automatically (change only if your file organization is specific!)
-(   recording_directory,  # Link to the actual raw files from the recording listed in the input_file
+(
+    recording_directory,  # Link to the actual raw files from the recording listed in the input_file
     symbolic_link_directory,
     sorting_directory,
     phy_directory,
