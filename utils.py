@@ -156,9 +156,9 @@ def find_analysis_directory(
         ]
         print(f"\n Selected folder : {analysis_directory} \n")
     else:
-        assert (
-            len(dirs) >= 1
-        ), f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        assert len(dirs) >= 1, (
+            f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        )
 
     return os.path.normpath(os.path.join(output_directory, analysis_directory))
 
@@ -736,7 +736,7 @@ def build_rasters(
     nb_frames_by_sequence=params.nb_frames_by_sequence,
 ):
     nb_sequences = int(len(triggers) / nb_frames_by_sequence)
-    duration_sequence = int(nb_frames_by_sequence / stim_frequency)
+    int(nb_frames_by_sequence / stim_frequency)
 
     repeated_sequences_times = []
     spike_trains = []
@@ -836,7 +836,7 @@ def extract_from_sequence(
     nb_frames_by_sequence=params.nb_frames_by_sequence,
 ):
     nb_sequences = int(len(triggers) / nb_frames_by_sequence)
-    duration_sequence = int(nb_frames_by_sequence / stim_frequency)
+    int(nb_frames_by_sequence / stim_frequency)
 
     repeated_sequences_times = []
     spike_trains = []
@@ -1158,9 +1158,7 @@ def smooth_sta(sta, alpha, max_time_window=15):
                 1:-1,
                 x + pading_size - 1 : x + pading_size + 2,
                 y + pading_size - 1 : y + pading_size + 2,
-            ].sum(
-                axis=(1, 2)
-            )
+            ].sum(axis=(1, 2))
 
     best = np.unravel_index(
         np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
@@ -1323,7 +1321,6 @@ def preprocess_fitting_tom(sta):
     expon_treat = 1.25
     vmax_thresh = 2
     to0 = 0.2001
-    cmap = "RdBu_r"
     put_to0 = np.exp(np.log(to0) * expon_treat)
 
     sta = np.sign(sta) * np.exp(np.log(abs(sta)) * expon_treat)
@@ -1413,8 +1410,8 @@ def SNR_test(sta, contour):  # Calculate the SNR of cells
             signal.append(sta[points[ins_id][1], points[ins_id][0]])
             noise.append(0)
 
-    nb_in = len(signal)
-    nb_out = len(noise)
+    len(signal)
+    len(noise)
 
     noise_compression = []
 
@@ -1451,7 +1448,7 @@ def check_presence_STA(
 
     # See if the STA has a fitted ellipse
     if ellipse_coor[0] != 0:
-        fig = plt.figure()
+        plt.figure()
         cs = plt.contour(
             np.abs(gaussian), levels=[level_factor * np.max(np.abs(gaussian))]
         )
@@ -1515,8 +1512,7 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
         # per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
         sel_bins = np.copy(
             counts[
-                int(seq_len * 1000 / 6) // binsize
-                + int(seq_sep * binsec * a) : int(
+                int(seq_len * 1000 / 6) // binsize + int(seq_sep * binsec * a) : int(
                     seq_len * binsec + seq_sep * binsec * a
                 )
             ]
@@ -1709,7 +1705,6 @@ def noise_and_stim_correlations(
     # resp_cell should be of the form (nb_trials, nb_response points)
     # THIS MIGHT HAVE NORMALIZATION PROBLEMS IN CASE OF CURRENTS!!!!
     noise_corr = []
-    stim_corr = []
 
     for lag in range(-max_shift, max_shift + 1, shift_time_resolution):
         shifted_c2 = np.roll(resp_cell2, lag, axis=0)

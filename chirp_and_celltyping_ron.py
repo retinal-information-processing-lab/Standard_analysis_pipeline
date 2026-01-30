@@ -54,8 +54,6 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
         Prompts user to select recording number from available recordings.
         Creates cell typing directory if it doesn't exist.
     """
-    recording_names = params.recording_names
-    output_directory = params.output_directory
 
     # Prompt user to select recording
     recording_number, rec = utils.prompt_user_for_recording(params, "chirp recording")
@@ -240,14 +238,12 @@ def plot_chirp_rasters(
         euler_vec = -np.genfromtxt(vec_path)
         rep_lenght = 25
         n_bins = 625
-        n_reps = 30
 
     else:
         vec_path = os.path.join("./ressources", r"Euler_50Hz_20reps_1024x768pix.vec")
         euler_vec = np.genfromtxt(vec_path)
         rep_lenght = 32
         n_bins = 800
-        n_reps = 20
 
     # Processing------------------------------------------------------------
 
@@ -698,7 +694,7 @@ def compute_intracluster_crosscorr(
     else:
         nb_repetitions = 20
         rep_lenght = 32
-    time_bin = rep_lenght / n_bins  # in seconds
+    rep_lenght / n_bins  # in seconds
 
     # #--------------------
     # #Compute noise spike counts
@@ -883,8 +879,7 @@ def create_cluster_summary_figure(
         line = 2
         STAs = np.zeros(21)
         STAcount = 0
-        waves = np.zeros(101)
-        wavecount = 0
+        np.zeros(101)
         ax0 = fig.add_subplot(gs[0:2, 1:3])
         ax_dist_corr = fig.add_subplot(gs[0:2, 8:])
 
@@ -926,7 +921,7 @@ def create_cluster_summary_figure(
             # plot Chirp
             ax = fig.add_subplot(gs[line, 4:8])
 
-            cell_index = selected_cells.index(cell_nb)
+            selected_cells.index(cell_nb)
             ax.plot(np.linspace(0, 32, 800), cell_data[cell_nb]["psth"])
             ax.spines["bottom"].set_visible(False)
             ax.spines["left"].set_visible(False)
@@ -1123,7 +1118,7 @@ def create_cluster_summary_figure(
                 )
                 for i in range(len(xlim) - 1)
             ]
-            lmin = [
+            [
                 min(
                     np.asarray(sorted_max_corr)[
                         np.where(
@@ -1136,7 +1131,7 @@ def create_cluster_summary_figure(
                 )
                 for i in range(len(xlim) - 1)
             ]
-            lmax = [
+            [
                 max(
                     np.asarray(sorted_max_corr)[
                         np.where(

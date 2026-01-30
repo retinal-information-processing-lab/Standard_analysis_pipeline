@@ -22,16 +22,14 @@ jobs:
       run: |
         conda info
         conda list
-    
-    # NO Ruff TEST for now
-    
-    # - name: Install ruff
-    #   shell: bash -l {0}
-    #   run: pip install ruff
-    
-    # - name: Run ruff
-    #   shell: bash -l {0}
-    #   run: ruff check .
+
+    - name: Install ruff
+      shell: bash -l {0}
+      run: pip install ruff
+        
+    - name: Run ruff
+      shell: bash -l {0}
+      run: ruff check . --ignore F403,F405,E501,E722
     
     - name: Run tests
       shell: bash -l {0}

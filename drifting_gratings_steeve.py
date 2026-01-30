@@ -179,9 +179,7 @@ def compute_dg_rasters(
     )  # (angles go counterclockwise in the stim)
 
     n_angles = 8
-    n_repeats = 4
 
-    Test_set = {}
     Tune_data = {}
     DG_set = {}
     Nspikes_set = {}  # a dict that per each cells has the tot nb of spikes that the total stimulus evoked
