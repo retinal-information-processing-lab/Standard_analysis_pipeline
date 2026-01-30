@@ -35,7 +35,7 @@ def load_spike_times(params, rec, verbose = False):
     -------
     list[np.uint32]
         Cell/cluster identifiers.
-    list[np.ndarray]
+    dict[int, np.ndarray]
         Spike times per cell (seconds).
     """
     spike_trains = load_obj(
@@ -44,7 +44,7 @@ def load_spike_times(params, rec, verbose = False):
     )
 
     cells = list(spike_trains.keys())
-    spike_times = [spike_trains[cell][rec] for cell in cells]
+    spike_times = {cell : spike_trains[cell][rec] for cell in cells}
     if verbose :
         print(f"\nTotal : {len(cells)} neurons loaded")
         print(f"Clusters id :\n{cells}\n")
@@ -104,6 +104,8 @@ def create_analysis_directory(params: dict, recording_number: int, analysis_name
     Returns:
         Path to created directory
     """
+    print('Creating analysis directory...')
+    print(params.output_directory)
     check_directory = os.path.normpath(
         os.path.join(params.output_directory, f'{analysis_name}_Analysis_rec_{recording_number}')
     )

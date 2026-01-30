@@ -83,12 +83,11 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
 
     # Load triggers
     triggers_path = os.path.normpath(
-        os.path.join(
-            params.triggers_directory,
-            f"{params.exp}_{rec}_triggers.pkl"
-        )
+        os.path.join(params.triggers_directory, f"{params.exp}_{rec}_triggers.pkl")
     )
-    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
+    stim_onsets = utils.load_stim_onset_from_triggers_path(
+        triggers_path, params, verbose=True
+    )
 
     # Load spike trains
     cells, spike_times = utils.load_spike_times(params, rec)
@@ -98,7 +97,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
     return (
         cells,
         spike_times,
-        spike_times
+        spike_times,
         stim_onsets,
         check_directory,
         CT_directory,
@@ -157,7 +156,7 @@ def compute_chirp_rasters(
             cell_data[cell_nb] = {}
 
         # Get spike_times
-        euler_sptimes = spike_times[idx]
+        euler_sptimes = spike_times[cell_nb]
 
         aligned_triggers = stim_onsets  # (in seconds)
 
@@ -588,9 +587,7 @@ def run_cell_typing_AC(
 
     # -----------------------------------
     # perform agglomerative clustering
-    model = AgglomerativeClustering(
-        distance_threshold=dist_thres, n_clusters=None
-    )
+    model = AgglomerativeClustering(distance_threshold=dist_thres, n_clusters=None)
     # model = model.fit(psth_pca)
     model = model.fit(cluster_dataset)
 

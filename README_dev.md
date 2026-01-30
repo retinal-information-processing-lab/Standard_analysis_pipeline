@@ -128,6 +128,9 @@ Those changes have been implemented up to the notebook (which I tested)
 
 - I'm still not super conviced about the specific analysis .py, I really think we'll want to move them back to the notebooks at some point (trade off between nice for experimentalist and easy to debug).
 
+- Test should be mainly unitest that used fake generated little dataset
+- Regression test using real data that we know what the analysis should look like will be to complicated (Visual inspection of the graphs is already here for that)
+
 ### Noteds PSTH + RASTER ANALYSIS
 
 This is just a sketch of functions tha could be useful.

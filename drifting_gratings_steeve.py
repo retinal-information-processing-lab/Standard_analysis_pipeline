@@ -13,7 +13,6 @@ from matplotlib import pyplot as plt
 
 # import custom packages
 import utils
-import temporary_utils
 
 # ==========================
 # Loading utilities
@@ -79,9 +78,9 @@ def get_all_inputs_for_dg_analysis(params):
     DG_directory : str
         Output directory for DG analysis.
     """
-    rec_idx, rec = temporary_utils.prompt_user_for_recording(params, "DG recording")
+    rec_idx, rec = utils.prompt_user_for_recording(params, "DG recording")
     DG_directory = utils.create_analysis_directory(
-        params.output_directory, rec_idx, "DG"
+        params, rec_idx, "DG"
     )
 
     seq_len, seq_sep, trigsinrep, _ = prompt_user_for_dg_speed()
@@ -90,7 +89,7 @@ def get_all_inputs_for_dg_analysis(params):
         f"{params.exp}_{rec}_triggers.pkl"
     ))
     stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
-    cells, spike_times = temporary_utils.load_spike_times(params, rec)
+    cells, spike_times = utils.load_spike_times(params, rec)
 
     return cells, spike_times, stim_onsets, trigsinrep, seq_sep, seq_len, DG_directory
 
@@ -157,7 +156,7 @@ def compute_dg_rasters(cells:list[np.uint32],
     for i in tqdm(np.arange(i0,iz), desc="Computing Direction Selectivity "):
         
         clus=cells[i]
-        dg_sptimes = spike_times[i]
+        dg_sptimes = spike_times[clus]  #spike times of the cell being analysed
         #################################################
         base_fire = 0                                     #what is this?? How to calculate it??
         #################################################
@@ -240,7 +239,8 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params):
                     wspace=0.3, hspace=0.7)
 
         ax = fig.add_subplot(gs[0:2, 0:8])
-        temporary_utils.plot_single_raster(ax, DG_set[cell]["rasters"][:])
+        ax.eventplot(DG_set[cell]["rasters"][:],color='k',lw=1,linelengths=0.95)
+        
         for a in np.arange(8):
             ax.axvline(a*seq_sep,color='gray',lw=2)
             ax.axvline(a*seq_sep + seq_len,color='gray',lw=2)

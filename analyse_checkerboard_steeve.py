@@ -12,7 +12,6 @@ import math
 from matplotlib.gridspec import GridSpec
 
 # import custom packages
-import temporary_utils
 import utils
 
 
@@ -64,11 +63,12 @@ def get_all_inputs_for_checkerboard_analysis(
     )
     stimulus_frequency, nb_checks_x, nb_checks_y = prompt_user_for_checkerboard_params()
     check_directory = utils.create_analysis_directory(
-        params.output_directory, recording_number, "Checkerboard"
+        params, recording_number, "Checkerboard"
     )
 
     return (
         recording_number,
+        recording_name,
         stimulus_frequency,
         nb_checks_x,
         nb_checks_y,
@@ -95,7 +95,7 @@ def calculate_checkerboard_experiment_stats(
     duration_sequence = int(params.nb_frames_by_sequence / stimulus_frequency)
 
     print(f"\nCheckerboard Stats :")
-    print(f"\t- {int(stim_onsets['duration']/params.fs/60)} min total duration")
+    print(f"\t- {int(stim_onsets[-1]/60)} min total duration")
     print(f"\t- {len(triggers)} triggers")
     print(f"\t- {nb_repeats} complete sequences")
     print(f"\t- {duration_sequence} seconds per sequence\n")
@@ -150,6 +150,7 @@ def load_or_create_checkerboard_stimulus(
 def load_checkerboard_data(
     params: dict,
     check_directory: str,
+    checkerboard_name: str,
     nb_checks_x: int,
     nb_checks_y: int,
     stimulus_frequency: int,
@@ -174,16 +175,18 @@ def load_checkerboard_data(
             - cells_id: List of cell IDs
             - checkerboard: Stimulus array
     """
+    print(params.triggers_directory)
     triggers_path = os.path.normpath(
         os.path.join(
             params.triggers_directory,
-            f"{params.exp}_{params.checkerboard_name}_triggers.pkl",
+            f"{params.exp}_{checkerboard_name}_triggers.pkl",
         )
     )
-    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params, verbose=True)
-    cells_id, checkerboard_spikes = utils.load_spike_times(
-        params, params.checkerboard_name
+    print(f"Loading triggers from:\t {triggers_path}")
+    stim_onsets = utils.load_stim_onset_from_triggers_path(
+        triggers_path, params, verbose=True
     )
+    cells_id, checkerboard_spikes = utils.load_spike_times(params, checkerboard_name)
     nb_repeats, _ = calculate_checkerboard_experiment_stats(
         stim_onsets, stim_onsets, params, stimulus_frequency
     )
@@ -207,46 +210,54 @@ def compute_rasters(checkerboard_spikes, triggers, nb_repeats, stimulus_frequenc
     raster_data = {}
 
     # report status
-    print('Computing rasters...')
+    print("Computing rasters...")
 
     # loop over the spikes recorded during the checkerboard experiment
     # get the rasters on repeated sequence
-    for (cell_id, spike_times) in tqdm(checkerboard_spikes.items()):
-        raster_data[cell_id] = utils.extract_from_sequence(spike_times, triggers, nb_repeats, stim_frequency = stimulus_frequency)
+    for cell_id, spike_times in tqdm(checkerboard_spikes.items()):
+        raster_data[cell_id] = utils.extract_from_sequence(
+            spike_times, triggers, nb_repeats, stim_frequency=stimulus_frequency
+        )
     return raster_data
 
 
-def plot_rasters(raster_data, cells_id, ploting:bool=True):
+def plot_rasters(raster_data, cells_id, ploting: bool = True):
 
     # Plot all the rasters. Takes a few seconds.
     if ploting:
-        size = int(math.sqrt(len(cells_id)))+1
+        size = int(math.sqrt(len(cells_id))) + 1
 
         # setup subplots
-        fig, axs = plt.subplots(nrows = size, ncols=size, figsize = (50,50))
-        print('Ploting...')
+        fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
+        print("Ploting...")
         for i in tqdm(range(size**2)):
-            ax = axs[i//size,i%size]
+            ax = axs[i // size, i % size]
             if i < len(cells_id):
                 ax.eventplot(raster_data[cells_id[i]]["spike_trains"])
-                ax.set(title = "Cell {}".format(cells_id[i]),xlabel='Time in sec', ylabel='N Repetitions')
-            else : ax.set_visible(False)
+                ax.set(
+                    title="Cell {}".format(cells_id[i]),
+                    xlabel="Time in sec",
+                    ylabel="N Repetitions",
+                )
+            else:
+                ax.set_visible(False)
 
         # format and close
         plt.tight_layout()
         plt.show(block=False)
-        plt.close('all')
+        plt.close("all")
 
 
-def save_plots(raster_data, cells_id, recording_number:int, 
-               check_directory:str, params:dict):
-    """Create a folder path with the saved raster and 
+def save_plots(
+    raster_data, cells_id, recording_number: int, check_directory: str, params: dict
+):
+    """Create a folder path with the saved raster and
     psths plots, a file per cell.
-    
+
     Args:
         raster_data
         cells_id
-        recording_number (int): 
+        recording_number (int):
         check_directory (str):
         params (dict):
 
@@ -254,151 +265,104 @@ def save_plots(raster_data, cells_id, recording_number:int,
     """
     # report status
     print("Saving rasters ...")
-    
+
     # figure path
-    fig_directory = os.path.normpath(os.path.join(
-        check_directory, r'Rasters_figs'.format(recording_number)))
-    
+    fig_directory = os.path.normpath(
+        os.path.join(check_directory, r"Rasters_figs".format(recording_number))
+    )
+
     # ensure path figure exists
-    if not os.path.isdir(fig_directory): 
+    if not os.path.isdir(fig_directory):
         os.makedirs(fig_directory)
-    
+
     # loop over cells
     for cell_nb in tqdm(cells_id):
 
         # setup subplots
-        fig, axs = plt.subplots(nrows = 2,ncols = 1, sharex=True, gridspec_kw={'height_ratios': [3, 1]}, figsize=(10,10))
+        fig, axs = plt.subplots(
+            nrows=2,
+            ncols=1,
+            sharex=True,
+            gridspec_kw={"height_ratios": [3, 1]},
+            figsize=(10, 10),
+        )
 
         # add title
-        plt.suptitle(f'Cell {cell_nb}')
-        
+        plt.suptitle(f"Cell {cell_nb}")
+
         # plot raster
         ax_rast = axs[0]
         ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
-        ax_rast.set(title = "Raster plot", ylabel='N Repetitions')
+        ax_rast.set(title="Raster plot", ylabel="N Repetitions")
 
         # plot firing rate psth
         ax_psth = axs[1]
-        width = (raster_data[cell_nb]["repeated_sequences_times"][0][0]/int(params.nb_frames_by_sequence/2))
-        seq_lenght = raster_data[cell_nb]["repeated_sequences_times"][0][1]-raster_data[cell_nb]["repeated_sequences_times"][0][0]
-        ax_psth.bar(np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence/2)) + width/2, 
-                    raster_data[cell_nb]["psth"], width=1.3*width)
-        ax_psth.set(xlabel='Time in sec', ylabel='Firing rate (spikes/s)')
+        width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
+            params.nb_frames_by_sequence / 2
+        )
+        seq_lenght = (
+            raster_data[cell_nb]["repeated_sequences_times"][0][1]
+            - raster_data[cell_nb]["repeated_sequences_times"][0][0]
+        )
+        ax_psth.bar(
+            np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence / 2))
+            + width / 2,
+            raster_data[cell_nb]["psth"],
+            width=1.3 * width,
+        )
+        ax_psth.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
 
         # format figure
         plt.subplots_adjust(wspace=0, hspace=0)
 
         # save figure
-        fig_file = os.path.join(fig_directory,f'Cell_{cell_nb}.png')
+        fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.png")
         plt.savefig(fig_file, dpi=fig.dpi)
 
         # clear and close figure
         plt.clf()
         plt.close()
-    
+
     # save raster data
-    np.save(os.path.join(check_directory,'Check_rasters_data'), raster_data)
-
-def plot_all_cells_rasters(raster_data: dict, cells_id: list, plotting: bool = True):
-    """
-    Plot raster plots for all cells in a grid.
-
-    Args:
-        raster_data: Dictionary mapping cell IDs to raster data
-        cells_id: List of cell IDs
-        plotting: Whether to display plots (default True)
-    """
-    if not plotting:
-        return
-
-    size = int(math.sqrt(len(cells_id))) + 1
-    fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
-
-    print("Plotting...")
-    for i in tqdm(range(size**2)):
-        ax = axs[i // size, i % size]
-
-        if i < len(cells_id):
-            spike_trains = raster_data[cells_id[i]]["spike_trains"]
-            temporary_utils.plot_single_raster(ax, spike_trains)
-            ax.set(
-                title=f"Cell {cells_id[i]}",
-                xlabel="Time in sec",
-                ylabel="N Repetitions",
-            )
-        else:
-            ax.set_visible(False)
-
-    plt.tight_layout()
-    plt.show(block=False)
-    plt.close("all")
+    np.save(os.path.join(check_directory, "Check_rasters_data"), raster_data)
 
 
-def plot_one_cell_raster_and_psth(raster_data: dict, cell_nb, params: dict, show=False):
-    """
-    Interactively plot raster and PSTH for one user-selected cell.
+def plot_one_cell_raster_and_psth(raster_data, checkerboard_spikes, cells_id, params: dict):
 
-    Args:
-        raster_data: Dictionary with raster data
-        checkerboard_spikes: Dictionary with spike data
-        cells_id: List of available cell IDs
-        params: Dictionary with experiment parameters
-        show: Whether to display the plot (default False)
-    """
+    # report number of neurons
+    print('Total : {} neurons found \n\nClusters id :\n{}\n'.format(len(checkerboard_spikes.keys()), cells_id))
 
+    # ask the user to select a cell
     cell_nb = int(input("Select a cell: "))
 
+    # setup plot
     fig, axs = plt.subplots(
-        nrows=2,
-        ncols=1,
-        sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]},
-        figsize=(10, 10),
-    )
-    plt.suptitle(f"Cell {cell_nb}")
-    temporary_utils.plot_single_raster(axs[0], raster_data[cell_nb]["spike_trains"])
-    temporary_utils.plot_single_psth_from_raster_data(
-        axs[1], raster_data, cell_nb, params
-    )
+        nrows = 2, ncols = 1, 
+        sharex=True, 
+        gridspec_kw={'height_ratios': [3, 1]}, 
+        figsize=(10, 10))
 
+    # plot raster
+    ax_rast = axs[0]
+    ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
+    ax_rast.set(title = "Raster plot", ylabel='N Repetitions')
+
+    # plot psth
+    ax_psth = axs[1]
+    width = (raster_data[cell_nb]["repeated_sequences_times"][0][0]/int(params.nb_frames_by_sequence/2))
+    seq_lenght = raster_data[cell_nb]["repeated_sequences_times"][0][1] - raster_data[cell_nb]["repeated_sequences_times"][0][0]
+    ax_psth.bar(
+        np.linspace(0,seq_lenght, int(params.nb_frames_by_sequence/2))+width/2, 
+        raster_data[cell_nb]["psth"], width=1.3*width)
+    ax_psth.set(xlabel='Time in sec', ylabel='Firing rate (spikes/s)')
+
+    # format
+    plt.suptitle(f'Cell {cell_nb}')
     plt.subplots_adjust(wspace=0, hspace=0)
-    if show:
-        plt.show(block=False)
+    plt.show(block=False)
+    
+    # close
     plt.close(fig)
-    return fig
-
-
-def save_plots(
-    raster_data: dict,
-    cells_id: list,
-    check_directory: str,
-    params: dict,
-):
-    """
-    Save raster and PSTH plots for all cells to files.
-
-    Creates one PNG file per cell with raster plot and PSTH.
-
-    Args:
-        raster_data: Dictionary mapping cell IDs to raster data
-        cells_id: List of cell IDs
-        check_directory: Base directory for outputs
-        params: Dictionary with experiment parameters
-    """
-    print("Saving rasters ...")
-
-    fig_directory = os.path.normpath(os.path.join(check_directory, "Rasters_figs"))
-    if not os.path.isdir(fig_directory):
-        os.makedirs(fig_directory)
-
-    for cell_nb in tqdm(cells_id):
-        fig = plot_one_cell_raster_and_psth(raster_data, cell_nb, params, show=False)
-        fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.png")
-        plt.savefig(fig_file, dpi=fig.dpi)
-        plt.clf()
-        plt.close()
-
-    np.save(os.path.join(check_directory, "Check_rasters_data"), raster_data)
 
 
 # spike triggered averages ---------------
