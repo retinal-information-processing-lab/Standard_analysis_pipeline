@@ -28,7 +28,8 @@ dependencies:
     - pylint=3.3.5                  # code linting
     - black=24.10.0                 # improve readability
     - tqdm=4.67.1
-    - pytest=8.4.2                  # unit-testing
-    - pip=25.3
+    - pytest=8.4.2                 # unit-testing
+    - scikit-learn=1.6.1           # machine learning
+    - ruff
     - pip:
         - spikeinterface==0.103.2       # for spike sorting

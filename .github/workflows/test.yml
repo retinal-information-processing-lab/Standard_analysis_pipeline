@@ -1,0 +1,36 @@
+name: Run Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Conda
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: env/standard_analysis_pipeline.yml
+        activate-environment: standard_analysis_pipeline  # Name from your yml file
+        auto-activate-base: false
+    
+    - name: Verify environment
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+
+    - name: Install ruff
+      shell: bash -l {0}
+      run: pip install ruff
+        
+    - name: Run ruff
+      shell: bash -l {0}
+      run: ruff check . --ignore F403,F405,E501,E722
+    
+    - name: Run tests
+      shell: bash -l {0}
+      run: pytest tests/test_utils.py -v
