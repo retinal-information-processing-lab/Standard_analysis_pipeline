@@ -203,40 +203,90 @@ def load_checkerboard_data(
 
 # rasters and psths ---------------
 
+def extract_all_cell_responses_to_repeated_sequences(
+        checkerboard_spikes: dict, 
+        triggers: np.ndarray, 
+        nb_repeats: int, 
+        stimulus_frequency: int,
+        cells_id: list) -> dict:
+    
+    """
+    Extract responses to repeated stimulus sequences for all cells.
 
-def compute_rasters(checkerboard_spikes, triggers, nb_repeats, stimulus_frequency):
-    # initialiser raster output
-    raster_data = {}
+    Args:
+        checkerboard_spikes: Dict mapping cell IDs to spike times {cell_id: np.array of spike times}
+        triggers: Array of trigger times (n_triggers,)
+        nb_repeats: Number of complete stimulus sequences
+        stimulus_frequency: Stimulus frequency in Hz
 
-    # report status
-    print("Computing rasters...")
+    Returns:
+        Dict containing extracted responses for each cell, including:
+            - spike_trains: List of spike trains for each repetition
+            - repeated_sequences_times: List of start and end times for each repeated sequence
+
+            output_data = {
+                cell_id (np.uint): {
+                    'spike_times': np.array of shape (n_spikes,)
+                    'repeated_sequences_times': list of length nb_repeats
+                    'spike_trains': list of length nb_repeats
+                    'counted_spikes': np.array of shape (nb_repeats, n_bins)
+                    'psth': np.array of shape (n_bins,)
+                },
+    """
+    
+    # initialise output
+    output_data = {}
 
     # loop over the spikes recorded during the checkerboard experiment
-    # get the rasters on repeated sequence
-    for cell_id, spike_times in tqdm(checkerboard_spikes.items()):
-        raster_data[cell_id] = utils.extract_from_sequence(
+    # get the responses to the repeated sequence
+    for cell_id, spike_times in tqdm(checkerboard_spikes.items(), desc="Extracting responses to repeated sequence for each cell"):
+        output_data[cell_id] = utils.extract_from_sequence(
             spike_times, triggers, nb_repeats, stim_frequency=stimulus_frequency
         )
-    return raster_data
+
+    # check data
+    assert set(output_data.keys()) == set(cells_id), "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
+    for cell_id in cells_id:
+        assert 'spike_times' in output_data[cell_id] and output_data[cell_id]['spike_times'].ndim==1, f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
+        assert 'repeated_sequences_times' in output_data[cell_id] and isinstance(output_data[cell_id]['repeated_sequences_times'], list) and len(output_data[cell_id]['repeated_sequences_times']) == nb_repeats, f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
+        assert 'spike_trains' in output_data[cell_id] and isinstance(output_data[cell_id]['spike_trains'], list) and len(output_data[cell_id]['spike_trains']) == nb_repeats, f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
+        assert 'counted_spikes' in output_data[cell_id] and output_data[cell_id]['counted_spikes'].ndim==2 and output_data[cell_id]['counted_spikes'].shape[0] == nb_repeats, f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
+        nbins = output_data[cell_id]['counted_spikes'].shape[1]
+        assert 'psth' in output_data[cell_id] and output_data[cell_id]['psth'].ndim==1 and output_data[cell_id]['psth'].shape[0] == nbins, f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
+    return output_data
 
 
-def plot_rasters(raster_data, cells_id, ploting: bool = True):
-    # Plot all the rasters. Takes a few seconds.
-    if ploting:
+def plot_all_rasters(
+        rep_seq_data: dict,
+        cells_id: list, 
+        fontsize: int = 35, 
+        show_labels: bool = False,
+        plotting: bool = True):
+    """ 
+    Plot rasters for all cells in a grid (might take a few seconds).
+
+    Args:
+        rep_seq_data: Dict containing extracted responses for each cell (from extract_all_cell_responses_to_repeated_sequences)
+        cells_id: List of cell IDs to plot
+        plotting: Boolean indicating whether to plot or not
+        show_labels: Boolean indicating whether to show axis labels or not
+        fontsize: Font size for titles and labels
+
+    Returns:
+            None (plots are displayed if plotting is True)
+    """
+    if plotting:
         size = int(math.sqrt(len(cells_id))) + 1
 
         # setup subplots
         fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
-        print("Ploting...")
-        for i in tqdm(range(size**2)):
+        for i in tqdm(range(size**2), desc="Plotting rasters for all cells"):
             ax = axs[i // size, i % size]
             if i < len(cells_id):
-                ax.eventplot(raster_data[cells_id[i]]["spike_trains"])
-                ax.set(
-                    title="Cell {}".format(cells_id[i]),
-                    xlabel="Time in sec",
-                    ylabel="N Repetitions",
-                )
+                ax.eventplot(rep_seq_data[cells_id[i]]["spike_trains"])
+                ax.set_title(f"C{cells_id[i]}", fontsize=fontsize)
+                if show_labels: ax.set_xlabel("Time (s)", fontsize=fontsize)
+                if show_labels: ax.set_ylabel("n repetition", fontsize=fontsize)
             else:
                 ax.set_visible(False)
 
@@ -244,35 +294,38 @@ def plot_rasters(raster_data, cells_id, ploting: bool = True):
         plt.tight_layout()
         plt.show(block=False)
         plt.close("all")
+    return None
 
 
-def save_plots(
-    raster_data, cells_id, recording_number: int, check_directory: str, params: dict
+def plot_and_save_single_cell_rasters(
+    rep_seq_data: dict, 
+    cells_id: list, 
+    check_directory: str, 
+    title: str = "Response to repeated sequence",
+    fontsize: int = 14,
+    save_figures: bool = True,
+    show_figures: bool = False
 ):
-    """Create a folder path with the saved raster and
-    psths plots, a file per cell.
+    """
+    Generate single cell raster plots (one figure per cell showing raster+psth) 
+    and save them in a new folder: "Rasters_figs" in the check_directory.
 
     Args:
-        raster_data
-        cells_id
-        recording_number (int):
-        check_directory (str):
-        params (dict):
-
+        rep_seq_data: Dict containing extracted responses for each cell (from extract_all_cell_responses_to_repeated_sequences)
+        cells_id: List of cell IDs to plot
+        check_directory: path to the directory where to generate the "Rasters_figs" folder and save the figures
+        params: dict
     Returns:
+        None
     """
-    # report status
-    print("Saving rasters ...")
 
     # figure path
     fig_directory = os.path.normpath(os.path.join(check_directory, r"Rasters_figs"))
-
     # ensure path figure exists
-    if not os.path.isdir(fig_directory):
-        os.makedirs(fig_directory)
+    if not os.path.isdir(fig_directory): os.makedirs(fig_directory)
 
     # loop over cells
-    for cell_nb in tqdm(cells_id):
+    for cell_nb in tqdm(cells_id, desc="Plotting and saving rasters for each cell"):
         # setup subplots
         fig, axs = plt.subplots(
             nrows=2,
@@ -283,95 +336,35 @@ def save_plots(
         )
 
         # add title
-        plt.suptitle(f"Cell {cell_nb}")
+        plt.suptitle(f"Cell {cell_nb}", fontsize=fontsize)
 
         # plot raster
-        ax_rast = axs[0]
-        ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
-        ax_rast.set(title="Raster plot", ylabel="N Repetitions")
-
-        # plot firing rate psth
-        ax_psth = axs[1]
-        width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
-            params.nb_frames_by_sequence / 2
+        utils.plot_raster_and_psth(
+            rep_seq_data[cell_nb]["spike_trains"],
+            rep_seq_data[cell_nb]["psth"],
+            ax_rast=axs[0],
+            ax_psth=axs[1],
+            seq_lenght=rep_seq_data[cell_nb]["repeated_sequences_times"][0][1]
+                        - rep_seq_data[cell_nb]["repeated_sequences_times"][0][0],
+            title=title,
+            fontsize=fontsize,
         )
-        seq_lenght = (
-            raster_data[cell_nb]["repeated_sequences_times"][0][1]
-            - raster_data[cell_nb]["repeated_sequences_times"][0][0]
-        )
-        ax_psth.bar(
-            np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence / 2))
-            + width / 2,
-            raster_data[cell_nb]["psth"],
-            width=1.3 * width,
-        )
-        ax_psth.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
 
         # format figure
         plt.subplots_adjust(wspace=0, hspace=0)
 
         # save figure
         fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.png")
-        plt.savefig(fig_file, dpi=fig.dpi)
+        if save_figures: plt.savefig(fig_file, dpi=fig.dpi)
+        if show_figures: 
+            plt.show(block=False)
+            print(f"fig_file : {fig_file}")
 
         # clear and close figure
         plt.clf()
         plt.close()
 
-    # save raster data
-    np.save(os.path.join(check_directory, "Check_rasters_data"), raster_data)
-
-
-def plot_one_cell_raster_and_psth(
-    raster_data, checkerboard_spikes, cells_id, params: dict
-):
-    # report number of neurons
-    print(
-        "Total : {} neurons found \n\nClusters id :\n{}\n".format(
-            len(checkerboard_spikes.keys()), cells_id
-        )
-    )
-
-    # ask the user to select a cell
-    cell_nb = int(input("Select a cell: "))
-
-    # setup plot
-    fig, axs = plt.subplots(
-        nrows=2,
-        ncols=1,
-        sharex=True,
-        gridspec_kw={"height_ratios": [3, 1]},
-        figsize=(10, 10),
-    )
-
-    # plot raster
-    ax_rast = axs[0]
-    ax_rast.eventplot(raster_data[cell_nb]["spike_trains"])
-    ax_rast.set(title="Raster plot", ylabel="N Repetitions")
-
-    # plot psth
-    ax_psth = axs[1]
-    width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
-        params.nb_frames_by_sequence / 2
-    )
-    seq_lenght = (
-        raster_data[cell_nb]["repeated_sequences_times"][0][1]
-        - raster_data[cell_nb]["repeated_sequences_times"][0][0]
-    )
-    ax_psth.bar(
-        np.linspace(0, seq_lenght, int(params.nb_frames_by_sequence / 2)) + width / 2,
-        raster_data[cell_nb]["psth"],
-        width=1.3 * width,
-    )
-    ax_psth.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
-
-    # format
-    plt.suptitle(f"Cell {cell_nb}")
-    plt.subplots_adjust(wspace=0, hspace=0)
-    plt.show(block=False)
-
-    # close
-    plt.close(fig)
+    return
 
 
 # spike triggered averages ---------------

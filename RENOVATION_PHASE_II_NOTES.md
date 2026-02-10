@@ -38,5 +38,12 @@ We can wait Guilhem is available to do this.
 2026-01-26-15:30 (Baptiste) Moved prompt_user_for_recording to utils, Prompt parameters not moved, Moved create_analysis_directory to utils, Moved find_Analysis_directory, Moved load_triggers, Moved load_spike_trains, Each notebook has its own specific loader that calls the smaller ones, That should wrap up the loading part, (For notebook 2,3,4,5), Now to raster plots
 => this we may want to move back to the notebook asap
 
+2026-02-10-14:00 (Chiara) Worked on rasters: separating response extraction from plotting and cleaning in checkerboard notebook + .py
+    1) analysis.compute_rasters --> analysis.extract_all_cell_responses_to_repeated_sequences + input data types and description + check output data (but same logic)
+    2) analysis.plot_rasters --> analysis.plot_all_rasters + input data types and description (but same logic)
+    3) analysis.save_plots --> analysis.plot_and_save_single_cell_rasters + input data types and cleaning (removed unused recording number), description 
+    4) analysis.plot_one_cell_raster_and_psth --> utils.plot_raster_and_psth and removed repetitive "check each cell" notebook cell
+            
+
 
 
