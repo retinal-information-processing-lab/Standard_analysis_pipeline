@@ -63,7 +63,7 @@ def plot_raster_and_psth(spike_trains: list,
         )
     ax_psth.set_xlabel("Time (s)", fontsize=fontsize)
     ax_psth.set_ylabel("Firing rate (spikes/s)", fontsize=fontsize)
-    for ax in [ax_rast, ax_psth]: ax.tick_params(labelsize=fontsize_labels)
+    for ax in [ax_rast, ax_psth]: ax.tick_params(axis='both', which='major', labelsize=fontsize_labels)
     return bin_values, bin_width
 
 # ==========================
