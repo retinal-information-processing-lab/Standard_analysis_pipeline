@@ -46,7 +46,8 @@ def plot_raster_and_psth(spike_trains: list,
         bin_values: Time values corresponding to the center of each PSTH bin in seconds.
         bin_width: Width of each PSTH bin in seconds.
     """
-    if fontsize_labels is None: fontsize_labels = fontsize-2
+    if fontsize_labels is None: 
+        fontsize_labels = fontsize-2
     ax_rast.eventplot(spike_trains)
     ax_rast.set_title(title, fontsize=fontsize)
     ax_rast.set_ylabel("n repetition", fontsize=fontsize)
@@ -63,7 +64,8 @@ def plot_raster_and_psth(spike_trains: list,
         )
     ax_psth.set_xlabel("Time (s)", fontsize=fontsize)
     ax_psth.set_ylabel("Firing rate (spikes/s)", fontsize=fontsize)
-    for ax in [ax_rast, ax_psth]: ax.tick_params(axis='both', which='major', labelsize=fontsize_labels)
+    for ax in [ax_rast, ax_psth]: 
+        ax.tick_params(axis='both', which='major', labelsize=fontsize_labels)
     return bin_values, bin_width
 
 # ==========================

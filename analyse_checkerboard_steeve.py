@@ -285,8 +285,10 @@ def plot_all_rasters(
             if i < len(cells_id):
                 ax.eventplot(rep_seq_data[cells_id[i]]["spike_trains"])
                 ax.set_title(f"C{cells_id[i]}", fontsize=fontsize)
-                if show_labels: ax.set_xlabel("Time (s)", fontsize=fontsize)
-                if show_labels: ax.set_ylabel("n repetition", fontsize=fontsize)
+                if show_labels: 
+                    ax.set_xlabel("Time (s)", fontsize=fontsize)
+                if show_labels: 
+                    ax.set_ylabel("n repetition", fontsize=fontsize)
             else:
                 ax.set_visible(False)
 
@@ -322,7 +324,8 @@ def plot_and_save_single_cell_rasters(
     # figure path
     fig_directory = os.path.normpath(os.path.join(check_directory, r"Rasters_figs"))
     # ensure path figure exists
-    if not os.path.isdir(fig_directory): os.makedirs(fig_directory)
+    if not os.path.isdir(fig_directory): 
+        os.makedirs(fig_directory)
 
     # loop over cells
     for cell_nb in tqdm(cells_id, desc="Plotting and saving rasters for each cell"):
@@ -355,7 +358,8 @@ def plot_and_save_single_cell_rasters(
 
         # save figure
         fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.png")
-        if save_figures: plt.savefig(fig_file, dpi=fig.dpi)
+        if save_figures: 
+            plt.savefig(fig_file, dpi=fig.dpi)
         if show_figures: 
             plt.show(block=False)
             print(f"fig_file : {fig_file}")
