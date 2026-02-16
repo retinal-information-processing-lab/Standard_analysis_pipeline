@@ -41,8 +41,10 @@ We can wait Guilhem is available to do this.
 2026-02-10-14:00 (Chiara) Worked on rasters: separating response extraction from plotting and cleaning in checkerboard notebook + .py
     1) analysis.compute_rasters --> analysis.extract_all_cell_responses_to_repeated_sequences + input data types and description + check output data (but same logic)
     2) analysis.plot_rasters --> analysis.plot_all_rasters + input data types and description (but same logic)
-    3) analysis.save_plots --> analysis.plot_and_save_single_cell_rasters + input data types and cleaning (removed unused recording number), description 
+    3) analysis.save_plots --> analysis.plot_and_save_single_cell_rasters + input data types and cleaning (removed unused recording number), description (same logic but using plot_raster_and_psth instead of replicated code fragments for plotting)
     4) analysis.plot_one_cell_raster_and_psth --> utils.plot_raster_and_psth and removed repetitive "check each cell" notebook cell
+
+TODO NEXT: STAs
             
 
 
