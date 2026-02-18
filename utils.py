@@ -881,28 +881,47 @@ def checkerboard_from_binary(
 
 
 def extract_from_sequence(
-    cell_spikes,
-    triggers,
-    nb_repeats,
-    stim_frequency,
-    sequence_portion=(0.5, 1),
-    nb_frames_by_sequence=params.nb_frames_by_sequence,
+    cell_spikes: np.ndarray,
+    triggers: np.ndarray,
+    nb_repeats: int,
+    stim_frequency: float,
+    sequence_portion: tuple,
+    nb_frames_per_sequence: int,
 ):
-    nb_sequences = int(len(triggers) / nb_frames_by_sequence)
-    int(nb_frames_by_sequence / stim_frequency)
+    """
+        Extract the spike trains corresponding to the repetitions of a portion of the stimulus sequence and compute spike count and psth for this portion.
+
+        Args:
+            cell_spikes (numpy array): Array of spike times for a single cell.
+            triggers (numpy array): Array of trigger times corresponding to stimulus frames.
+            nb_repeats (int): Number of repetitions of the stimulus sequence.
+            stim_frequency (float): Frequency of stimulus presentation in Hz.
+            sequence_portion (tuple): Tuple containing the start and end portion of the sequence to analyze (values between 0 and 1).
+            nb_frames_per_sequence (int): Total number of frames in one full sequence of the stimulus.
+
+        Returns:
+            analyse (dict): Dictionary containing the following keys:
+                - "spike_times": Original spike times for the cell.
+                - "repeated_sequences_times": List of tuples with start and end times of each repeated sequence portion.
+                - "spike_trains": List of numpy arrays, each containing the spike times aligned to the start of the sequence portion for each repetition.
+                - "counted_spikes": 2D numpy array of shape (nb_sequences, nb_frames) containing the spike counts for each sequence repetition and time bin.
+                - "psth": 1D numpy array containing the mean firing rate across repetitions for each time bin, computed from "counted_spikes".
+    """
+    nb_sequences = int(len(triggers) / nb_frames_per_sequence)
+    int(nb_frames_per_sequence / stim_frequency)
 
     repeated_sequences_times = []
     spike_trains = []
-    spikes_counts = np.zeros((nb_sequences, int(nb_frames_by_sequence / 2)))
+    spikes_counts = np.zeros((nb_sequences, int(nb_frames_per_sequence / 2)))
 
     analyse = {}
     for i in range(nb_sequences):
         # Get the repeated sequence times for the specified position
-        time_start_id = i * nb_frames_by_sequence + int(
-            sequence_portion[0] * nb_frames_by_sequence
+        time_start_id = i * nb_frames_per_sequence + int(
+            sequence_portion[0] * nb_frames_per_sequence
         )
-        time_end_id = i * nb_frames_by_sequence + int(
-            sequence_portion[1] * nb_frames_by_sequence
+        time_end_id = i * nb_frames_per_sequence + int(
+            sequence_portion[1] * nb_frames_per_sequence
         )
         times_sequence = triggers[time_start_id:time_end_id]
         repeated_sequences_times.append((times_sequence[0], times_sequence[-1]))
@@ -919,7 +938,7 @@ def extract_from_sequence(
         # Compute psth
         spikes_counts[i, :] = np.histogram(
             spike_trains[-1],
-            bins=int(nb_frames_by_sequence / 2),
+            bins=int(nb_frames_per_sequence / 2),
             range=(
                 0,
                 repeated_sequences_times[-1][1] - repeated_sequences_times[-1][0],
@@ -936,24 +955,49 @@ def extract_from_sequence(
     return analyse
 
 
+# ------------------------------------------------------------- #
+# >> STA computation and analysis (OK)
+# ------------------------------------------------------------- #
+
 def compute_3D_sta(
-    data,
-    checkerboard,
-    stim_frequency,
-    cluster_id=None,
-    nb_frames_by_sequence=params.nb_frames_by_sequence,
-    temporal_dimension=params.sta_temporal_dimension,
+    data: dict,
+    checkerboard: np.ndarray,
+    nb_frames_per_sequence: int,
+    temporal_dimension: int,
+    cell_id: int = None,
+    min_num_spikes_for_sta: int =0,
+    verbose: bool =True
 ):
+    """
+        Compute the 3D spike triggered average of a cell for the checkerboard stimulus.
+
+        Args:
+            data (dict): Dictionary containing the spike counts for the cell {"counted_spikes": 2D array of shape (nb_sequences, nb_frames)}.
+            checkerboard (numpy array): 3D array containing the shown checkerboard sequences stacked one after the other with shape (nb_frames, nb_checks, nb_checks).
+            nb_frames_per_sequence (int): Number of frames in each sequence of the stimulus.
+            temporal_dimension (int): Desired length in time bins (i.e. frames) of the STA.
+            cell_id (int, optional): Identifier for the cell being analyzed. Defaults to None.
+            min_num_spikes_for_sta (int, optional): Minimum number of spikes required to compute a valid STA. Defaults to 0. 
+
+        Returns:
+            sta (numpy array): 3D array of shape (temporal_dimension, nb_checks, nb_checks) representing the computed spike-triggered average for the cell. If the total number of spikes is less than or equal to min_num_spikes_for_sta, a zero-like array is returned.
+    """
+    cell_lab = f"Cell {cell_id}" if cell_id is not None else "The cell"
     nb_sequences = data["counted_spikes"].shape[0]
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype="float64")
     total_spikes = np.sum(data["counted_spikes"])
+    
+    if total_spikes <= min_num_spikes_for_sta:
+        if verbose:
+            print(f"{cell_lab} has {total_spikes} spikes, less than {min_num_spikes_for_sta} spikes, zero-like sta returned.")
+        return sta
 
     for sequence in range(nb_sequences):
-        for frame in range(temporal_dimension, int(nb_frames_by_sequence / 2)):
+        for frame in range(temporal_dimension, int(nb_frames_per_sequence / 2)):
             sta_frame_start = (
-                sequence * int(nb_frames_by_sequence / 2) + frame - temporal_dimension
+                sequence * int(nb_frames_per_sequence / 2) + frame - temporal_dimension
             )
-            sta_frame_end = sequence * int(nb_frames_by_sequence / 2) + frame
+            sta_frame_end = sequence * int(nb_frames_per_sequence / 2) + frame
             weight = data["counted_spikes"][sequence, frame]
 
             sta += weight * checkerboard[sta_frame_start:sta_frame_end, :, :]
@@ -964,9 +1008,11 @@ def compute_3D_sta(
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))
     else:
-        print(f"Cluster {cluster_id} has no spikes, no sta can be found...")
+        print(f"{cell_lab} null sta upon computation, this should not happen, zero-like sta returned.")
+    
     return sta
 
+### (Matias) sta analysis functions
 
 def gaussian2D(
     shape,
@@ -1006,10 +1052,8 @@ def gaussian2D(
         )
     )
 
-
 def gaussian2D_flat(x, amp, x0, y0, rx, ry, rot):
     return gaussian2D(x, amp, x0, y0, rx, ry, rot).flatten()
-
 
 def reduced_gaussian2D(
     x,
@@ -1045,10 +1089,8 @@ def reduced_gaussian2D(
         )
     )
 
-
 def reduced_gaussian2D_flat(x, amp, rx, ry, rot):
     return reduced_gaussian2D(x, amp, rx, ry, rot).flatten()
-
 
 def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
     level = amp * 0.5
@@ -1096,163 +1138,6 @@ def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
 
     return np.append(X, X), np.append(Ym, Yp)
 
-
-####  Gabriel's analysis  ####
-
-
-def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_factor=2):
-    data = sta_3D[-nb_frames:, :, :]
-
-    # smoothing along time
-    kernel = np.ones(kernel_lenght)[:, None, None] / kernel_lenght
-    data = math.convolve(data, kernel, mode="nearest")
-
-    ## Take variance
-    data = data.var(0)
-    data -= np.median(data)
-    data /= np.max(np.abs(data))
-    spatial_sta = data.copy()
-
-    ## Thresholding
-    tresholding_factor = 2
-    k_gauss = 1.5  # 1.5 mad ~ 1 std for gaussian noise
-    mad = np.median(np.abs(data - np.median(data)))
-    data[data < tresholding_factor * k_gauss * mad] = 0
-
-    return data, spatial_sta
-
-
-def gabriel_temporal_sta(sta_3D, gaussian_params):
-    shape = (sta_3D.shape[1], sta_3D.shape[2])
-    smoothing_kernel = gaussian2D(shape, *gaussian_params)
-    smoothing_kernel /= np.sum(smoothing_kernel)
-
-    # Find max in space
-    smoothed_sta = math.convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
-    x_max, y_max = np.unravel_index(np.argmax(smoothed_sta), shape=shape)
-    # Gaussian weighting kernel
-
-    gaussian_kernel = gaussian2D(
-        shape, gaussian_params[0], x_max, y_max, *gaussian_params[3:]
-    )
-    gaussian_kernel = gaussian_kernel / np.sum(gaussian_kernel)
-    # Weighted temporal trace
-    return np.mean(gaussian_kernel[None, :, :] * sta_3D, (1, 2))
-
-
-def fit_gaussian(sta_spatial):
-    center = np.unravel_index(np.argmax(sta_spatial, axis=None), sta_spatial.shape)
-    guess = [np.max(sta_spatial), center[1], center[0], 1, 1, 0]
-
-    xdata = sta_spatial.shape
-    ydata = sta_spatial.flatten()
-
-    ellispe_params_bounds = (
-        (-2, 0, 0, 0.1, 0.1, 0),
-        (
-            2,
-            sta_spatial.shape[0],
-            sta_spatial.shape[0],
-            sta_spatial.shape[0],
-            sta_spatial.shape[0],
-            180,
-        ),
-    )
-
-    return curve_fit(
-        gaussian2D_flat, xdata, ydata, p0=guess, bounds=ellispe_params_bounds
-    )
-
-
-def analyse_sta_gab(sta, cell_id):
-    sta_3D = sta.copy()
-
-    try:
-        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
-        ellipse_params, cov = fit_gaussian(fitting_data)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-
-    except Exception as e:
-        print(f"Error Could not fit ellipse {cell_id}")
-        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": temporal_sta,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": np.nan,
-        }
-        print(e)
-
-    return {
-        "Spatial": spatial_sta,
-        "Temporal": temporal_sta,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": np.nan,
-    }
-
-
-####  Matias sta analysis ####
-
-
-def smooth_sta(sta, alpha, max_time_window=15):
-    pading_size = 1
-    paded_sta = np.pad(
-        sta, pading_size
-    )  ### change from a zeros matrice to a padded one. Countour of rf is not 0 now but the sta value itself
-    receptive_field = np.zeros(sta.shape)
-    for x in range(sta.shape[1]):
-        for y in range(sta.shape[2]):
-            receptive_field[:, x, y] = paded_sta[
-                1:-1, x + pading_size, y + pading_size
-            ] * alpha + (1 - alpha) * paded_sta[
-                1:-1,
-                x + pading_size - 1 : x + pading_size + 2,
-                y + pading_size - 1 : y + pading_size + 2,
-            ].sum(axis=(1, 2))
-
-    best = np.unravel_index(
-        np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
-        receptive_field.shape,
-    )
-    best_t = best[0] + max(sta.shape[0] - max_time_window, 0)
-
-    return receptive_field, (best_t, best[1], best[2]), receptive_field[best]
-
-
-def get_cell_shift(sta):
-    sta_3D = sta.copy()
-    smooth_sta_1_3D, best_1, max_val1 = smooth_sta(sta_3D, alpha=0.5)
-    smooth_sta_2_3D, best_2, max_val2 = smooth_sta(sta_3D, alpha=0.8)
-
-    if abs(max_val1) > abs(max_val2):
-        return best_1
-    else:
-        return best_2
-
-
-def preprocess_fitting_matias(spatial, treshold=0.1):
-    sta_spa = spatial.copy()
-    sta_treshold = np.max(np.abs(spatial)) * treshold
-    sta_spa[np.abs(sta_spa) < sta_treshold] = 0
-    return sta_spa
-
-
-def matias_temporal_spatial_sta(sta_3D):
-    if np.max(np.abs(sta_3D)) == 0:
-        # print(f"Cell {cell_id} : Could not find sta")
-        return "Error detected : 3D sta empty", "Error detected : 3D sta empty"
-
-    (best_t, best_x, best_y) = get_cell_shift(sta_3D)
-    sta_temporal = sta_3D[:, best_x, best_y]
-    sta_spatial = sta_3D[best_t, :, :]
-    sta_spatial /= np.max(np.abs(sta_spatial))
-
-    return sta_temporal, sta_spatial, (best_t, best_x, best_y)
-
-
 def double_gaussian_fit(spatial):
     center = np.unravel_index(np.argmax(np.abs(spatial), axis=None), spatial.shape)
     ydata = spatial.flatten()
@@ -1293,67 +1178,61 @@ def double_gaussian_fit(spatial):
         gaussian2D_flat, xdata, ydata, p0=second_guess, bounds=ellispe_params_bounds
     )
 
+def preprocess_fitting_matias(spatial, treshold=0.1):
+    sta_spa = spatial.copy()
+    sta_treshold = np.max(np.abs(spatial)) * treshold
+    sta_spa[np.abs(sta_spa) < sta_treshold] = 0
+    return sta_spa
 
-def analyse_sta_matias(sta, cell_id):
+def smooth_sta(sta, alpha, max_time_window=15):
+    """
+        STA smoothing array by blending each pixel's value with the sum of its 3×3 spatial neighborhood 
+        controlled by `alpha` (higher alpha = less smoothing) with zero-padding, and locates the coordinates of the peak 
+        location within the last `max_time_window` time steps.
+
+        Args:
+            sta (np.ndarray): 3D array of shape (time, height, width) representing the spike-triggered average.
+            alpha (float): Mixing weight between the original pixel value and its neighborhood sum. Values closer to 1 preserve the original signal; values closer to 0 apply stronger smoothing.
+            max_time_window (int, default 15): Number of most recent time steps to search when identifying the peak response.
+
+        Returns:
+            receptive_field (np.ndarray): Smoothed version of sta, same shape as input.
+            tuple(best_t, x, y): Index of the peak absolute response, with best_t adjusted to global time coordinates.
+            receptive_field[best] (np.ndarray): Values of the smoothed receptive field at the peak location (a 1D slice or scalar depending on indexing).
+
+    """
+    pading_size = 1
+    paded_sta = np.pad(sta, pading_size)  # default zero padding
+    receptive_field = np.zeros(sta.shape)
+    for x in range(sta.shape[1]):
+        for y in range(sta.shape[2]):
+            receptive_field[:, x, y] = paded_sta[
+                1:-1, x + pading_size, y + pading_size
+            ] * alpha + (1 - alpha) * paded_sta[
+                1:-1,
+                x + pading_size - 1 : x + pading_size + 2,
+                y + pading_size - 1 : y + pading_size + 2,
+            ].sum(axis=(1, 2))
+
+    best = np.unravel_index(
+        np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
+        receptive_field.shape,
+    )
+    best_t = best[0] + max(sta.shape[0] - max_time_window, 0)
+
+    return receptive_field, (best_t, best[1], best[2]), receptive_field[best]
+
+def get_cell_shift(sta):
     sta_3D = sta.copy()
+    smooth_sta_1_3D, best_1, max_val1 = smooth_sta(sta_3D, alpha=0.5)
+    smooth_sta_2_3D, best_2, max_val2 = smooth_sta(sta_3D, alpha=0.8)
 
-    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
-    fitting_data = preprocess_fitting_matias(sta_spatial)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": sta_spatial,
-            "Temporal": sta_temporal,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": best[0],
-        }
-    return {
-        "Spatial": sta_spatial,
-        "Temporal": sta_temporal,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": best[0],
-    }
+    if abs(max_val1) > abs(max_val2):
+        return best_1
+    else:
+        return best_2
 
-
-### Guilhem sta analysis ### (mixed between both)
-
-
-def analyse_sta(sta, cell_id):
-    sta_3D = sta.copy()
-    fitting_data, spatial_sta = gabriel_preprocessing(sta_3D, tresholding_factor=1)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-        best_t = np.argmax(np.abs(temporal_sta[-15:]))
-        best_t += max(sta.shape[0] - 15, 0)
-
-        spatial_sta = sta_3D[best_t]
-
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": temporal_sta,
-            "EllipseCoor": ellipse_params,
-            "Cell_delay": best_t,
-        }
-
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": np.zeros(40),
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": np.nan,
-        }
-
-
-### Tom sta analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
-
+### (Tom) sta analysis functions
 
 def preprocess_fitting_tom(sta):
     shape0, shape1 = sta.shape
@@ -1382,47 +1261,186 @@ def preprocess_fitting_tom(sta):
 
     return sta
 
+### (Gabriel) sta analysis functions
 
-def analyse_sta_tom(sta, cell_id):
-    sta_3D = sta.copy()
+def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_factor=2):
+    data = sta_3D[-nb_frames:, :, :]
 
-    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
-    fitting_data = preprocess_fitting_tom(sta_spatial)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
+    # smoothing along time
+    kernel = np.ones(kernel_lenght)[:, None, None] / kernel_lenght
+    data = math.convolve(data, kernel, mode="nearest")
+
+    ## Take variance
+    data = data.var(0)
+    data -= np.median(data)
+    data /= np.max(np.abs(data))
+    spatial_sta = data.copy()
+
+    ## Thresholding
+    tresholding_factor = 2
+    k_gauss = 1.5  # 1.5 mad ~ 1 std for gaussian noise
+    mad = np.median(np.abs(data - np.median(data)))
+    data[data < tresholding_factor * k_gauss * mad] = 0
+
+    return data, spatial_sta
+
+def gabriel_temporal_sta(sta_3D, gaussian_params):
+    shape = (sta_3D.shape[1], sta_3D.shape[2])
+    smoothing_kernel = gaussian2D(shape, *gaussian_params)
+    smoothing_kernel /= np.sum(smoothing_kernel)
+
+    # Find max in space
+    smoothed_sta = math.convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
+    x_max, y_max = np.unravel_index(np.argmax(smoothed_sta), shape=shape)
+    # Gaussian weighting kernel
+
+    gaussian_kernel = gaussian2D(
+        shape, gaussian_params[0], x_max, y_max, *gaussian_params[3:]
+    )
+    gaussian_kernel = gaussian_kernel / np.sum(gaussian_kernel)
+    # Weighted temporal trace
+    return np.mean(gaussian_kernel[None, :, :] * sta_3D, (1, 2))
+
+### (Chiara) unifying tom and matias's 
+def get_temporal_spatial_sta(sta_3D):
+    """
+        Extracting spatial and temporal STA from the 3D STA by finding the position of the 
+        maximum in absolute value in the 3D STA and taking the corresponding spatial and temporal traces. 
+    """
+    if np.max(np.abs(sta_3D)) == 0:
+        print(f"Error: empty STA, should be checked upstream - case not handled, returning all None")
+        return None, None, None
+
+    # double-attempt  (first stronger than weaker) smoothing + peak location
+    (best_t, best_x, best_y) = get_cell_shift(sta_3D)
+    # components extraction
+    sta_temporal = sta_3D[:, best_x, best_y]
+    sta_spatial = sta_3D[best_t, :, :]
+    # max-normalization to have (-1, 1) values
+    sta_spatial /= np.max(np.abs(sta_spatial))
+
+    return sta_temporal, sta_spatial, (best_t, best_x, best_y)
+
+### (Wrap) sta analysis functions wrapped in one function to call easily
+def rf_analysis(
+        sta_3d: np.ndarray, 
+        cell_id: int = None, 
+        method: str = 'tom'):
+    """
+        Compute the spatial and temporal STA and fit an ellipse (2d gaussian) on the spatial STA to extract RF parameters.
+
+        Args:
+            sta_3d (numpy array): 3D array of shape (nT, nY, nX) containing the 3D STA for a cell.
+            cell_id (int, optional): Identifier for the cell being analyzed. Defaults to None.
+            method (str, optional): Method to use for STA analysis. Options are 'gabriel', 'matias', 'tom', 'guilhem'. Defaults to 'tom'.
+
+        Returns:
+            result (dict): Dictionary containing the following keys:    
+                - "Spatial": 2D numpy array representing the spatial STA.
+                - "Temporal": 1D numpy array representing the temporal STA.
+                - "EllipseCoor": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in pxs.
+                - "Cell_delay": Time bin corresponding to the spatial STA. 
+                - "FittedEllipse": Boolean indicating whether the ellipse fitting was successful or if default parameters were returned due to an error.
+    """
+    if cell_id is None:
+        cell_id = "cell #"  # for print purposes only
+    else: 
+        cell_id = f"cell {cell_id}"
+        
+    error_msg = f"Error in rf analysis of {cell_id} with method {method}: couldn't fit ellipse, default ellipse coord returned"
+    def_ellipse_params = [0, 0, 0, 0.001, 0.001, 0]
+    default_cell_delay = np.nan
+    fitted = False
+    
+    if np.max(np.abs(sta_3d)) == 0: 
         return {
-            "Spatial": sta_spatial,
-            "Temporal": sta_temporal,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": best[0],
+            "Spatial": np.zeros_like(sta_3d[0]),
+            "Temporal": np.zeros_like(sta_3d[:, 0, 0]),
+            "EllipseCoor": def_ellipse_params,
+            "Cell_delay": default_cell_delay,
+            "FittedEllipse": fitted,
         }
-    return {
-        "Spatial": sta_spatial,
-        "Temporal": sta_temporal,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": best[0],
-    }
+
+    sta3d = sta_3d.copy()
+    
+    if method == 'matias' or 'tom':
+        temporal_sta, spatial_sta, best = get_temporal_spatial_sta(sta_3d)
+        cell_delay = best[0]
+        if method == 'matias':
+            fitting_data = preprocess_fitting_matias(spatial_sta)
+        if method == 'tom':
+            fitting_data = preprocess_fitting_tom(spatial_sta)
+        try:
+            ellipse_params, cov = double_gaussian_fit(fitting_data)
+            fitted = True
+        except:
+            print(error_msg)
+            plt.imshow(fitting_data)
+            plt.show(block=False)
+            ellipse_params = def_ellipse_params
+    
+    elif method == 'guilhem':
+        time_window_peak_location = 15
+        fitting_data, _ = gabriel_preprocessing(sta3d, tresholding_factor=1, nb_frames=time_window_peak_location)
+        try:
+            ellipse_params, cov = double_gaussian_fit(fitting_data)
+            temporal_sta = gabriel_temporal_sta(sta3d, ellipse_params)
+            best_t = np.argmax(np.abs(temporal_sta[-time_window_peak_location:]))
+            best_t += max(sta3d.shape[0] - time_window_peak_location, 0)
+            spatial_sta = sta3d[best_t]
+            cell_delay = best_t
+            fitted = True
+        except:
+            print(error_msg)
+            plt.imshow(fitting_data)
+            plt.show(block=False)
+            spatial_sta = np.zeros_like(sta3d[0])
+            temporal_sta = np.zeros_like(sta3d[:, 0, 0])
+            ellipse_params = def_ellipse_params
+            cell_delay = default_cell_delay
+    else:
+        raise ValueError(f"Unknown method {method} for rf analysis")
+    
+    # wrap results in a dictionary
+    result =  {
+            "Spatial": spatial_sta,
+            "Temporal": temporal_sta,
+            "EllipseCoor": ellipse_params,
+            "Cell_delay": cell_delay,
+            "FittedEllipse": fitted,
+        }
+    
+    # check
+    assert set(result.keys()) == set(["Spatial", "Temporal", "EllipseCoor", "Cell_delay", "FittedEllipse"]), f"Result keys {result.keys()} do not match expected keys ['Spatial', 'Temporal', 'EllipseCoor', 'Cell_delay', 'FittedEllipse']"
+    assert isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2, f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
+    assert isinstance(result["Temporal"], np.ndarray) and result["Temporal"].ndim == 1, f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"  
+    assert isinstance(result["EllipseCoor"], (list, np.ndarray)) and len(result["EllipseCoor"]) == 6, f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
+    assert isinstance(result["Cell_delay"], (int, np.integer)) or np.isnan(result["Cell_delay"]), f"Cell_delay should be a number or NaN, got {type(result['Cell_delay'])} with value {result['Cell_delay']}"
+    
+    return result
 
 
-def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4):
+def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
+             color="w", alpha=0.8, lw=1, linestyles="solid"):
     # magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
-    ax.imshow(spatial_sta)
+    vrange = np.max(np.abs(spatial_sta))
+    ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap="RdBu_r")
     if ellipse_params[0] != 0:
         ax.contour(
             np.abs(gaussian),
             levels=[level_factor * np.max(np.abs(gaussian))],
-            colors="w",
-            linestyles="solid",
-            alpha=0.8,
+            colors=color,
+            linestyles=linestyles,
+            alpha=alpha,
+            linewidths=lw
         )
     return ax
 
+# ------------------------------------------------------------- #
 
+
+# >>> TO CHECK
 # New display with max and min equal and new coulor
 def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
@@ -2055,3 +2073,159 @@ def find_aligned_point(point, ellipse, sanity_check=True):
 def compute_distance_between_points(point_1, point_2):
     distance = np.linalg.norm(point_1 - point_2)
     return distance
+
+
+
+# ------------------------------------------------------------------------ #
+# >>> OLD UTILS
+# ------------------------------------------------------------------------ #
+
+####  Gabriel's STA analysis  ####
+
+def fit_gaussian(sta_spatial):
+    center = np.unravel_index(np.argmax(sta_spatial, axis=None), sta_spatial.shape)
+    guess = [np.max(sta_spatial), center[1], center[0], 1, 1, 0]
+
+    xdata = sta_spatial.shape
+    ydata = sta_spatial.flatten()
+
+    ellispe_params_bounds = (
+        (-2, 0, 0, 0.1, 0.1, 0),
+        (
+            2,
+            sta_spatial.shape[0],
+            sta_spatial.shape[0],
+            sta_spatial.shape[0],
+            sta_spatial.shape[0],
+            180,
+        ),
+    )
+
+    return curve_fit(
+        gaussian2D_flat, xdata, ydata, p0=guess, bounds=ellispe_params_bounds
+    )
+
+def analyse_sta_gabriel(sta, cell_id):
+    sta_3D = sta.copy()
+
+    try:
+        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
+        ellipse_params, cov = fit_gaussian(fitting_data)
+        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+
+    except Exception as e:
+        print(f"Error Could not fit ellipse {cell_id}")
+        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
+        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {
+            "Spatial": spatial_sta,
+            "Temporal": temporal_sta,
+            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
+            "Cell_delay": np.nan,
+        }
+        print(e)
+
+    return {
+        "Spatial": spatial_sta,
+        "Temporal": temporal_sta,
+        "EllipseCoor": ellipse_params,
+        "Cell_delay": np.nan,
+    }
+
+####  Matias's STA analysis ####
+
+def matias_temporal_spatial_sta(sta_3D):
+    if np.max(np.abs(sta_3D)) == 0:
+        # print(f"Cell {cell_id} : Could not find sta")
+        return "Error detected : 3D sta empty", "Error detected : 3D sta empty"
+
+    (best_t, best_x, best_y) = get_cell_shift(sta_3D)
+    sta_temporal = sta_3D[:, best_x, best_y]
+    sta_spatial = sta_3D[best_t, :, :]
+    sta_spatial /= np.max(np.abs(sta_spatial))
+
+    return sta_temporal, sta_spatial, (best_t, best_x, best_y)
+
+def analyse_sta_matias(sta, cell_id):
+    sta_3D = sta.copy()
+
+    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
+    fitting_data = preprocess_fitting_matias(sta_spatial)
+    try:
+        ellipse_params, cov = double_gaussian_fit(fitting_data)
+    except:
+        print(f"Error Could not fit ellipse {cell_id}")
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {
+            "Spatial": sta_spatial,
+            "Temporal": sta_temporal,
+            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
+            "Cell_delay": best[0],
+        }
+    return {
+        "Spatial": sta_spatial,
+        "Temporal": sta_temporal,
+        "EllipseCoor": ellipse_params,
+        "Cell_delay": best[0],
+    }
+
+### Guilhem's STA analysis ### (mixed between both)
+
+def analyse_sta_guilhem(sta, cell_id):
+    sta_3D = sta.copy()
+    fitting_data, spatial_sta = gabriel_preprocessing(sta_3D, tresholding_factor=1)
+    try:
+        ellipse_params, cov = double_gaussian_fit(fitting_data)
+        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+        best_t = np.argmax(np.abs(temporal_sta[-15:]))
+        best_t += max(sta.shape[0] - 15, 0)
+
+        spatial_sta = sta_3D[best_t]
+
+        return {
+            "Spatial": spatial_sta,
+            "Temporal": temporal_sta,
+            "EllipseCoor": ellipse_params,
+            "Cell_delay": best_t,
+        }
+
+    except:
+        print(f"Error Could not fit ellipse {cell_id}")
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {
+            "Spatial": spatial_sta,
+            "Temporal": np.zeros(40),
+            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
+            "Cell_delay": np.nan,
+        }
+
+### Tom's STA analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
+
+def analyse_sta_tom(sta, cell_id):
+    sta_3D = sta.copy()
+
+    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
+    fitting_data = preprocess_fitting_tom(sta_spatial)
+    try:
+        ellipse_params, cov = double_gaussian_fit(fitting_data)
+    except:
+        print(f"Error Could not fit ellipse {cell_id}")
+        plt.imshow(fitting_data)
+        plt.show(block=False)
+        return {
+            "Spatial": sta_spatial,
+            "Temporal": sta_temporal,
+            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
+            "Cell_delay": best[0],
+        }
+    return {
+        "Spatial": sta_spatial,
+        "Temporal": sta_temporal,
+        "EllipseCoor": ellipse_params,
+        "Cell_delay": best[0],
+    }
+

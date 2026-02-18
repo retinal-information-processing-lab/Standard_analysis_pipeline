@@ -193,10 +193,9 @@ def load_checkerboard_data(
     checkerboard = load_or_create_checkerboard_stimulus(
         nb_repeats, nb_checks_x, nb_checks_y, check_directory, params
     )
+    print(f"Checkerboard stimulus shape: {checkerboard.shape}")
 
-    print(
-        f"Total : {len(checkerboard_spikes.keys())} neurons loaded\n\nClusters id :\n{cells_id}\n"
-    )
+    print(f"\nTotal : {len(checkerboard_spikes.keys())} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n")
 
     return checkerboard_spikes, stim_onsets, nb_repeats, cells_id, checkerboard
 
@@ -208,7 +207,10 @@ def extract_all_cell_responses_to_repeated_sequences(
         triggers: np.ndarray, 
         nb_repeats: int, 
         stimulus_frequency: int,
-        cells_id: list) -> dict:
+        cells_id: list,
+        nb_frames_per_sequence: int,
+        sequence_portion: tuple = (0.5, 1)
+        ) -> dict:
     
     """
     Extract responses to repeated stimulus sequences for all cells.
@@ -218,6 +220,9 @@ def extract_all_cell_responses_to_repeated_sequences(
         triggers: Array of trigger times (n_triggers,)
         nb_repeats: Number of complete stimulus sequences
         stimulus_frequency: Stimulus frequency in Hz
+        cells_id: List of cell IDs to process
+        nb_frames_per_sequence: Number of frames in each stimulus sequence  
+        sequence_portion: Tuple specifying which portion of sequence to use (e.g., (0.5, 1) for second half)
 
     Returns:
         Dict containing extracted responses for each cell, including:
@@ -241,7 +246,12 @@ def extract_all_cell_responses_to_repeated_sequences(
     # get the responses to the repeated sequence
     for cell_id, spike_times in tqdm(checkerboard_spikes.items(), desc="Extracting responses to repeated sequence for each cell"):
         output_data[cell_id] = utils.extract_from_sequence(
-            spike_times, triggers, nb_repeats, stim_frequency=stimulus_frequency
+            spike_times, 
+            triggers, 
+            nb_repeats, 
+            stim_frequency=stimulus_frequency,
+            sequence_portion=sequence_portion,
+            nb_frames_per_sequence=nb_frames_per_sequence,
         )
 
     # check data
@@ -301,8 +311,9 @@ def plot_all_rasters(
 
 def plot_and_save_single_cell_rasters(
     rep_seq_data: dict, 
-    cells_id: list, 
     check_directory: str, 
+    folder_name: str = "Rasters_figs",
+    cell_ids: list = None, 
     title: str = "Response to repeated sequence",
     fontsize: int = 14,
     save_figures: bool = True,
@@ -314,21 +325,25 @@ def plot_and_save_single_cell_rasters(
 
     Args:
         rep_seq_data: Dict containing extracted responses for each cell (from extract_all_cell_responses_to_repeated_sequences)
-        cells_id: List of cell IDs to plot
-        check_directory: path to the directory where to generate the "Rasters_figs" folder and save the figures
-        params: dict
+        check_directory: path to the directory where to generate the subfolder and save the figures
+        folder_name: Name of the subfolder to save the figures in
+        cell_ids: List of cell IDs to plot (if None, plots all cells) 
+        
     Returns:
         None
     """
 
     # figure path
-    fig_directory = os.path.normpath(os.path.join(check_directory, r"Rasters_figs"))
+    fig_directory = os.path.normpath(os.path.join(check_directory, folder_name))
     # ensure path figure exists
     if not os.path.isdir(fig_directory): 
         os.makedirs(fig_directory)
+    
+    if cell_ids is None: 
+        cell_ids = list(rep_seq_data.keys())
 
     # loop over cells
-    for cell_nb in tqdm(cells_id, desc="Plotting and saving rasters for each cell"):
+    for cell_nb in tqdm(cell_ids, desc="Plotting and saving rasters for each cell"):
         # setup subplots
         fig, axs = plt.subplots(
             nrows=2,
@@ -381,6 +396,8 @@ def compute_spike_triggered_average(
     nb_repeats: int,
     stimulus_frequency: int,
     check_directory: str,
+    nb_frames_per_sequence: int,
+    temporal_dimension: int, 
     sequence_portion: tuple = (0, 0.5),
     sta_data_filename: str = "sta_data_3D.pkl",
 ) -> tuple:
@@ -394,6 +411,7 @@ def compute_spike_triggered_average(
         nb_repeats: Number of stimulus repetitions
         stimulus_frequency: Stimulus frequency in Hz
         check_directory: Directory for saving output
+        nb_frames_per_sequence: Number of frames per sequence
         sequence_portion: Tuple specifying which portion of sequence to use
         sta_data_filename: Filename for saved STA data
 
@@ -416,11 +434,16 @@ def compute_spike_triggered_average(
             nb_repeats,
             stimulus_frequency,
             sequence_portion=sequence_portion,
+            nb_frames_per_sequence=nb_frames_per_sequence,
         )
 
         # Compute sta of the cell
         sta_3D = utils.compute_3D_sta(
-            sta_data[cell_id], checkerboard, stimulus_frequency, cluster_id=cell_id
+            sta_data[cell_id], 
+            checkerboard, 
+            nb_frames_per_sequence=nb_frames_per_sequence,
+            temporal_dimension=temporal_dimension,
+            cell_id=cell_id
         )
 
         # Adding data to the notebook dictionnary
@@ -433,7 +456,11 @@ def compute_spike_triggered_average(
 
 
 def plot_one_cell_3D_spike_triggered_average(
-    sta_data: dict, checkerboard_spikes: dict, cells_id: list
+    sta_data: dict, 
+    max_frames_to_show: int = 28,
+    n_frames_per_line: int = 7,
+    fontsize: int = 14,
+    cmap: str = "RdBu_r",
 ):
     """
     Interactively plot 3D STA for one user-selected cell.
@@ -442,162 +469,197 @@ def plot_one_cell_3D_spike_triggered_average(
 
     Args:
         sta_data: Dictionary with STA data
-        checkerboard_spikes: Dictionary with spike data
-        cells_id: List of available cell IDs
+        max_frames_to_show: Maximum number of temporal frames to display
+        n_frames_per_line: Number of frames to show per line in the grid    
+        fontsize: Font size for titles
+        cmap: Colormap for STA visualization
     """
     # report number of cells
-    print(
-        "Total : {} neurons found \n\nClusters id :\n{}\n".format(
-            len(checkerboard_spikes.keys()), cells_id
-        )
-    )
+    print(f"Total : {len(sta_data)} cells found")
+    print(f"Cell ids: {[int(x) for x in list(sta_data.keys())][:15]}...")
 
     # ask user to input a cell
-    cell_id = int(input("Select a cell: "))
+    cell_id = int(input("Select a cell id: "))
 
     # plot
-    fig = plt.figure(figsize=(10, 10))
-    gs = GridSpec(8, 5, figure=fig)
-    for i in range(40):
-        ax = fig.add_subplot(gs[i // 5, i % 5])
-        ax.imshow(sta_data[cell_id]["sta_3D"][i])
+    sta = sta_data[cell_id]["sta_3D"]
+    vmin, vmax = np.min(sta), np.max(sta)
+    n_frames_to_show = min(max_frames_to_show, sta.shape[0])
+    ncols = n_frames_per_line
+    nrows = int(np.ceil(n_frames_to_show / ncols))
+    fig = plt.figure(figsize=(ncols * 3, nrows * 3))
+    gs = GridSpec(nrows, ncols, figure=fig)
+    for i in range(n_frames_to_show):
+        ax = fig.add_subplot(gs[i // ncols, i % ncols])
+        ax.imshow(sta[i], vmin=vmin, vmax=vmax, cmap=cmap)
+        ax.set_title(f"f: {i}", fontsize=fontsize)
+        ax.set_axis_off()
+    fig.suptitle(f"Cell {cell_id} - 3D Spike-Triggered Average (shape: {sta.shape})", fontsize=fontsize)
     plt.show(block=False)
     plt.close(fig)
 
 
-def fit_ellipse_to_spike_triggered_average(
-    cell_id: int, sta_3D: np.ndarray, checkerboard: np.ndarray, method: str
+def analyse_all_stas(
+    sta_data: dict, 
+    directory: str,
+    data_filename: str = "sta_data_analysed.pkl",
+    method: str = "guilhem"
 ) -> dict:
     """
-    Fit ellipse to STA for a single cell.
+    Analyze STAs to extract receptive field properties, add it to the sta_data dictionary and save it.
 
     Args:
-        cell_id: Cell identifier
-        sta_3D: 3D spike-triggered average
-        checkerboard: Stimulus array
-        method: Fitting method ('tom', 'matias', 'gab', or 'basic')
+        sta_data: Dictionary containing STA data for each cell {cell_id: {'sta_3D': np.array (nT, nY, nX), ...}, ...}
+        check_directory: Directory to save analyzed data
+        data_filename: Filename for saved analyzed data
 
     Returns:
-        Dictionary with fitted parameters or empty arrays if fitting failed
+        sta_data: Updated dictionary with added 'sta_analysis' key for each cell containing analysis results:    
+                - "Spatial": 2D numpy array representing the spatial STA.
+                - "Temporal": 1D numpy array representing the temporal STA.
+                - "EllipseCoor": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in pxs.
+                - "Cell_delay": Time bin corresponding to the spatial STA. 
+                - "FittedEllipse": Boolean indicating whether the ellipse fitting was successful or if default parameters were returned due to an error.
+        
     """
-    # File loading the 3D sta dictionnary saved above in this notebook
-    check_directory = utils.find_analysis_directory("Checkerboard")
-    sta_data_file = os.path.normpath(os.path.join(check_directory, "sta_data_3D.pkl"))
-    sta_data = utils.load_obj(sta_data_file)
 
-    # loop over cells
-    for cell_id in tqdm(sta_data):
-        # get 3D sta
+    # loop over cells, get and store rf analysis in sta_data
+    for cell_id in tqdm(sta_data.keys(), desc="Fitting ellipses on STAs"):
         sta_3D = sta_data[cell_id]["sta_3D"]
-
-        if np.max(np.abs(sta_3D)) == 0:
-            print(f"No ellipse fit on cell {cell_id}")
-            sta_data[cell_id]["center_analyse"] = {
-                "Spatial": np.zeros(checkerboard[0].shape),
-                "Temporal": np.zeros(checkerboard.shape[0]),
-                "EllipseCoor": np.asarray([0, 0, 0, 0.001, 0.001, 0]),
-                "Cell_delay": np.nan,
-            }
-            sta_data[cell_id]["surround_analyse"] = {
-                "Spatial": np.zeros(checkerboard[0].shape),
-                "Temporal": np.zeros(checkerboard.shape[0]),
-                "EllipseCoor": np.asarray([0, 0, 0, 0.001, 0.001, 0]),
-                "Cell_delay": np.nan,
-            }
-            sta_data[cell_id]["analyse_sta"] = {
-                "Spatial": np.zeros(checkerboard[0].shape),
-                "Temporal": np.zeros(checkerboard.shape[0]),
-                "EllipseCoor": np.asarray([0, 0, 0, 0.001, 0.001, 0]),
-                "Cell_delay": np.nan,
-            }
-
-            continue
-
-        # Perform the fitting for the current cell using one of the bellow method (default "analyse_sta_matias")
-        if method == "tom":
-            # New fitting of ellipse, more performant
-            sta_data[cell_id]["center_analyse"] = utils.analyse_sta_tom(sta_3D, cell_id)
-        elif method == "matias":
-            sta_data[cell_id]["center_analyse"] = utils.analyse_sta_matias(
-                sta_3D, cell_id
-            )
-        elif method == "gab":
-            sta_data[cell_id]["surround_analyse"] = utils.analyse_sta_gab(
-                sta_3D, cell_id
-            )
-        elif method == "basic":
-            sta_data[cell_id]["analyse_sta"] = utils.analyse_sta(sta_3D, cell_id)
-
-    fitted_sta_filename = "sta_data_3D_fitted.pkl"
-    # ouput file of all fitted data
-    fitted_file = os.path.normpath(os.path.join(check_directory, fitted_sta_filename))
+        sta_data[cell_id]["sta_analysis"] = utils.rf_analysis(sta_3D, cell_id)
 
     # save file
+    fitted_file = os.path.normpath(os.path.join(directory, data_filename))
     utils.save_obj(sta_data, fitted_file)
+    return sta_data
+
+
+def plot_all_stas(sta_data: dict, 
+                  cell_ids: list = None,
+                  fontsize: int = 35,
+                  show_labels: bool = False,
+                  add_fitted_indicator: bool = True,
+                  border_width: int = 2,):
+    """
+    Plot all STAs in a grid and save the figure.
+
+    Args:
+        sta_data: Dictionary containing STA data for each cell {cell_id: {'sta_3D': np.array (nT, nY, nX), ...}, ...}
+        directory: Directory to save the figure
+        data_filename: Filename for saved figure
+    """
+    if cell_ids is None:
+        cell_ids = list(sta_data.keys())
+    size = int(math.sqrt(len(cell_ids))) + 1
+
+    # setup subplots
+    fitted_count = sum(1 for cell_id in cell_ids if sta_data[cell_id]["sta_analysis"]["FittedEllipse"])
+    unfitted_count = len(cell_ids) - fitted_count
+    fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
+    for i in tqdm(range(size**2), desc="Plotting STAs for all cells"):
+        ax = axs[(i // size), i % size]
+        if i < len(cell_ids):
+            spatial_sta = sta_data[cell_ids[i]]["sta_analysis"]["Spatial"]
+            ny, nx = spatial_sta.shape
+            vrange = np.max(np.abs(spatial_sta))
+            ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap="RdBu_r")
+            ax.set_title(f"C{cell_ids[i]}", fontsize=fontsize)
+            if show_labels: 
+                ax.set_xlabel(f"{nx} px", fontsize=fontsize)
+            if show_labels: 
+                ax.set_ylabel(f"{ny} px", fontsize=fontsize)
+            if add_fitted_indicator:
+                fitted = sta_data[cell_ids[i]]["sta_analysis"]["FittedEllipse"]
+                border_color = "green" if fitted else "red"
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(border_color)
+                    spine.set_linewidth(border_width)
+        else:
+            ax.set_visible(False)
+
+    title = f"Spatial STAs for {len(cell_ids)} cells\n{fitted_count} fitted ellipse (green), {unfitted_count} failed ellipse fitting (red)"
+
+    # format and close
+    plt.tight_layout()
+    # plt.suptitle(title, fontsize=fontsize, fontweight="bold")
+    print(f"\n{title}")
+    plt.show(block=False)
+    plt.close("all")
+    return None
 
 
 def plot_sta_fitted_with_ellipse(
-    cells_id: list, cells_to_plot: list, check_directory: str
+        sta_data: dict, 
+        check_directory: str,
+        folder_name: str = "Stas_figs",
+        cell_ids: list = None,
+        fontsize: int = 14,
+        show_figures: bool = False,
 ):
     """
-    Plot fitted STAs with ellipses for all cells.
-
-    Creates and saves plots showing spatial STA and fitted ellipse for each cell.
-    Only displays plots for cells specified in cells_to_plot.
+    Generate single-cell figures showing the STA and ellipse fitting for all cells.
 
     Args:
-        cells_id: List of all cell IDs to process
-        cells_to_plot: List of cell IDs to display interactively
-        check_directory: Directory containing fitted STA data
+        sta_data: Dictionary containing STA data and analysis for each cell {cell_id: {'sta_analysis': dict, ...}, ...}
+        check_directory: Directory where to save the figures
+        folder_name: Name of the subfolder to save the figures in
+        cell_ids: List of cell IDs to plot (if None, plots all cells)
+        fontsize: Font size for titles and labels
+        show_figures: Boolean indicating whether to display figures interactively
+
     """
 
     # Folder where figure will be saved
-    fig_directory = os.path.normpath(os.path.join(check_directory, r"Stas_figs"))
+    fig_directory = os.path.normpath(os.path.join(check_directory, folder_name))
     if not os.path.isdir(fig_directory):
         os.makedirs(fig_directory)
 
-    # load sta
-    sta_data = np.load(
-        os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
-    )
+    if cell_ids is None:
+        cell_ids = list(sta_data.keys())
 
     # loop over all cells
-    for cell_id in tqdm(cells_id[0:]):
+    for cell_id in tqdm(cell_ids, desc="Generating STA and ellipse fitting figures for each cell"):
         # get cell sta data
-        sta = sta_data[cell_id]["center_analyse"]
+        sta_analysis = sta_data[cell_id]["sta_analysis"]
 
-        # setup subplots
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(15, 7))
+        # setup figure
+        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+        plt.suptitle(f"Cell {cell_id}", fontsize=fontsize, fontweight="bold")
 
-        # add title
-        plt.suptitle(f"Cell {cell_id}")
-
-        # plot spatial sta
+        # plot spatial sta with ellipse
         ax = axs[0]
-        ax.imshow(sta["Spatial"])
-        ax.set(title="Spatial STA")
+        spatial_sta = sta_analysis["Spatial"]
+        ny, nx = spatial_sta.shape
+        utils.plot_sta(ax, spatial_sta, sta_analysis["EllipseCoor"], 
+                       level_factor=0.4, color="w", alpha=0.8, lw=1.5, linestyles="solid")
+        ax.set_title(f"Spatial STA ({'x' if not sta_analysis['FittedEllipse'] else '✓'} fitted)", fontsize=fontsize)
+        ax.set_xlabel(f"{nx} pixels", fontsize=fontsize)
+        ax.set_ylabel(f"{ny} pixels", fontsize=fontsize)
 
-        # plot fitted ellipse
+        # plot temporal sta
         ax = axs[1]
-        ax.set(title="Fitted Ellipse")
+        ax.set_title("Temporal STA", fontsize=fontsize)
+        ax.plot(sta_analysis["Temporal"], lw=1.5)
+        ax.axhline(0, color="gray", lw=0.5, ls="--")
+        if sta_analysis["Cell_delay"] is not None and not np.isnan(sta_analysis["Cell_delay"]):
+            ax.axvline(sta_analysis["Cell_delay"], color="gray", lw=0.5, ls="--")
+        ax.set_xlabel("Time bins", fontsize=fontsize)
+        ax.set_ylabel("STA amplitude", fontsize=fontsize)
+        for sp in ["top", "right"]:
+            ax.spines[sp].set_visible(False)
 
-        try:
-            ax = utils.plot_sta(ax, sta["Spatial"], sta["EllipseCoor"])
-        except:
-            ax.imshow(sta_data[cell_id]["center_analyse"]["Spatial"])
+        for ax in axs: ax.tick_params(axis="both", which="major", labelsize=fontsize-2)
 
         fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
 
-        # save figure
-        plt.savefig(fig_file, dpi=fig.dpi)
-
-        # plot selected cells only
-        if cell_id in cells_to_plot:
+        if show_figures:
             plt.show()
 
+        # save figure
+        plt.savefig(fig_file, dpi=fig.dpi)
         # close figure to free memory
         plt.close(fig)
-
+    return None
 
 def plot_sta_fitted_with_ellipse_by_tom(
     raster_data: dict, cells_id: list, cells_to_plot: list, check_directory: str
