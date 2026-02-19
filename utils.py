@@ -1308,7 +1308,7 @@ def get_temporal_spatial_sta(sta_3D):
         maximum in absolute value in the 3D STA and taking the corresponding spatial and temporal traces. 
     """
     if np.max(np.abs(sta_3D)) == 0:
-        print(f"Error: empty STA, should be checked upstream - case not handled, returning all None")
+        print("Error: empty STA, should be checked upstream - case not handled, returning all None")
         return None, None, None
 
     # double-attempt  (first stronger than weaker) smoothing + peak location

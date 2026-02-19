@@ -670,7 +670,8 @@ def plot_sta_fitted_with_ellipse(
             ax.set_aspect('auto')
             ax.set_ylim(0, len(rep_seq_data[cell_id]["spike_trains"]))
 
-        for ax in axs: ax.tick_params(axis="both", which="major", labelsize=fontsize-2)
+        for ax in axs: 
+            ax.tick_params(axis="both", which="major", labelsize=fontsize-2)
 
         fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
 
