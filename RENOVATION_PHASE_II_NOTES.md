@@ -54,7 +54,9 @@ We can wait Guilhem is available to do this.
     7) in `utils.plot_sta` added plotting parameters as arguments, and forced blue-red colormap centered on zero
     8) added `analyse_checkerboard_steeve.plot_all_stas` to get an overview of resulting spatial stas upon analysis, added as optional feature in `analyse_all_stas` cell in `2-Analyse_Checkerboard_steeve.ipynb`
     9) Adjusted single-cell sta figures generation: from 2 plots one showing only spatil sta the other spatial sta + fitted elleipse, now 2 plots one showing spatial sta + ellipse the oter temporal sta
-    
+
+NEXT: 
+merge plot_sta_fitted_with_ellipse_by_tom to plot_sta_fitted_with_ellipse by adding add_raster_plot as flag param, test all and continue with Quantification of the number of STAs (not needed in the standard pipeline) with independent cells (load and process data)
             
 
 

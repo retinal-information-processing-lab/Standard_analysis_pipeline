@@ -595,6 +595,8 @@ def plot_sta_fitted_with_ellipse(
         cell_ids: list = None,
         fontsize: int = 14,
         show_figures: bool = False,
+        add_raster_plot: bool = False,
+        rep_seq_data: dict = None,
 ):
     """
     Generate single-cell figures showing the STA and ellipse fitting for all cells.
@@ -606,8 +608,14 @@ def plot_sta_fitted_with_ellipse(
         cell_ids: List of cell IDs to plot (if None, plots all cells)
         fontsize: Font size for titles and labels
         show_figures: Boolean indicating whether to display figures interactively
+        add_raster_plot: Boolean indicating whether to add raster plot to the figure (requires rep_seq_data)
+        rep_seq_data: Dictionary containing extracted responses for each cell (from extract_all_cell_responses_to_repeated_sequences), required if add_raster_plot is True
 
     """
+
+    # check if raster data is provided when add_raster_plot is True
+    if add_raster_plot and rep_seq_data is None:
+        raise ValueError("rep_seq_data must be provided when add_raster_plot is True")
 
     # Folder where figure will be saved
     fig_directory = os.path.normpath(os.path.join(check_directory, folder_name))
@@ -617,13 +625,18 @@ def plot_sta_fitted_with_ellipse(
     if cell_ids is None:
         cell_ids = list(sta_data.keys())
 
+    # figure params
+    nrows = 1
+    ncols = 2 + (1 if add_raster_plot else 0)
+    xdim, ydim = 6, 4
+
     # loop over all cells
     for cell_id in tqdm(cell_ids, desc="Generating STA and ellipse fitting figures for each cell"):
         # get cell sta data
         sta_analysis = sta_data[cell_id]["sta_analysis"]
 
         # setup figure
-        fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(xdim * ncols, ydim * nrows))
         plt.suptitle(f"Cell {cell_id}", fontsize=fontsize, fontweight="bold")
 
         # plot spatial sta with ellipse
@@ -648,6 +661,15 @@ def plot_sta_fitted_with_ellipse(
         for sp in ["top", "right"]:
             ax.spines[sp].set_visible(False)
 
+        if add_raster_plot:
+            ax = axs[2]
+            ax.eventplot(rep_seq_data[cell_id]["spike_trains"])
+            ax.set_title("Raster plot", fontsize=fontsize)
+            ax.set_xlabel("Time (s)", fontsize=fontsize)
+            ax.set_ylabel(f"{len(rep_seq_data[cell_id]['spike_trains'])} repetitions", fontsize=fontsize)
+            ax.set_aspect('auto')
+            ax.set_ylim(0, len(rep_seq_data[cell_id]["spike_trains"]))
+
         for ax in axs: ax.tick_params(axis="both", which="major", labelsize=fontsize-2)
 
         fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
@@ -661,64 +683,64 @@ def plot_sta_fitted_with_ellipse(
         plt.close(fig)
     return None
 
-def plot_sta_fitted_with_ellipse_by_tom(
-    raster_data: dict, cells_id: list, cells_to_plot: list, check_directory: str
-):
-    """
-    Plot comprehensive analysis including raster, fitted STA, and temporal profile.
+# def plot_sta_fitted_with_ellipse_by_tom(
+#     raster_data: dict, cells_id: list, cells_to_plot: list, check_directory: str
+# ):
+#     """
+#     Plot comprehensive analysis including raster, fitted STA, and temporal profile.
 
-    Creates three-panel plots for each cell showing:
-    1. Raster plot
-    2. Fitted ellipse on spatial STA
-    3. Temporal STA profile
+#     Creates three-panel plots for each cell showing:
+#     1. Raster plot
+#     2. Fitted ellipse on spatial STA
+#     3. Temporal STA profile
 
-    Args:
-        raster_data: Dictionary with raster data
-        cells_id: List of all cell IDs to process
-        cells_to_plot: List of cell IDs to display interactively
-        check_directory: Directory containing fitted STA data
-    """
+#     Args:
+#         raster_data: Dictionary with raster data
+#         cells_id: List of all cell IDs to process
+#         cells_to_plot: List of cell IDs to display interactively
+#         check_directory: Directory containing fitted STA data
+#     """
 
-    # Folder where figure will be saved
-    fig_directory = os.path.normpath(os.path.join(check_directory, r"Stas_figs"))
-    if not os.path.isdir(fig_directory):
-        os.makedirs(fig_directory)
+#     # Folder where figure will be saved
+#     fig_directory = os.path.normpath(os.path.join(check_directory, r"Stas_figs"))
+#     if not os.path.isdir(fig_directory):
+#         os.makedirs(fig_directory)
 
-    sta_data = np.load(
-        os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
-    )
+#     sta_data = np.load(
+#         os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
+#     )
 
-    # loop over cells
-    for cell_id in tqdm(cells_id[0:]):
-        # setup subplots
-        fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
+#     # loop over cells
+#     for cell_id in tqdm(cells_id[0:]):
+#         # setup subplots
+#         fig, axs = plt.subplots(nrows=1, ncols=3, figsize=(30, 10))
 
-        plt.suptitle(f"Cell {cell_id}")
-        sta = sta_data[cell_id]["center_analyse"]
-        ax = axs[0]
-        ax.eventplot(raster_data[cell_id]["spike_trains"])
-        ax.set(title="Raster plot", ylabel="N Repetitions")
+#         plt.suptitle(f"Cell {cell_id}")
+#         sta = sta_data[cell_id]["center_analyse"]
+#         ax = axs[0]
+#         ax.eventplot(raster_data[cell_id]["spike_trains"])
+#         ax.set(title="Raster plot", ylabel="N Repetitions")
 
-        ax = axs[1]
-        ax.set(title="Fitted Ellipse")
+#         ax = axs[1]
+#         ax.set(title="Fitted Ellipse")
 
-        try:
-            ax = utils.plot_sta_tom(ax, sta["Spatial"], sta["EllipseCoor"])
-        except:
-            ax.imshow(sta_data[cell_id]["center_analyse"]["Spatial"])
+#         try:
+#             ax = utils.plot_sta_tom(ax, sta["Spatial"], sta["EllipseCoor"])
+#         except:
+#             ax.imshow(sta_data[cell_id]["center_analyse"]["Spatial"])
 
-        ax = axs[2]
-        ax.set(title="Temporal STA")
-        ax.plot(sta["Temporal"])
-        ax.set_ylim([-1, 1])
+#         ax = axs[2]
+#         ax.set(title="Temporal STA")
+#         ax.plot(sta["Temporal"])
+#         ax.set_ylim([-1, 1])
 
-        fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
-        plt.savefig(fig_file, dpi=fig.dpi)
+#         fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
+#         plt.savefig(fig_file, dpi=fig.dpi)
 
-        # plot selected cells only
-        if cell_id in cells_to_plot:
-            plt.show()
+#         # plot selected cells only
+#         if cell_id in cells_to_plot:
+#             plt.show()
 
-        # close figure to free memory
-        plt.clf()
-        plt.close(fig)
+#         # close figure to free memory
+#         plt.clf()
+#         plt.close(fig)

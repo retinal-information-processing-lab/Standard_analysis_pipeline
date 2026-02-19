@@ -1421,11 +1421,34 @@ def rf_analysis(
 
 
 def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
-             color="w", alpha=0.8, lw=1, linestyles="solid"):
+             color="w", alpha=0.8, lw=1, linestyles="solid", cmap="RdBu_r",
+             add_center_cross=True, marker_size=30, marker_symbol="+"):
+    """
+    Plot the spatial STA and the fitted ellipse on a given axis,  with colormap centered on 0. 
+    The ellipse is plotted as a contour at a level defined by `level_factor` times the 
+    maximum absolute value of the Gaussian fit, and the center of the ellipse can be 
+    highlighted with a marker if `add_center_cross` is True.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis on which to plot the STA and ellipse
+        spatial_sta (numpy.ndarray): 2D array representing the spatial STA to be plotted.
+        ellipse_params (list or numpy.ndarray): List or array of 6 parameters (amp, x0, y0, sigma_x, sigma_y, rot_angle) defining the fitted Gaussian ellipse.
+        level_factor (float, optional): Factor to multiply the maximum absolute value of the Gaussian fit to determine the contour level for plotting the ellipse.
+        color (str, optional): Color for the ellipse contour and center marker. 
+        alpha (float, optional): Transparency level for the ellipse contour.
+        lw (float, optional): Line width for the ellipse contour. 
+        linestyles (str or list, optional): Line style for the ellipse contour. 
+        cmap (str or matplotlib.colors.Colormap, optional): Colormap for displaying the spatial STA, centered on 0. 
+        add_center_cross (bool, optional): Whether to add a marker at the center of the fitted ellipse. 
+        marker_size (float, optional): Size of the center marker if `add_center_cross` is True.
+        marker_symbol (str, optional): Marker symbol for the center marker if `add_center_cross` is True.
+
+    """
     # magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
+    (amp, x0, y0, sigma_x, sigma_y, rot_angle) = ellipse_params
     vrange = np.max(np.abs(spatial_sta))
-    ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap="RdBu_r")
+    ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     if ellipse_params[0] != 0:
         ax.contour(
             np.abs(gaussian),
@@ -1435,6 +1458,8 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
             alpha=alpha,
             linewidths=lw
         )
+        if add_center_cross:
+            ax.scatter(x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha)
     return ax
 
 # ------------------------------------------------------------- #
