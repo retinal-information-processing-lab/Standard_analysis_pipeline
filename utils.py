@@ -1462,27 +1462,52 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
             ax.scatter(x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha)
     return ax
 
+
+def check_presence_STA(
+    sta, ellipse_coor, nb_of_pixels_by_check, tresh_snr=2.75, level_factor=0.2
+):  # Used to check the presence of STAs
+    pxl_size_dmd = params.pxl_size_dmd
+
+    gaussian = gaussian2D(sta.shape, *ellipse_coor)
+
+    x0 = ellipse_coor[1]
+    y0 = ellipse_coor[2]
+
+    # See if the STA is in the center
+    xshape = sta.shape[0]
+    yshape = sta.shape[1]
+    if x0 > 0.8 * xshape or x0 < 0.2 * xshape or y0 > 0.8 * yshape or y0 < 0.2 * yshape:
+        return [0.1, 0.1]
+
+    # See if the STA has a fitted ellipse
+    if ellipse_coor[0] != 0:
+        plt.figure()
+        cs = plt.contour(
+            np.abs(gaussian), levels=[level_factor * np.max(np.abs(gaussian))]
+        )
+        contour = cs.allsegs
+        plt.close()
+
+        # Verify that the diameter of the ellipse is neither too big nor too small
+        area = PolyArea(contour[0][0][:, 0], contour[0][0][:, 1])
+        diameter = 2 * np.sqrt(area / np.pi) * nb_of_pixels_by_check * pxl_size_dmd
+
+        if diameter < 100 or diameter > 500:
+            return [0.3, diameter]
+
+        # Verify that the SNR is superior to the threshold of the SNR
+        if SNR_test(sta, contour) < tresh_snr:
+            return [0.4, SNR_test(sta, contour)]
+
+    else:
+        return [0.2, 0.2]
+
+    return [1, SNR_test(sta, contour)]
+
 # ------------------------------------------------------------- #
 
 
 # >>> TO CHECK
-# New display with max and min equal and new coulor
-def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
-    gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
-
-    vmax = np.max([np.amax(spatial_sta), -np.amin(spatial_sta)])
-    ax.imshow(spatial_sta, cmap="RdBu_r", vmax=vmax, vmin=-vmax)
-    if ellipse_params[0] != 0:
-        ax.contour(
-            np.abs(gaussian),
-            levels=[level_factor * np.max(np.abs(gaussian))],
-            colors="y",
-            linestyles="solid",
-            alpha=0.4,
-            lw=5,
-        )
-    return ax
-
 
 ### Analysis to quantify the presence of STAs
 
@@ -1525,47 +1550,6 @@ def SNR_test(sta, contour):  # Calculate the SNR of cells
 def PolyArea(x, y):  # Used to calculate an area of a polygon
     return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-
-def check_presence_STA(
-    sta, ellipse_coor, nb_of_pixels_by_check, tresh_snr=2.75, level_factor=0.2
-):  # Used to check the presence of STAs
-    pxl_size_dmd = params.pxl_size_dmd
-
-    gaussian = gaussian2D(sta.shape, *ellipse_coor)
-
-    x0 = ellipse_coor[1]
-    y0 = ellipse_coor[2]
-
-    # See if the STA is in the center
-    xshape = sta.shape[0]
-    yshape = sta.shape[1]
-    if x0 > 0.8 * xshape or x0 < 0.2 * xshape or y0 > 0.8 * yshape or y0 < 0.2 * yshape:
-        return [0.1, 0.1]
-
-    # See if the STA has a fitted ellipse
-    if ellipse_coor[0] != 0:
-        plt.figure()
-        cs = plt.contour(
-            np.abs(gaussian), levels=[level_factor * np.max(np.abs(gaussian))]
-        )
-        contour = cs.allsegs
-        plt.close()
-
-        # Verify that the diameter of the ellipse is neither too big nor too small
-        area = PolyArea(contour[0][0][:, 0], contour[0][0][:, 1])
-        diameter = 2 * np.sqrt(area / np.pi) * nb_of_pixels_by_check * pxl_size_dmd
-
-        if diameter < 100 or diameter > 500:
-            return [0.3, diameter]
-
-        # Verify that the SNR is superior to the threshold of the SNR
-        if SNR_test(sta, contour) < tresh_snr:
-            return [0.4, SNR_test(sta, contour)]
-
-    else:
-        return [0.2, 0.2]
-
-    return [1, SNR_test(sta, contour)]
 
 
 #############################################
@@ -2253,4 +2237,22 @@ def analyse_sta_tom(sta, cell_id):
         "EllipseCoor": ellipse_params,
         "Cell_delay": best[0],
     }
+
+# New display with max and min equal and new coulor
+def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
+    gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
+
+    vmax = np.max([np.amax(spatial_sta), -np.amin(spatial_sta)])
+    ax.imshow(spatial_sta, cmap="RdBu_r", vmax=vmax, vmin=-vmax)
+    if ellipse_params[0] != 0:
+        ax.contour(
+            np.abs(gaussian),
+            levels=[level_factor * np.max(np.abs(gaussian))],
+            colors="y",
+            linestyles="solid",
+            alpha=0.4,
+            lw=5,
+        )
+    return ax
+
 
