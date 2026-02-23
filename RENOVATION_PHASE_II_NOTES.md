@@ -63,7 +63,7 @@ NEXT:
 make sta figures in physical quantities 
 test all and continue with Quantification of the number of STAs (not needed in the standard pipeline) with independent cells (load and process data)
 
-2026-02-23-12:00 (Chiara)
+2026-02-23-12:25 (Chiara) final refactoring of checkerboard analysis:
     1) added request for input of `nb_pixels_per_check` with `get_all_inputs_for_checkerboard_analysis` (modified return in `2-Analyse_Checkerboard_steeve.ipynb`, output in `analyse_checkerboard_steeve.get_all_inputs_for_checkerboard_analysis` and `analyse_checkerboard_steeve.prompt_user_for_checkerboard_params` return )
     2) corrected params cast from dict to module type and some others arg cast and returns (icluding stimulus frequency as float instead of int) in both `analyse_checkerboard_steeve` and `utils` (where was given as arg) and corrected some spelling errors
     3) in `analyse_checkerboard_steeve.calculate_checkerboard_experiment_stats`: before as input `stim_onsets: dict, triggers: np.ndarray, ...` but to be used as `calculate_checkerboard_experiment_stats(stim_onsets, stim_onsets, ...)` and useless --> now removed duplicate and used `stim_onsets` (called triggers) to compute everything
