@@ -55,9 +55,34 @@ We can wait Guilhem is available to do this.
     8) added `analyse_checkerboard_steeve.plot_all_stas` to get an overview of resulting spatial stas upon analysis, added as optional feature in `analyse_all_stas` cell in `2-Analyse_Checkerboard_steeve.ipynb`
     9) Adjusted single-cell sta figures generation: from 2 plots one showing only spatil sta the other spatial sta + fitted elleipse, now 2 plots one showing spatial sta + ellipse the oter temporal sta
 
+2026-02-19-10:00 (Chiara) merged `plot_sta_fitted_with_ellipse_by_tom` to `plot_sta_fitted_with_ellipse`:
+    1) added add_raster_plot flag to function to include or not the raster plot in the figure
+    2) added ellipse center marker
+
 NEXT: 
-merge plot_sta_fitted_with_ellipse_by_tom to plot_sta_fitted_with_ellipse by adding add_raster_plot as flag param, test all and continue with Quantification of the number of STAs (not needed in the standard pipeline) with independent cells (load and process data)
-            
+make sta figures in physical quantities 
+test all and continue with Quantification of the number of STAs (not needed in the standard pipeline) with independent cells (load and process data)
+
+2026-02-23-12:00 (Chiara)
+    1) added request for input of `nb_pixels_per_check` with `get_all_inputs_for_checkerboard_analysis` (modified return in `2-Analyse_Checkerboard_steeve.ipynb`, output in `analyse_checkerboard_steeve.get_all_inputs_for_checkerboard_analysis` and `analyse_checkerboard_steeve.prompt_user_for_checkerboard_params` return )
+    2) corrected params cast from dict to module type and some others arg cast and returns (icluding stimulus frequency as float instead of int) in both `analyse_checkerboard_steeve` and `utils` (where was given as arg) and corrected some spelling errors
+    3) in `analyse_checkerboard_steeve.calculate_checkerboard_experiment_stats`: before as input `stim_onsets: dict, triggers: np.ndarray, ...` but to be used as `calculate_checkerboard_experiment_stats(stim_onsets, stim_onsets, ...)` and useless --> now removed duplicate and used `stim_onsets` (called triggers) to compute everything
+    4) fixed actual use of method in `analyse_checkerboard_steeve.analyse_all_stas`, `utils.get_temporal_spatial_sta`
+    5) added sta analysis extension to physical unit `analyse_checkerboard_steeve.extend_sta_analysis_to_physical_units` (optional in `2-Analyse_Checkerboard_steeve.ipynb`) and modified `analyse_checkerboard_steeve.plot_sta_fitted_with_ellipse` to report sta details in physical unit if available
+    6) adjusted `analyse_checkerboard_steeve.plot_all_stas` with color indicator and added order by property
+    7) added RF quantification in `analyse_checkerboard_steeve.plot_sta_fitted_with_ellipse` (text note with spatial rf diameter, area, snr, etc + temporal rf frequency, dealy, etc)
+    8) put unused functions at the end in old functions in both `analyse_checkerboard_steeve` and `utils`
+    9) added `convert_ellipse_params_to_physical_units`, `get_temporal_sta_time_vector`, `get_cell_delay_time`, `ellipse_area`, `ellipse_radius` and `ellipse_diameter` (added `skimage.measure` to get contour without plt for area computation --> added `scikit-image` to `env\standard_analysis_pipeline.yml`)
+    10) `PolyArea` only changed name in `polygon_area`
+    11) created `rf_snr`inspired by `SNR_test` 
+    12) created `utils.check_rf_fit` 
+    13) centered colormap on 0 in `analyse_checkerboard_steeve.plot_one_cell_3D_spike_triggered_average`
+
+TODO NEXT:
+1) homogenize in utils use of params: in some functions is given as argument in others is only used upon import. Is it ok to use a module as an argument in a function? If not modify also other .py modules to have everywhere the same behavior.
+2) check all args and return casts and descriptions 
+3) renovate other notebooks (chirp, etc..)
+4) check and clean all utils
 
 
 

@@ -8,10 +8,12 @@ from colorama import Fore, Style
 import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
+from skimage import measure
 import itertools
 import time
 from collections import defaultdict
 import matplotlib.path as mpltPath
+from types import ModuleType
 
 import params
 
@@ -23,7 +25,7 @@ def plot_raster_and_psth(spike_trains: list,
                          psth: list, 
                          ax_rast: plt.Axes, 
                          ax_psth: plt.Axes, 
-                         seq_lenght: float, 
+                         seq_length: float,
                          t0: float = 0, 
                          title: str = "Raster plot",
                          fontsize: int = 12, 
@@ -36,7 +38,7 @@ def plot_raster_and_psth(spike_trains: list,
         psth: Peri-stimulus time histogram values (firing rate in spikes/s) for each time bin. Length should be equal to the number of time bins used to extract the sequence response.
         ax_rast: Matplotlib axis for the raster plot.
         ax_psth: Matplotlib axis for the PSTH.
-        seq_lenght: Duration of the sequence in seconds.
+        seq_length: Duration of the sequence in seconds.
         t0: Start time of the sequence (default 0).
         title: Title for the raster plot (default "Raster plot").
         fontsize: Font size for titles and labels (default 12).
@@ -53,7 +55,7 @@ def plot_raster_and_psth(spike_trains: list,
     ax_rast.set_ylabel("n repetition", fontsize=fontsize)
 
     nbins = len(psth)
-    bin_edges = np.linspace(t0, t0+seq_lenght, nbins)
+    bin_edges = np.linspace(t0, t0+seq_length, nbins)
     bin_width = np.diff(bin_edges)[0]
     bin_values = bin_edges + bin_width / 2
 
@@ -105,17 +107,20 @@ def load_spike_times(params, rec, verbose=False):
 
 
 def load_stim_onset_from_triggers_path(
-    triggers_path: str, params: dict, verbose: bool = False
-) -> tuple[np.ndarray, dict]:
+        triggers_path: str,
+        params: ModuleType,
+        verbose: bool = False
+) -> np.ndarray:
     """
-    Load trigger data from saved file and give the stim onset aleady converted in second.
+    Load trigger data from saved file and give the stim onset already converted in second.
 
     Args:
-        params: Dictionary with 'triggers_directory', 'exp', and 'checkerboard_name'
-        rec_name: Selected recording name to load triggers for
+        triggers_path: Path to the saved trigger data file (e.g., "../triggers_data.pkl").
+        params: Module from params.py containing experiment parameters including sampling rate (fs)
+        verbose: If True, print information about the loaded triggers.
 
     Returns:
-        stim_onsets
+        stim_onsets: Numpy array of stimulus onset times in seconds.
     """
     triggers_data = load_obj(triggers_path)
     stim_onsets = triggers_data["indices"] / params.fs
@@ -126,12 +131,16 @@ def load_stim_onset_from_triggers_path(
     return stim_onsets
 
 
-def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
+def prompt_user_for_recording(
+        params: ModuleType,
+        stim_name: str
+) -> tuple[int, str]:
     """
     Display available recordings and prompt user to select one.
 
     Args:
-        params: Dictionary containing experiment parameters with 'recording_names' key
+        params: Module from params.py containing experiment parameters including recording_names
+        stim_name: Name of the stimulus type (e.g., "Checkerboard", "DG") to display in the prompt
 
     Returns:
         Selected recording number as integer
@@ -149,7 +158,9 @@ def prompt_user_for_recording(params: dict, stim_name: str) -> tuple[int, str]:
 
 
 def create_analysis_directory(
-    params: dict, recording_number: int, analysis_name: str
+        params: ModuleType,
+        recording_number: int,
+        analysis_name: str
 ) -> str:
     """
     Create directory for specified analysis output.
@@ -1138,7 +1149,9 @@ def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
 
     return np.append(X, X), np.append(Ym, Yp)
 
-def double_gaussian_fit(spatial):
+def double_gaussian_fit(
+        spatial: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     center = np.unravel_index(np.argmax(np.abs(spatial), axis=None), spatial.shape)
     ydata = spatial.flatten()
 
@@ -1146,7 +1159,7 @@ def double_gaussian_fit(spatial):
     first_guess = [spatial[center[0], center[1]], 1, 1, 0]
     xdata = [spatial.shape[0], spatial.shape[1], center[1], center[0]]
 
-    ellispe_params_bounds = (
+    ellipse_params_bounds = (
         (-2, 0.1, 0.1, 0),
         (2, spatial.shape[0], spatial.shape[0], 180),
     )
@@ -1156,14 +1169,14 @@ def double_gaussian_fit(spatial):
         xdata,
         ydata,
         p0=first_guess,
-        bounds=ellispe_params_bounds,
+        bounds=ellipse_params_bounds,
     )
 
     # Second fit with center variability
     xdata = spatial.shape
     second_guess = [opt[0], center[1], center[0], opt[1], opt[2], opt[3]]
 
-    ellispe_params_bounds = (
+    ellipse_params_bounds = (
         (-2, 0, 0, 0.1, 0.1, 0),
         (
             2,
@@ -1175,7 +1188,7 @@ def double_gaussian_fit(spatial):
         ),
     )
     return curve_fit(
-        gaussian2D_flat, xdata, ydata, p0=second_guess, bounds=ellispe_params_bounds
+        gaussian2D_flat, xdata, ydata, p0=second_guess, bounds=ellipse_params_bounds
     )
 
 def preprocess_fitting_matias(spatial, treshold=0.1):
@@ -1261,45 +1274,9 @@ def preprocess_fitting_tom(sta):
 
     return sta
 
-### (Gabriel) sta analysis functions
 
-def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_factor=2):
-    data = sta_3D[-nb_frames:, :, :]
-
-    # smoothing along time
-    kernel = np.ones(kernel_lenght)[:, None, None] / kernel_lenght
-    data = math.convolve(data, kernel, mode="nearest")
-
-    ## Take variance
-    data = data.var(0)
-    data -= np.median(data)
-    data /= np.max(np.abs(data))
-    spatial_sta = data.copy()
-
-    ## Thresholding
-    tresholding_factor = 2
-    k_gauss = 1.5  # 1.5 mad ~ 1 std for gaussian noise
-    mad = np.median(np.abs(data - np.median(data)))
-    data[data < tresholding_factor * k_gauss * mad] = 0
 
     return data, spatial_sta
-
-def gabriel_temporal_sta(sta_3D, gaussian_params):
-    shape = (sta_3D.shape[1], sta_3D.shape[2])
-    smoothing_kernel = gaussian2D(shape, *gaussian_params)
-    smoothing_kernel /= np.sum(smoothing_kernel)
-
-    # Find max in space
-    smoothed_sta = math.convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
-    x_max, y_max = np.unravel_index(np.argmax(smoothed_sta), shape=shape)
-    # Gaussian weighting kernel
-
-    gaussian_kernel = gaussian2D(
-        shape, gaussian_params[0], x_max, y_max, *gaussian_params[3:]
-    )
-    gaussian_kernel = gaussian_kernel / np.sum(gaussian_kernel)
-    # Weighted temporal trace
-    return np.mean(gaussian_kernel[None, :, :] * sta_3D, (1, 2))
 
 ### (Chiara) unifying tom and matias's 
 def get_temporal_spatial_sta(sta_3D):
@@ -1332,7 +1309,7 @@ def rf_analysis(
         Args:
             sta_3d (numpy array): 3D array of shape (nT, nY, nX) containing the 3D STA for a cell.
             cell_id (int, optional): Identifier for the cell being analyzed. Defaults to None.
-            method (str, optional): Method to use for STA analysis. Options are 'gabriel', 'matias', 'tom', 'guilhem'. Defaults to 'tom'.
+            method (str, optional): Method to use for STA analysis.
 
         Returns:
             result (dict): Dictionary containing the following keys:    
@@ -1363,12 +1340,12 @@ def rf_analysis(
 
     sta3d = sta_3d.copy()
     
-    if method == 'matias' or 'tom':
-        temporal_sta, spatial_sta, best = get_temporal_spatial_sta(sta_3d)
+    if method == 'matias' or method == 'tom':
+        temporal_sta, spatial_sta, best = get_temporal_spatial_sta(sta3d)
         cell_delay = best[0]
         if method == 'matias':
             fitting_data = preprocess_fitting_matias(spatial_sta)
-        if method == 'tom':
+        elif method == 'tom':
             fitting_data = preprocess_fitting_tom(spatial_sta)
         try:
             ellipse_params, cov = double_gaussian_fit(fitting_data)
@@ -1379,25 +1356,25 @@ def rf_analysis(
             plt.show(block=False)
             ellipse_params = def_ellipse_params
     
-    elif method == 'guilhem':
-        time_window_peak_location = 15
-        fitting_data, _ = gabriel_preprocessing(sta3d, tresholding_factor=1, nb_frames=time_window_peak_location)
-        try:
-            ellipse_params, cov = double_gaussian_fit(fitting_data)
-            temporal_sta = gabriel_temporal_sta(sta3d, ellipse_params)
-            best_t = np.argmax(np.abs(temporal_sta[-time_window_peak_location:]))
-            best_t += max(sta3d.shape[0] - time_window_peak_location, 0)
-            spatial_sta = sta3d[best_t]
-            cell_delay = best_t
-            fitted = True
-        except:
-            print(error_msg)
-            plt.imshow(fitting_data)
-            plt.show(block=False)
-            spatial_sta = np.zeros_like(sta3d[0])
-            temporal_sta = np.zeros_like(sta3d[:, 0, 0])
-            ellipse_params = def_ellipse_params
-            cell_delay = default_cell_delay
+    # elif method == 'guilhem':
+    #     time_window_peak_location = 15
+    #     fitting_data, _ = gabriel_preprocessing(sta3d, tresholding_factor=1, nb_frames=time_window_peak_location)
+    #     try:
+    #         ellipse_params, cov = double_gaussian_fit(fitting_data)
+    #         temporal_sta = gabriel_temporal_sta(sta3d, ellipse_params)
+    #         best_t = np.argmax(np.abs(temporal_sta[-time_window_peak_location:]))
+    #         best_t += max(sta3d.shape[0] - time_window_peak_location, 0)
+    #         spatial_sta = sta3d[best_t]
+    #         cell_delay = best_t
+    #         fitted = True
+    #     except:
+    #         print(error_msg)
+    #         plt.imshow(fitting_data)
+    #         plt.show(block=False)
+    #         spatial_sta = np.zeros_like(sta3d[0])
+    #         temporal_sta = np.zeros_like(sta3d[:, 0, 0])
+    #         ellipse_params = def_ellipse_params
+    #         cell_delay = default_cell_delay
     else:
         raise ValueError(f"Unknown method {method} for rf analysis")
     
@@ -1411,7 +1388,7 @@ def rf_analysis(
         }
     
     # check
-    assert set(result.keys()) == set(["Spatial", "Temporal", "EllipseCoor", "Cell_delay", "FittedEllipse"]), f"Result keys {result.keys()} do not match expected keys ['Spatial', 'Temporal', 'EllipseCoor', 'Cell_delay', 'FittedEllipse']"
+    assert set(result.keys()) == {"Spatial", "Temporal", "EllipseCoor", "Cell_delay", "FittedEllipse"}, f"Result keys {result.keys()} do not match expected keys ['Spatial', 'Temporal', 'EllipseCoor', 'Cell_delay', 'FittedEllipse']"
     assert isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2, f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
     assert isinstance(result["Temporal"], np.ndarray) and result["Temporal"].ndim == 1, f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"  
     assert isinstance(result["EllipseCoor"], (list, np.ndarray)) and len(result["EllipseCoor"]) == 6, f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
@@ -1463,94 +1440,290 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
     return ax
 
 
-def check_presence_STA(
-    sta, ellipse_coor, nb_of_pixels_by_check, tresh_snr=2.75, level_factor=0.2
-):  # Used to check the presence of STAs
-    pxl_size_dmd = params.pxl_size_dmd
+def convert_ellipse_params_to_physical_units(
+    ellipse_params: list,
+    sta_pixel_size: float
+    ) -> list:
+    """
+    Convert ellipse parameters from pixel units to physical units (sta_pixel_size's units).
+    Args:
+    - ellipse_params: List of ellipse parameters in pixel units [amp, x0_px, y0_px, sigma_x_px, sigma_y_px, rot_angle_deg]
+    - sta_pixel_size: Size of one pixel in physical units (e.g., micrometers per pixel)
+    Returns:
+        List of ellipse parameters in physical units [amp, x0_pu, y0_pu, sigma_x_pu, sigma_y_pu, rot_angle_deg]
+    """
+    (amp, x0_px, y0_px, sigma_x_px, sigma_y_px, rot_angle_deg) = ellipse_params
+        
+    x0_pu = x0_px * sta_pixel_size
+    y0_pu = y0_px * sta_pixel_size
+    sigma_x_pu = sigma_x_px * sta_pixel_size
+    sigma_y_pu = sigma_y_px * sta_pixel_size
 
-    gaussian = gaussian2D(sta.shape, *ellipse_coor)
+    ellipse_params_pu = [
+        amp,  # amplitude (no change)
+        x0_pu,
+        y0_pu,
+        sigma_x_pu,
+        sigma_y_pu,
+        rot_angle_deg, # rotation angle (no change)
+    ]
+    return ellipse_params_pu
 
-    x0 = ellipse_coor[1]
-    y0 = ellipse_coor[2]
+def get_temporal_sta_time_vector(
+        temporal_sta: np.ndarray, 
+        sta_time_bin: float
+        ) -> np.ndarray:
+    """
+    Generate a time vector for a temporal STA.
+    Args:
+        - temporal_sta: 1D array representing the temporal STA
+        - sta_time_bin: Size of each time bin in temporal units (e.g., seconds)
+    Returns:
+        - time_vector: 1D array of time delays (-ndt from last bin of temporal_STA) in temporal units 
+    """
+    return np.flip(np.arange(0, -len(temporal_sta) * sta_time_bin, -sta_time_bin))
 
-    # See if the STA is in the center
-    xshape = sta.shape[0]
-    yshape = sta.shape[1]
-    if x0 > 0.8 * xshape or x0 < 0.2 * xshape or y0 > 0.8 * yshape or y0 < 0.2 * yshape:
-        return [0.1, 0.1]
+def get_cell_delay_time(
+        cell_delay: int, 
+        temporal_sta: np.ndarray, 
+        sta_time_bin: float
+         ) -> float:
+    """"
+    Convert cell delay in time bins to time in seconds using the temporal STA and the time bin size.
+    Args:    
+        - cell_delay: Cell delay in time bins (integer index of the temporal STA)
+        - temporal_sta: 1D array representing the temporal STA
+        - sta_time_bin_s: Size of each time bin in temporal units (e.g., seconds)
+    Returns:
+        - cell_delay_time: Cell delay in temporal units (-ndt) corresponding to the given cell_delay in time bins. 
+        If cell_delay is None, returns None. If cell_delay is NaN, returns NaN.
+    """
+    if cell_delay is None:
+        return None
+    if np.isnan(cell_delay):
+        return np.nan
+    else:
+        tsta_tv = get_temporal_sta_time_vector(temporal_sta, sta_time_bin)
+        return tsta_tv[cell_delay]
+    
+def polygon_area(
+        x: np.ndarray, 
+        y: np.ndarray
+        ) -> float:  
+    """
+    Calculate the area of a polygon given its vertices using the shoelace formula.
 
-    # See if the STA has a fitted ellipse
-    if ellipse_coor[0] != 0:
-        plt.figure()
-        cs = plt.contour(
-            np.abs(gaussian), levels=[level_factor * np.max(np.abs(gaussian))]
-        )
-        contour = cs.allsegs
-        plt.close()
+    Args:
+        x (numpy.ndarray): 1D array of x-coordinates of the polygon vertices.
+        y (numpy.ndarray): 1D array of y-coordinates of the polygon vertices.
+    Returns:
+        float: Area of the polygon.
+    """
+    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
 
-        # Verify that the diameter of the ellipse is neither too big nor too small
-        area = PolyArea(contour[0][0][:, 0], contour[0][0][:, 1])
-        diameter = 2 * np.sqrt(area / np.pi) * nb_of_pixels_by_check * pxl_size_dmd
+def ellipse_area(
+        ellipse_params: list, 
+        method: str="formula",
+        level_factor: float=None,
+        spatial_sta_shape: tuple=None
+        ) -> float:
+    """
+    Calculate the area of an ellipse defined by its parameters.
 
-        if diameter < 100 or diameter > 500:
-            return [0.3, diameter]
+    Args:
+        ellipse_params (list or numpy.ndarray): List or array of 6 parameters (amp, x0, y0, sigma_x, sigma_y, rot_angle) defining the fitted Gaussian ellipse.
+        method (str, optional): Method to calculate the area. 
+            Options are "polygon" for calculating the area of the contour polygon, 
+            or "formula" (default) for using the mathematical formula of the area of an ellipse (π * sigma_x * sigma_y)
+    Returns:
+        float: Area of the ellipse calculated according to the method.
+    """
+    _, _, _, sigma_x, sigma_y, _ = ellipse_params
+    if method == "formula":
+        return np.pi * sigma_x * sigma_y
+    elif method == "polygon":
+        assert spatial_sta_shape is not None, "spatial_sta_shape must be provided for polygon method"
+        assert level_factor is not None and 0 < level_factor < 1, "level_factor must be provided for polygon method and must be between 0 and 1"
+        gaussian = gaussian2D(spatial_sta_shape, *ellipse_params)
+        abs_gaussian = np.abs(gaussian)
+        contours = measure.find_contours(abs_gaussian, level_factor * np.max(abs_gaussian))
+        contour = contours[0]  # shape: (N, 2) — note: (row, col) order
+        return polygon_area(contour[:, 1], contour[:, 0])  # x=col, y=row
+    else:
+        raise ValueError(f"Unknown method {method} for ellipse area calculation")
 
-        # Verify that the SNR is superior to the threshold of the SNR
-        if SNR_test(sta, contour) < tresh_snr:
-            return [0.4, SNR_test(sta, contour)]
+def ellipse_radius(
+        ellipse_params: list, 
+        method: str="circle_approx"
+         ) -> float:
+    """
+    Calculate the radius of an ellipse defined by its parameters.
+
+    Args:
+        ellipse_params (list or numpy.ndarray): List or array of 6 parameters (amp, x0, y0, sigma_x, sigma_y, rot_angle) defining the fitted Gaussian ellipse.
+        method (str, optional): Method to calculate the radius. 
+            Options are "mean" for computing the mean of the standard deviations in x and y,
+            "max" for computing the maximum of the standard deviations in x and y,
+            "min" for computing the minimum of the standard deviations in x and y,
+            or "circle_approx" (default) for computing the radius of a circle that approximates the ellipse using geometric mean.
+    Returns:
+        float: Radius of the ellipse calculated according to the method.
+    """
+    amp, x0, y0, sigma_x, sigma_y, rot_angle = ellipse_params
+    if method == 'mean':
+        # Compute the mean of the standard deviations in x and y
+        return np.mean([sigma_x, sigma_y])
+    elif method == 'max':
+        # Compute the maximum of the standard deviations in x and y
+        return np.max([sigma_x, sigma_y])
+    elif method == 'min':
+        # Compute the minimum of the standard deviations in x and y
+        return np.min([sigma_x, sigma_y])
+    elif method == 'circle_approx':
+        # Compute the radius of a circle that approximates the ellipse
+        # using the geometric mean of the standard deviations in x and y
+        return np.sqrt(sigma_x * sigma_y)
+    else: 
+        raise ValueError(f"Unknown method {method} for ellipse radius calculation")
+    
+def ellipse_diameter(
+        ellipse_params: list, 
+        method: str="circle_approx"
+        ) -> float:
+    # Diameter is simply 2 times the radius
+    return 2 * ellipse_radius(ellipse_params, method=method)
+
+def rf_snr(
+        spatial_sta: np.ndarray, 
+        ellipse_params: list, 
+        method: str="peak_std",
+        level_factor: float=0.4
+) -> float:
+    """
+    Calculate the SNR of a spatial STA using a 2D Gaussian defined by ellipse_params.
+
+    Args:
+        spatial_sta:   2D NumPy array, the spatial STA
+        ellipse_params: parameters passed to gaussian2D (amplitude, x0, y0, sigma_x, sigma_y, theta)
+        method:        SNR computation method:
+                         - "binary_mask"     : signal = inside gaussian mask, noise = outside
+                         - "weighted"        : signal = STA weighted by gaussian, noise = weighted residual
+                         - "peak_std"        : signal = peak of STA inside mask, noise = std outside mask
+            level_factor:  factor to define the gaussian mask as abs(gaussian) > level_factor * abs(amp)
+
+    Returns:
+        SNR: float
+    """
+    gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
+    amp = ellipse_params[0]
+    thr = level_factor * abs(amp)
+    mask = abs(gaussian) > thr  # binary mask from the gaussian
+
+    # plt.figure(figsize=(12,4))
+    # plt.subplot(1,3,1)
+    # plt.imshow(spatial_sta)
+    # plt.title("Spatial STA")
+    # plt.subplot(1,3,2)
+    # plt.imshow(gaussian)
+    # plt.title("Gaussian")
+    # plt.subplot(1,3,3)
+    # plt.imshow(mask)
+    # plt.title("Mask")
+    # plt.show(block=False)
+
+    if method == "binary_mask":
+        # ----------------------------------------------------------------
+        # Signal = sum of |STA values| inside the gaussian mask
+        # Noise  = sum of |STA values| outside the mask
+        # ----------------------------------------------------------------
+
+        signal = np.abs(np.sum(spatial_sta[mask]))
+        noise  = np.abs(np.sum(spatial_sta[~mask]))
+
+        SNR = signal / noise if noise != 0 else np.inf
+
+    elif method == "weighted":
+        # ----------------------------------------------------------------
+        # Signal = STA projected onto the gaussian (dot product)
+        # Noise  = residual between STA and gaussian-weighted STA
+        # ----------------------------------------------------------------
+        gaussian_norm = gaussian / gaussian.sum()  # normalize gaussian weights
+
+        signal    = np.abs(np.sum(spatial_sta * gaussian_norm))
+        residual  = spatial_sta - (signal * gaussian_norm)
+        noise     = np.sqrt(np.mean(residual ** 2))  # RMS of residual
+
+        SNR = signal / noise if noise != 0 else np.inf
+
+    elif method == "peak_std":
+        # ----------------------------------------------------------------
+        # Signal = peak absolute value of STA inside the gaussian mask
+        # Noise  = standard deviation of STA outside the mask
+        # ----------------------------------------------------------------
+
+        if np.sum(mask) == 0:
+            # print("Warning: empty mask for SNR calculation, returning SNR=-1")
+            return -1
+
+        signal = np.max(np.abs(spatial_sta[mask]))
+        noise  = np.std(spatial_sta[~mask])
+
+        SNR = signal / noise if noise != 0 else np.inf
 
     else:
-        return [0.2, 0.2]
-
-    return [1, SNR_test(sta, contour)]
-
-# ------------------------------------------------------------- #
-
-
-# >>> TO CHECK
-
-### Analysis to quantify the presence of STAs
-
-
-def SNR_test(sta, contour):  # Calculate the SNR of cells
-    path = mpltPath.Path(contour[0][0])
-    points = []
-
-    for x_id in range(sta.shape[0]):
-        for y_id in range(sta.shape[1]):
-            points.append([x_id, y_id])
-
-    inside = path.contains_points(points)
-
-    noise = []
-    signal = []
-    for ins_id in range(len(inside)):
-        if inside[ins_id] is False:
-            noise.append(sta[points[ins_id][1], points[ins_id][0]])
-        else:
-            signal.append(sta[points[ins_id][1], points[ins_id][0]])
-            noise.append(0)
-
-    len(signal)
-    len(noise)
-
-    noise_compression = []
-
-    for nb_comp in range(sta.shape[0]):
-        noise_compression.append(np.mean(noise[nb_comp * 40 : (nb_comp + 1) * 40]))
-
-    noise = np.sum(np.abs(noise_compression))
-    signal = np.abs(np.sum(signal))
-
-    SNR = signal / noise
+        raise ValueError(f"Unknown method '{method}'. Choose from: 'binary_mask', 'weighted', 'peak_std'.")
 
     return SNR
 
+def check_rf_fit(
+        spatial_sta: np.ndarray,
+        ellipse_params: list,
+        min_amp: float,
+        invalid_coords: list,
+        min_sigma: float,
+        min_rf_area: float,
+        min_rf_diameter: float,
+        min_rf_snr: float,
+        level_factor: float,
+        verbose: bool=False
+):  
+    valid_check = {
+        "valid_ellipse_params": False,
+        "rf_area": -1,
+        "rf_diameter": -1,
+        "rf_snr": -1,
+        "good_rf": False
+    }
+    # check if ellipse_params are valid
+    # default params usually are something like [0, 0, 0, 0.001, 0.001, 0]
+    (amp, x0, y0, sigma_x, sigma_y, rot_angle) = ellipse_params
+    if (abs(amp) <= min_amp  # null amplitude
+        or (x0, y0) in invalid_coords  # invalid center coordinates (e.g. (0,0) which is often the default)
+        or sigma_x <= min_sigma or sigma_y <= min_sigma  # very small sigma close to default params   
+        ):
+        return valid_check
+    
+    valid_check["valid_ellipse_params"] = True
 
-def PolyArea(x, y):  # Used to calculate an area of a polygon
-    return 0.5 * np.abs(np.dot(x, np.roll(y, 1)) - np.dot(y, np.roll(x, 1)))
+    # check rf dimensions
+    valid_check["rf_area"] = ellipse_area(ellipse_params, method="formula")
+    valid_check["rf_diameter"]  = ellipse_diameter(ellipse_params, method="circle_approx")
 
+    # check SNR
+    valid_check["rf_snr"] = rf_snr(spatial_sta, ellipse_params, method="peak_std", level_factor=level_factor)
 
+    if (valid_check["rf_area"] >= min_rf_area and 
+        valid_check["rf_diameter"] >= min_rf_diameter and 
+        valid_check["rf_snr"] >= min_rf_snr):
+        valid_check["good_rf"] = True
+
+    if verbose:
+        print(f"RF fit check:")
+        print(f" - area={valid_check['rf_area']:.2f}")
+        print(f" - diameter={valid_check['rf_diameter']:.2f}")
+        print(f" - SNR={valid_check['rf_snr']:.2f}")    
+    
+    return valid_check
 
 #############################################
 ######         Drifting Gratings       ######
@@ -2086,10 +2259,46 @@ def compute_distance_between_points(point_1, point_2):
 
 
 # ------------------------------------------------------------------------ #
-# >>> OLD UTILS
+# >>> OLD FUNCTIONS
 # ------------------------------------------------------------------------ #
 
 ####  Gabriel's STA analysis  ####
+
+def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_factor=2):
+    data = sta_3D[-nb_frames:, :, :]
+
+    # smoothing along time
+    kernel = np.ones(kernel_lenght)[:, None, None] / kernel_lenght
+    data = math.convolve(data, kernel, mode="nearest")
+
+    ## Take variance
+    data = data.var(0)
+    data -= np.median(data)
+    data /= np.max(np.abs(data))
+    spatial_sta = data.copy()
+
+    ## Thresholding
+    tresholding_factor = 2
+    k_gauss = 1.5  # 1.5 mad ~ 1 std for gaussian noise
+    mad = np.median(np.abs(data - np.median(data)))
+    data[data < tresholding_factor * k_gauss * mad] = 0
+
+def gabriel_temporal_sta(sta_3D, gaussian_params):
+    shape = (sta_3D.shape[1], sta_3D.shape[2])
+    smoothing_kernel = gaussian2D(shape, *gaussian_params)
+    smoothing_kernel /= np.sum(smoothing_kernel)
+
+    # Find max in space
+    smoothed_sta = math.convolve(sta_3D.var(0), smoothing_kernel, mode="nearest")
+    x_max, y_max = np.unravel_index(np.argmax(smoothed_sta), shape=shape)
+    # Gaussian weighting kernel
+
+    gaussian_kernel = gaussian2D(
+        shape, gaussian_params[0], x_max, y_max, *gaussian_params[3:]
+    )
+    gaussian_kernel = gaussian_kernel / np.sum(gaussian_kernel)
+    # Weighted temporal trace
+    return np.mean(gaussian_kernel[None, :, :] * sta_3D, (1, 2))
 
 def fit_gaussian(sta_spatial):
     center = np.unravel_index(np.argmax(sta_spatial, axis=None), sta_spatial.shape)
@@ -2255,4 +2464,79 @@ def plot_sta_tom(ax, spatial_sta, ellipse_params, level_factor=0.4):
         )
     return ax
 
+### Analysis to quantify the presence of STAs
+def check_presence_STA(
+    sta, ellipse_coor, nb_of_pixels_by_check, tresh_snr=2.75, level_factor=0.2
+):  # Used to check the presence of STAs
+    pxl_size_dmd = params.pxl_size_dmd
+
+    gaussian = gaussian2D(sta.shape, *ellipse_coor)
+
+    x0 = ellipse_coor[1]
+    y0 = ellipse_coor[2]
+
+    # See if the STA is in the center
+    xshape = sta.shape[0]
+    yshape = sta.shape[1]
+    if x0 > 0.8 * xshape or x0 < 0.2 * xshape or y0 > 0.8 * yshape or y0 < 0.2 * yshape:
+        return [0.1, 0.1]
+
+    # See if the STA has a fitted ellipse
+    if ellipse_coor[0] != 0:
+        plt.figure()
+        cs = plt.contour(
+            np.abs(gaussian), levels=[level_factor * np.max(np.abs(gaussian))]
+        )
+        contour = cs.allsegs
+        plt.close()
+
+        # Verify that the diameter of the ellipse is neither too big nor too small
+        area = polygon_area(contour[0][0][:, 0], contour[0][0][:, 1])
+        diameter = 2 * np.sqrt(area / np.pi) * nb_of_pixels_by_check * pxl_size_dmd
+
+        if diameter < 100 or diameter > 500:
+            return [0.3, diameter]
+
+        # Verify that the SNR is superior to the threshold of the SNR
+        if SNR_test(sta, contour) < tresh_snr:
+            return [0.4, SNR_test(sta, contour)]
+
+    else:
+        return [0.2, 0.2]
+
+    return [1, SNR_test(sta, contour)]
+
+def SNR_test(sta, contour):  # Calculate the SNR of cells
+    path = mpltPath.Path(contour[0][0])
+    points = []
+
+    for x_id in range(sta.shape[0]):
+        for y_id in range(sta.shape[1]):
+            points.append([x_id, y_id])
+
+    inside = path.contains_points(points)
+
+    noise = []
+    signal = []
+    for ins_id in range(len(inside)):
+        if inside[ins_id] is False:
+            noise.append(sta[points[ins_id][1], points[ins_id][0]])
+        else:
+            signal.append(sta[points[ins_id][1], points[ins_id][0]])
+            noise.append(0)
+
+    len(signal)
+    len(noise)
+
+    noise_compression = []
+
+    for nb_comp in range(sta.shape[0]):
+        noise_compression.append(np.mean(noise[nb_comp * 40 : (nb_comp + 1) * 40]))
+
+    noise = np.sum(np.abs(noise_compression))
+    signal = np.abs(np.sum(signal))
+
+    SNR = signal / noise
+
+    return SNR
 

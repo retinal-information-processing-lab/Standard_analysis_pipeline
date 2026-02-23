@@ -30,6 +30,7 @@ dependencies:
     - tqdm=4.67.1
     - pytest=8.4.2                 # unit-testing
     - scikit-learn=1.6.1           # machine learning
+    - scikit-image=0.25.0          # image processing
     - ruff
     - pip:
         - spikeinterface==0.103.2       # for spike sorting
