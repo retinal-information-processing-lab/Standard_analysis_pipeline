@@ -825,7 +825,7 @@ def plot_sta_fitted_with_ellipse(
                     f"RF area {rf_area_px2:.1f} px²\n"
                     )
         text += f"RF poly area {rf_poly_area_px2:.1f} px²\n"
-        text += f"\n"
+        text += "\n"
         text += f"SNR (peak/std): {snr1:.2f}\n"
         text += f"SNR (gauss prj/resid): {snr2:.2f}\n"
         text += f"SNR (in/out): {snr3:.2f}\n"

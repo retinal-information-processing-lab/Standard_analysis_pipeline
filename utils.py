@@ -1274,10 +1274,6 @@ def preprocess_fitting_tom(sta):
 
     return sta
 
-
-
-    return data, spatial_sta
-
 ### (Chiara) unifying tom and matias's 
 def get_temporal_spatial_sta(sta_3D):
     """
@@ -1718,7 +1714,7 @@ def check_rf_fit(
         valid_check["good_rf"] = True
 
     if verbose:
-        print(f"RF fit check:")
+        print("RF fit check:")
         print(f" - area={valid_check['rf_area']:.2f}")
         print(f" - diameter={valid_check['rf_diameter']:.2f}")
         print(f" - SNR={valid_check['rf_snr']:.2f}")    
@@ -2282,6 +2278,8 @@ def gabriel_preprocessing(sta_3D, nb_frames=15, kernel_lenght=2, tresholding_fac
     k_gauss = 1.5  # 1.5 mad ~ 1 std for gaussian noise
     mad = np.median(np.abs(data - np.median(data)))
     data[data < tresholding_factor * k_gauss * mad] = 0
+
+    return data, spatial_sta
 
 def gabriel_temporal_sta(sta_3D, gaussian_params):
     shape = (sta_3D.shape[1], sta_3D.shape[2])
