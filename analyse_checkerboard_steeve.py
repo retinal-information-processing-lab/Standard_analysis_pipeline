@@ -215,7 +215,7 @@ def extract_all_cell_responses_to_repeated_sequences(
         checkerboard_spikes: dict, 
         triggers: np.ndarray, 
         nb_repeats: int, 
-        stimulus_frequency: int,
+        stimulus_frequency: float,
         cells_id: list,
         nb_frames_per_sequence: int,
         sequence_portion: tuple = (0.5, 1)

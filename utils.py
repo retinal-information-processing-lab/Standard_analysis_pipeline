@@ -998,13 +998,13 @@ def compute_3D_sta(
     sta = np.zeros_like(checkerboard[:temporal_dimension], dtype="float64")
     total_spikes = np.sum(data["counted_spikes"])
     
-    if total_spikes <= min_num_spikes_for_sta:
+    if total_spikes <= min_num_spikes_for_sta:  # added check before computation
         if verbose:
             print(f"{cell_lab} has {total_spikes} spikes, less than {min_num_spikes_for_sta} spikes, zero-like sta returned.")
         return sta
 
     for sequence in range(nb_sequences):
-        for frame in range(temporal_dimension, int(nb_frames_per_sequence / 2)):
+        for frame in range(temporal_dimension, int(nb_frames_per_sequence / 2)):  # should be made more robust to extact portion is in extract sequence?
             sta_frame_start = (
                 sequence * int(nb_frames_per_sequence / 2) + frame - temporal_dimension
             )
@@ -1015,7 +1015,7 @@ def compute_3D_sta(
 
     if np.max(np.abs(sta)) > 0:
         sta = sta / total_spikes
-        # Bring values between -1 and 1
+        # Bring values between -1 and 1 - is it correct to remove the mean and force between -1 and 1
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))
     else:
