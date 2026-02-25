@@ -326,7 +326,8 @@ def plot_and_save_single_cell_rasters(
     title: str = "Response to repeated sequence",
     fontsize: int = 14,
     save_figures: bool = True,
-    show_figures: bool = False
+    show_figures: bool = False,
+    save_format: str = "png",
 ):
     """
     Generate single cell raster plots (one figure per cell showing raster+psth) 
@@ -341,6 +342,7 @@ def plot_and_save_single_cell_rasters(
         fontsize: Font size for titles and labels
         save_figures: Boolean indicating whether to save the figures as files
         show_figures: Boolean indicating whether to display the figures
+        save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
         
     Returns:
         None
@@ -385,7 +387,7 @@ def plot_and_save_single_cell_rasters(
         plt.subplots_adjust(wspace=0, hspace=0)
 
         # save figure
-        fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.png")
+        fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.{save_format}")
         if save_figures: 
             plt.savefig(fig_file, dpi=fig.dpi)
         if show_figures: 
@@ -725,6 +727,7 @@ def plot_sta_fitted_with_ellipse(
         level_factor: float = 0.4,
         xdim: float = 6,
         ydim: float = 4,
+        save_format: str = "png",
 ):
     """
     Generate single-cell figures showing the STA and ellipse fitting for all cells.
@@ -741,6 +744,7 @@ def plot_sta_fitted_with_ellipse(
         level_factor: Float factor to apply to the ellipse level when plotting the ellipse contour (default: 0.4, meaning the contour will be plotted at 40% of the ellipse amplitude)
         xdim: horizontal dimension of the figure in inches
         ydim: vertical dimension of the figure in inches
+        save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
     """
 
     # check if raster data is provided when add_raster_plot is True
@@ -877,7 +881,7 @@ def plot_sta_fitted_with_ellipse(
             ax.tick_params(axis="both", which="major", labelsize=fontsize_labels)
 
         fig.tight_layout()
-        fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
+        fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.{save_format}")
 
         if show_figures:
             plt.show()
@@ -895,7 +899,11 @@ def plot_sta_fitted_with_ellipse(
 # ------------------------------------------------------------------------------------------------------------------- #
 
 def plot_sta_fitted_with_ellipse_by_tom(
-    raster_data: dict, cells_id: list, cells_to_plot: list, check_directory: str
+    raster_data: dict, 
+    cells_id: list, 
+    cells_to_plot: list, 
+    check_directory: str,
+    save_format: str = "png"
 ):
     """
     Plot comprehensive analysis including raster, fitted STA, and temporal profile.
@@ -910,6 +918,7 @@ def plot_sta_fitted_with_ellipse_by_tom(
         cells_id: List of all cell IDs to process
         cells_to_plot: List of cell IDs to display interactively
         check_directory: Directory containing fitted STA data
+        save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
     """
 
     # Folder where figure will be saved
@@ -945,7 +954,7 @@ def plot_sta_fitted_with_ellipse_by_tom(
         ax.plot(sta["Temporal"])
         ax.set_ylim([-1, 1])
 
-        fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.png")
+        fig_file = os.path.join(fig_directory, f"Cell_{cell_id}.{save_format}")
         plt.savefig(fig_file, dpi=fig.dpi)
 
         # plot selected cells only

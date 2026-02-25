@@ -1015,7 +1015,7 @@ def compute_3D_sta(
 
     if np.max(np.abs(sta)) > 0:
         sta = sta / total_spikes
-        # Bring values between -1 and 1 - is it correct to remove the mean and force between -1 and 1
+        # Bring values between -1 and 1 
         sta -= np.mean(sta)
         sta /= np.max(np.abs(sta))
     else:
@@ -1844,8 +1844,15 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
 
 
 def cell_selection_for_clustering(
-    cells, CT_directory_path, selected_cells_sta=[], selected_cells_chirp=[]
+    cells, CT_directory_path, selected_cells_sta=[], selected_cells_chirp=[], 
+    save_format: str = "png"
 ):
+    """  TODO
+
+    Args:
+        TODO
+        save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
+    """
     print("Selecting via STA ...")
     if selected_cells_sta == []:
         for cell_nb in tqdm(cells):
@@ -1855,7 +1862,7 @@ def cell_selection_for_clustering(
                     os.path.normpath(
                         os.path.join(
                             CT_directory_path,
-                            r"{}_Chirp_raster+STA.png".format(cell_nb),
+                            f"{cell_nb}_Chirp_raster+STA.{save_format}",
                         )
                     )
                 )
@@ -1882,7 +1889,7 @@ def cell_selection_for_clustering(
                     os.path.normpath(
                         os.path.join(
                             CT_directory_path,
-                            r"{}_Chirp_raster+STA.png".format(cell_nb),
+                            f"{cell_nb}_Chirp_raster+STA.{save_format}",
                         )
                     )
                 )
