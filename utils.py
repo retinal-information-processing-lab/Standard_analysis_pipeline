@@ -1435,6 +1435,12 @@ def plot_sta(ax, spatial_sta, ellipse_params, level_factor=0.4,
             ax.scatter(x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha)
     return ax
 
+def add_scalebar(ax, scalebar_size_um, pixel_size_um, scalebar_left_location, nx, ny, scale_bar_color, scale_bar_width):
+    scalebar_size_px = scalebar_size_um / pixel_size_um
+    scale_bar_x = [scalebar_left_location[0]*nx - scalebar_size_px, scalebar_left_location[0]*nx]
+    scale_bar_y = [scalebar_left_location[1]*ny, scalebar_left_location[1]*ny]
+    ax.plot(scale_bar_x, scale_bar_y, color=scale_bar_color, lw=scale_bar_width)
+    return
 
 def convert_ellipse_params_to_physical_units(
     ellipse_params: list,
@@ -1889,7 +1895,7 @@ def cell_selection_for_clustering(
                     os.path.normpath(
                         os.path.join(
                             CT_directory_path,
-                            f"{cell_nb}_Chirp_raster+STA.{save_format}",
+                            r"{}_Chirp_raster+STA.png".format(cell_nb),
                         )
                     )
                 )

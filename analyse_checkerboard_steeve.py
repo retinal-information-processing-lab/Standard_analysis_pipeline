@@ -539,7 +539,7 @@ def analyse_all_stas(
         sta_data: Updated dictionary with added 'sta_analysis' key for each cell containing analysis results:    
                 - "Spatial": 2D numpy array representing the spatial STA.
                 - "Temporal": 1D numpy array representing the temporal STA.
-                - "EllipseCoor": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in pxs.
+                - "EllipseCoor": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in units.
                 - "Cell_delay": Time bin corresponding to the spatial STA. 
                 - "FittedEllipse": Boolean indicating whether the ellipse fitting was successful or if default parameters were returned due to an error.
         
@@ -577,7 +577,7 @@ def extend_sta_analysis_to_physical_units(
         data_filename: Filename for saved updated data
     Returns:
         sta_data_analysed: Updated dictionary with added 'sta_analysis' key for each cell containing analysis results in physical units:
-            - "Spatial_px_size_um": Pixel size in micrometers for the spatial STA.
+            - "Spatial_unit_size_um": Pixel size in micrometers for the spatial STA.
             - "EllipseCoor_um": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in micrometers.
             - "TemporalTimeVector_s": 1D numpy array representing the temporal STA time vector in seconds.
             - "TemporalFreq_s": Frequency corresponding to the temporal STA in Hz.
@@ -588,7 +588,7 @@ def extend_sta_analysis_to_physical_units(
     sta_time_bin_s = 1 / sta_frequency
     
     for cell_id in tqdm(sta_data_analysed.keys(), desc="Extending STA analysis to physical units"):
-        sta_data_analysed[cell_id]["sta_analysis"]["Spatial_px_size_um"] = sta_pixel_size_um
+        sta_data_analysed[cell_id]["sta_analysis"]["Spatial_unit_size_um"] = sta_pixel_size_um
 
         ellipse_params = sta_data_analysed[cell_id]["sta_analysis"]["EllipseCoor"]
         ellipse_params_um = utils.convert_ellipse_params_to_physical_units(ellipse_params, sta_pixel_size_um)
@@ -615,7 +615,9 @@ def plot_all_stas(sta_data: dict,
                   add_fitted_indicator: bool = True,
                   border_width: int = 2,
                   level_factor: float = 0.4,
-                  order_by_property: str = None):
+                  order_by_property: str = None,
+                  set_axis_off: bool = True,
+                  ):
     """
     Plot all STAs in a grid and save the figure.
 
@@ -647,10 +649,10 @@ def plot_all_stas(sta_data: dict,
         for cid in tqdm(cell_ids, desc="Checking RF fit quality for each cell"):
             spatial_sta = sta_data[cid]["sta_analysis"]["Spatial"]
             ellipse_params = sta_data[cid]["sta_analysis"]["EllipseCoor"]
-            invalid_coords = [(0, 0)]  # px
-            min_sigma = 0.01  # px
-            min_rf_area = 0.01  # px^2
-            min_rf_diameter = 0.1  #px
+            invalid_coords = [(0, 0)]  # unit
+            min_sigma = 0.01  # unit
+            min_rf_area = 0.01  # unit^2
+            min_rf_diameter = 0.1  #unit
         
             sta_data[cid]["sta_analysis"]['checkRF'] = utils.check_rf_fit(
                 spatial_sta,
@@ -677,10 +679,22 @@ def plot_all_stas(sta_data: dict,
             vrange = np.max(np.abs(spatial_sta))
             ax.imshow(spatial_sta, vmin=-1*vrange, vmax=vrange, cmap="RdBu_r")
             ax.set_title(f"C{cell_ids[i]}", fontsize=fontsize)
+            if "Spatial_unit_size_um" in sta_data[cell_ids[i]]["sta_analysis"]: 
+                utils.add_scalebar(ax,
+                                   scalebar_size_um=100, 
+                                   pixel_size_um=sta_data[cell_ids[i]]["sta_analysis"]["Spatial_unit_size_um"], 
+                                   scalebar_left_location=(.9, .9), 
+                                   nx=nx, ny=ny, 
+                                   scale_bar_color='black', 
+                                   scale_bar_width=4)
             
+            if set_axis_off:
+                ax.set_xticks([])
+                ax.set_yticks([])
+
             if show_labels: 
-                ax.set_xlabel(f"{nx} px", fontsize=fontsize)
-                ax.set_ylabel(f"{ny} px", fontsize=fontsize)
+                ax.set_xlabel(f"{nx} unit", fontsize=fontsize)
+                ax.set_ylabel(f"{ny} unit", fontsize=fontsize)
 
             if add_fitted_indicator:
                 fitted = sta_data[cell_ids[i]]["sta_analysis"]["FittedEllipse"]
@@ -728,6 +742,10 @@ def plot_sta_fitted_with_ellipse(
         xdim: float = 6,
         ydim: float = 4,
         save_format: str = "png",
+        scale_bar_color: str = "black",
+        scale_bar_width: int = 4,
+        scalebar_left_location: tuple = (.95, .95),
+        scalebar_size_um: int = 100
 ):
     """
     Generate single-cell figures showing the STA and ellipse fitting for all cells.
@@ -745,6 +763,10 @@ def plot_sta_fitted_with_ellipse(
         xdim: horizontal dimension of the figure in inches
         ydim: vertical dimension of the figure in inches
         save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
+        scale_bar_color: Color of the scale bar to add to the spatial STA plot (e.g., "black", "white", "red")
+        scale_bar_width: Width of the line of the scale bar in matplotlib units (e.g., 4)
+        scalebar_left_location: Tuple of (x, y) coordinates in relative axes units (between 0 and 1) indicating the left end location of the scale bar on the spatial STA plot (e.g., (.9, .1) for bottom right corner)
+        scalebar_size_um: Size of the scale bar in micrometers (e.g., 100 for a 100µm scale bar)
     """
 
     # check if raster data is provided when add_raster_plot is True
@@ -779,33 +801,24 @@ def plot_sta_fitted_with_ellipse(
         spatial_sta = sta_analysis["Spatial"]
         ny, nx = spatial_sta.shape
         title = f"Spatial STA ({'x' if not sta_analysis['FittedEllipse'] else '✓'} fitted)"
-        if "Spatial_px_size_um" in sta_analysis:
-            pixel_size_um = sta_analysis["Spatial_px_size_um"]
-            xlabel = f"{nx} px ({nx*pixel_size_um:.0f} µm)"
-            ylabel = f"{ny} px ({ny*pixel_size_um:.0f} µm)"
-        else:
-            xlabel = f"{nx} px"
-            ylabel = f"{ny} px"
-        ax.set_xlabel(xlabel, fontsize=fontsize)
-        ax.set_ylabel(ylabel, fontsize=fontsize)
-        ellipse_params_px = sta_analysis["EllipseCoor"]
-        amp, x0_px, y0_px, sigma_x_px, sigma_y_px, rot_angle = ellipse_params_px
+        ellipse_params_unit = sta_analysis["EllipseCoor"]
+        amp, x0_unit, y0_unit, sigma_x_unit, sigma_y_unit, rot_angle = ellipse_params_unit
 
-        rf_diameter_px = np.nan
-        rf_area_px2 = np.nan
-        rf_poly_area_px2 = np.nan
+        rf_diameter_unit = np.nan
+        rf_area_unit2 = np.nan
+        rf_poly_area_unit2 = np.nan
         x0_um, y0_um, sigma_x_um, sigma_y_um = [np.nan]*4
         rf_diameter_um = np.nan
         rf_area_um2 = np.nan
         snr1, snr2, snr3 = [np.nan]*3
         add_physical_units = False
         if sta_analysis['FittedEllipse']:
-            rf_diameter_px = utils.ellipse_diameter(ellipse_params_px, method="circle_approx")
-            rf_area_px2 = utils.ellipse_area(ellipse_params_px, method="formula")
-            rf_poly_area_px2 = utils.ellipse_area(ellipse_params_px, method="polygon", level_factor=level_factor, spatial_sta_shape=spatial_sta.shape)
-            snr1 = utils.rf_snr(spatial_sta, ellipse_params_px, method='peak_std', level_factor=level_factor)
-            snr2 = utils.rf_snr(spatial_sta, ellipse_params_px, method='weighted', level_factor=level_factor)
-            snr3 = utils.rf_snr(spatial_sta, ellipse_params_px, method='binary_mask', level_factor=level_factor)
+            rf_diameter_unit = utils.ellipse_diameter(ellipse_params_unit, method="circle_approx")
+            rf_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="formula")
+            rf_poly_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="polygon", level_factor=level_factor, spatial_sta_shape=spatial_sta.shape)
+            snr1 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='peak_std', level_factor=level_factor)
+            snr2 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='weighted', level_factor=level_factor)
+            snr3 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='binary_mask', level_factor=level_factor)
             if "EllipseCoor_um" in sta_analysis:
                 ellipse_params_um = sta_analysis["EllipseCoor_um"]
                 _, x0_um, y0_um, sigma_x_um, sigma_y_um, _ = ellipse_params_um
@@ -813,22 +826,24 @@ def plot_sta_fitted_with_ellipse(
                 rf_area_um2 = utils.ellipse_area(ellipse_params_um, method="formula")
                 add_physical_units = True
 
-        text = f"Amplitude {amp:.3f} a.u.\n"
+        text = ""
+        text += f"Ellipse plotted at {level_factor*100:.0f}% of peak\n\n"
+        text += f"Amplitude {amp:.3f} a.u.\n"
         if add_physical_units:
-            text += (f"Center xy ({x0_um:.0f}, {y0_um:.0f}) µm [({x0_px:.1f}, {y0_px:.1f}) px]\n"
-                    f"Var xy ({sigma_x_um:.0f}, {sigma_y_um:.0f}) µm [({sigma_x_px:.1f}, {sigma_y_px:.1f}) px]\n"
+            text += (f"Center xy ({x0_um:.0f}, {y0_um:.0f}) µm [({x0_unit:.1f}, {y0_unit:.1f}) unit]\n"
+                    f"Sigma xy ({sigma_x_um:.0f}, {sigma_y_um:.0f}) µm [({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit]\n"
                     f"Rotation {rot_angle:.1f}°\n\n"
-                    f"RF diameter {rf_diameter_um:.0f} µm [{rf_diameter_px:.1f} px]\n"
-                    f"RF area {rf_area_um2:.0f} µm² [{rf_area_px2:.1f} px²]\n"
+                    f"RF diameter {rf_diameter_um:.0f} µm [{rf_diameter_unit:.1f} unit]\n"
+                    f"RF area {rf_area_um2:.0f} µm² [{rf_area_unit2:.1f} unit²]\n"
                     )
         else:
-            text += (f"Center xy ({x0_px:.1f}, {y0_px:.1f}) px\n"
-                    f"Var xy ({sigma_x_px:.1f}, {sigma_y_px:.1f}) px\n"
+            text += (f"Center xy ({x0_unit:.1f}, {y0_unit:.1f}) unit\n"
+                    f"Sigma xy ({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit\n"
                     f"Rotation {rot_angle:.1f}°\n\n"
-                    f"RF diameter {rf_diameter_px:.1f} px\n"
-                    f"RF area {rf_area_px2:.1f} px²\n"
+                    f"RF diameter {rf_diameter_unit:.1f} unit\n"
+                    f"RF area {rf_area_unit2:.1f} unit²\n"
                     )
-        text += f"RF poly area {rf_poly_area_px2:.1f} px²\n"
+        text += f"RF poly area {rf_poly_area_unit2:.1f} unit²\n"
         text += "\n"
         text += f"SNR (peak/std): {snr1:.2f}\n"
         text += f"SNR (gauss prj/resid): {snr2:.2f}\n"
@@ -836,6 +851,17 @@ def plot_sta_fitted_with_ellipse(
         utils.plot_sta(ax, spatial_sta, sta_analysis["EllipseCoor"], 
                        level_factor=level_factor, color="yellow", alpha=1, lw=line_width, linestyles="solid")
         ax.set_title(title, fontsize=fontsize)
+        if "Spatial_unit_size_um" in sta_analysis:
+            pixel_size_um = sta_analysis["Spatial_unit_size_um"]
+            xlabel = f"{nx} unit ({nx*pixel_size_um:.0f} µm)"
+            ylabel = f"{ny} unit ({ny*pixel_size_um:.0f} µm)"
+            utils.add_scalebar(ax, scalebar_size_um, pixel_size_um, scalebar_left_location, nx, ny, scale_bar_color, scale_bar_width)
+            text += f"\nScale bar: {scalebar_size_um} µm"
+        else:
+            xlabel = f"{nx} unit"
+            ylabel = f"{ny} unit"
+        ax.set_xlabel(xlabel, fontsize=fontsize)
+        ax.set_ylabel(ylabel, fontsize=fontsize)
 
         ax.text(-0.25, 1, text, transform=ax.transAxes, fontsize=fontsize_labels, va='top', ha='right')
 

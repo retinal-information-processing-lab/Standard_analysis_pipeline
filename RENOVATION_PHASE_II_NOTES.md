@@ -79,12 +79,12 @@ test all and continue with Quantification of the number of STAs (not needed in t
     13) centered colormap on 0 in `analyse_checkerboard_steeve.plot_one_cell_3D_spike_triggered_average`
 
 
-TODO:
-- add the option to save in different format each figure including svg 
-- ADD SCALE BAR EVERYWHERE IN STAs 100 um with note under SNR
-- add level factor in single cell figures sta
-- change sta_px in checks in plotting and code 
-- sighma is not var but std 
+TODO (Chiara):
+- add the option to save in different format each figure including svg (DONE)
+- ADD SCALE BAR EVERYWHERE IN STAs 100 um with note under SNR (DONE)
+- add level factor in single cell figures sta (DONE)
+- change sta_px in checks in plotting and code (DONE) 
+- sigma is not var but std (DONE)
 
 
 WHAT NEXT?
