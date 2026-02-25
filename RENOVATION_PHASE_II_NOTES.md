@@ -78,11 +78,30 @@ test all and continue with Quantification of the number of STAs (not needed in t
     12) created `utils.check_rf_fit` 
     13) centered colormap on 0 in `analyse_checkerboard_steeve.plot_one_cell_3D_spike_triggered_average`
 
-TODO NEXT:
-1) homogenize in utils use of params: in some functions is given as argument in others is only used upon import. Is it ok to use a module as an argument in a function? If not modify also other .py modules to have everywhere the same behavior.
-2) check all args and return casts and descriptions 
-3) renovate other notebooks (chirp, etc..)
-4) check and clean all utils
+
+TODO:
+- add the option to save in different format each figure including svg 
+- ADD SCALE BAR EVERYWHERE IN STAs 100 um with note under SNR
+- add level factor in single cell figures sta
+- change sta_px in checks in plotting and code 
+- sighma is not var but std 
+
+
+WHAT NEXT?
+- ADJUST STA COMPUTATION AND ANALYSIS:
+    - make more robust the sta computation to not be constrained on sequence portion half
+    - use num of sigma instead that levl factor
+- STANDARD VEC ANALYSIS (bottleneck to other stim analysis)
+    | CHIRP, DGs 
+- CLEANING UTILS including 
+    - homogenize in utils use of params: in some functions is given as argument in others is only used upon import. Is it ok to use a module as an argument in a function? If not modify also other .py modules to have everywhere the same behavior.
+    - check all args and return casts and descriptions 
+    - reorganize in sections 
+- ADD OTHER STANDARD STIMULI ANALYSIS (SWaN, Multisize spots, Barcode, MSF)
+- CELL CARDS
+- REORGANIZE PREPROCESSING
+- ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
+- ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)
 
 
 
