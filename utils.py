@@ -1343,6 +1343,8 @@ def rf_analysis(
             fitting_data = preprocess_fitting_matias(spatial_sta)
         elif method == 'tom':
             fitting_data = preprocess_fitting_tom(spatial_sta)
+        else:
+            raise ValueError(f"You should not arrive here, method should be either 'matias' or 'tom', not {method}")
         try:
             ellipse_params, cov = double_gaussian_fit(fitting_data)
             fitted = True
@@ -1352,6 +1354,10 @@ def rf_analysis(
             plt.show(block=False)
             ellipse_params = def_ellipse_params
     
+    # elif method == 'standard':
+    #     # extract spatial and temporal component of STA
+    #     # (using Gabriel's method, i.e.
+
     # elif method == 'guilhem':
     #     time_window_peak_location = 15
     #     fitting_data, _ = gabriel_preprocessing(sta3d, tresholding_factor=1, nb_frames=time_window_peak_location)
