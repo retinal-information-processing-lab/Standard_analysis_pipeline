@@ -20,8 +20,11 @@ def get_sta_components(sta_3D, nb_frames=15, kernel_length=2, tresholding_factor
     spatial_sta /= np.max(np.abs(spatial_sta))
 
     # Retrieve temporal STA
-    smoothed_spatial_sta = #TODO # smooth in space to get better estimate of the center of the receptive field
+    smoothed_spatial_sta = utils.preprocess_fitting_standard(spatial_sta)
     x_max, y_max = np.unravel_index(np.argmax(smoothed_spatial_sta), shape=spatial_sta.shape)
+    temporal_sta = sta_3D[:, x_max, y_max]
+    
+    return spatial_sta, temporal_sta
     # gaussian_kernel = gaussian2D(
     #     shape, gaussian_params[0], x_max, y_max, *gaussian_params[3:]
     # )
@@ -124,6 +127,7 @@ for cell_id in cell_ids:
     # Gabriel extraction of sta components
     sta_3D = sta.copy()
 
-    fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
-    ellipse_params, cov = fit_gaussian(fitting_data)
-    temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
+    spatial_sta, temporal_sta = get_sta_components(sta_3D)
+    smoothed_spatial_sta = utils.preprocess_fitting_standard(spatial_sta)
+    ellipse_params, cov = fit_gaussian(smoothed_spatial_sta)
+    
