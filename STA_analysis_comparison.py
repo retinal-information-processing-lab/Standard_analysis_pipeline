@@ -129,5 +129,4 @@ for cell_id in cell_ids:
 
     spatial_sta, temporal_sta = get_sta_components(sta_3D)
     smoothed_spatial_sta = utils.preprocess_fitting_standard(spatial_sta)
-    ellipse_params, cov = fit_gaussian(smoothed_spatial_sta)
-    
+    ellipse_params, cov = utils.double_gaussian_fit(smoothed_spatial_sta)
