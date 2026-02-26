@@ -463,7 +463,7 @@ def compute_spike_triggered_average(
             cell_id=cell_id
         )
 
-        # Adding data to the notebook dictionnary
+        # Adding data to the notebook dictionary
         sta_data[cell_id]["sta_3D"] = sta_3D
 
     # save
