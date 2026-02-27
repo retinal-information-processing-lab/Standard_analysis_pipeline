@@ -1,10 +1,4 @@
-from utils import gaussian2D, gaussian2D_flat
 import utils
-import numpy as np
-import matplotlib.pyplot as plt
-
-# ----------------------------------------------------- #
-
 import os
 from tqdm import tqdm
 import analyse_checkerboard_steeve as analysis
