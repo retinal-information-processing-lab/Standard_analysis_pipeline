@@ -737,10 +737,11 @@ def plot_sta_fitted_with_ellipse(
         fontsize: int = 14,
         show_figures: bool = False,
         add_raster_plot: bool = False,
+        add_spatial_mask: bool = False,
         rep_seq_data: dict = None,
         level_factor: float = 0.4,
-        xdim: float = 6,
-        ydim: float = 4,
+        xdim: float = 8,
+        ydim: float = 5,
         save_format: str = "png",
         scale_bar_color: str = "black",
         scale_bar_width: int = 4,
@@ -783,9 +784,10 @@ def plot_sta_fitted_with_ellipse(
 
     # figure params
     nrows = 1
-    ncols = 2 + (1 if add_raster_plot else 0)
+    ncols = 2 + (1 if add_raster_plot else 0) + (1 if add_spatial_mask else 0)
     line_width = 2
     fontsize_labels = fontsize - 2
+    components_coords_color = "cyan"
 
     # loop over all cells
     for cell_id in tqdm(cell_ids, desc="Generating STA and ellipse fitting figures for each cell"):
@@ -795,18 +797,18 @@ def plot_sta_fitted_with_ellipse(
         # setup figure
         fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(xdim * ncols, ydim * nrows))
         plt.suptitle(f"Cell {cell_id}", fontsize=fontsize, fontweight="bold")
+        next_ax = 0
 
         # plot spatial sta with ellipse
-        ax = axs[0]
+        ax = axs[next_ax]
         spatial_sta = sta_analysis["Spatial"]
         ny, nx = spatial_sta.shape
         title = f"Spatial STA ({'x' if not sta_analysis['FittedEllipse'] else '✓'} fitted)"
         ellipse_params_unit = sta_analysis["EllipseCoor"]
         amp, x0_unit, y0_unit, sigma_x_unit, sigma_y_unit, rot_angle = ellipse_params_unit
-
         rf_diameter_unit = np.nan
         rf_area_unit2 = np.nan
-        rf_poly_area_unit2 = np.nan
+        # rf_poly_area_unit2 = np.nan
         x0_um, y0_um, sigma_x_um, sigma_y_um = [np.nan]*4
         rf_diameter_um = np.nan
         rf_area_um2 = np.nan
@@ -815,7 +817,7 @@ def plot_sta_fitted_with_ellipse(
         if sta_analysis['FittedEllipse']:
             rf_diameter_unit = utils.ellipse_diameter(ellipse_params_unit, method="circle_approx")
             rf_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="formula")
-            rf_poly_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="polygon", level_factor=level_factor, spatial_sta_shape=spatial_sta.shape)
+            # rf_poly_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="polygon", level_factor=level_factor, spatial_sta_shape=spatial_sta.shape)
             snr1 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='peak_std', level_factor=level_factor)
             snr2 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='weighted', level_factor=level_factor)
             snr3 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='binary_mask', level_factor=level_factor)
@@ -825,7 +827,6 @@ def plot_sta_fitted_with_ellipse(
                 rf_diameter_um = utils.ellipse_diameter(ellipse_params_um, method="circle_approx")
                 rf_area_um2 = utils.ellipse_area(ellipse_params_um, method="formula")
                 add_physical_units = True
-
         text = ""
         text += f"Ellipse plotted at {level_factor*100:.0f}% of peak\n\n"
         text += f"Amplitude {amp:.3f} a.u.\n"
@@ -843,13 +844,19 @@ def plot_sta_fitted_with_ellipse(
                     f"RF diameter {rf_diameter_unit:.1f} unit\n"
                     f"RF area {rf_area_unit2:.1f} unit²\n"
                     )
-        text += f"RF poly area {rf_poly_area_unit2:.1f} unit²\n"
+        # text += f"RF poly area {rf_poly_area_unit2:.1f} unit²\n"
         text += "\n"
         text += f"SNR (peak/std): {snr1:.2f}\n"
         text += f"SNR (gauss prj/resid): {snr2:.2f}\n"
         text += f"SNR (in/out): {snr3:.2f}\n"
-        utils.plot_sta(ax, spatial_sta, sta_analysis["EllipseCoor"], 
-                       level_factor=level_factor, color="yellow", alpha=1, lw=line_width, linestyles="solid")
+        ax, im = utils.plot_sta(ax, spatial_sta, sta_analysis["EllipseCoor"],
+                                level_factor=level_factor, color="yellow",
+                                alpha=1, lw=line_width, linestyles="solid")
+        cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cax.ax.tick_params(labelsize=fontsize_labels)
+        ax.scatter(sta_analysis['Temporal_STA_coords'][0], sta_analysis['Temporal_STA_coords'][1], color=components_coords_color, marker="+", s=50, label="Temporal STA coords")
+        ax.legend(loc="lower right", fontsize=fontsize_labels, bbox_to_anchor=(-.2, 0), frameon=False)
+
         ax.set_title(title, fontsize=fontsize)
         if "Spatial_unit_size_um" in sta_analysis:
             pixel_size_um = sta_analysis["Spatial_unit_size_um"]
@@ -862,11 +869,34 @@ def plot_sta_fitted_with_ellipse(
             ylabel = f"{ny} unit"
         ax.set_xlabel(xlabel, fontsize=fontsize)
         ax.set_ylabel(ylabel, fontsize=fontsize)
-
         ax.text(-0.25, 1, text, transform=ax.transAxes, fontsize=fontsize_labels, va='top', ha='right')
+        next_ax += 1
+
+        if add_spatial_mask:
+            ax = axs[next_ax]
+            if 'Spatial_mask' in sta_analysis:
+                spatial_mask = sta_analysis['Spatial_mask']
+                ax, im = utils.plot_sta(ax, spatial_mask, sta_analysis["EllipseCoor"],
+                                        level_factor=level_factor, color="yellow",
+                                        alpha=1, lw=line_width, linestyles="solid")
+                cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                cax.ax.tick_params(labelsize=fontsize_labels)
+                if "Spatial_unit_size_um" in sta_analysis:
+                    pixel_size_um = sta_analysis["Spatial_unit_size_um"]
+                    xlabel = f"{nx} unit ({nx*pixel_size_um:.0f} µm)"
+                    ylabel = f"{ny} unit ({ny*pixel_size_um:.0f} µm)"
+                    utils.add_scalebar(ax, scalebar_size_um, pixel_size_um, scalebar_left_location, nx, ny, scale_bar_color, scale_bar_width)
+                    text += f"\nScale bar: {scalebar_size_um} µm"
+                else:
+                    xlabel = f"{nx} unit"
+                    ylabel = f"{ny} unit"
+                ax.set_xlabel(xlabel, fontsize=fontsize)
+                ax.set_ylabel(ylabel, fontsize=fontsize)
+            ax.set_title("Spatial mask", fontsize=fontsize)
+            next_ax += 1
 
         # plot temporal sta
-        ax = axs[1]
+        ax = axs[next_ax]
         ax.set_title("Temporal STA", fontsize=fontsize)
         tsta_y = sta_analysis["Temporal"]
         peak_value = tsta_y[sta_analysis["Cell_delay"]] if sta_analysis["Cell_delay"] is not None and not np.isnan(sta_analysis["Cell_delay"]) else None
@@ -887,15 +917,17 @@ def plot_sta_fitted_with_ellipse(
 
         ax.plot(tsta_x, tsta_y, lw=line_width)
         if cell_delay is not None and not np.isnan(cell_delay):
-            ax.axvline(cell_delay, color="gray", lw=0.5, ls="--")
+            ax.axvline(cell_delay, color=components_coords_color, lw=line_width, ls="--", label="Spatial STA delay")
+            ax.legend(loc="lower left", fontsize=fontsize_labels, frameon=False, bbox_to_anchor=(1, 0))
         ax.axhline(0, color="gray", lw=0.5, ls="--")
         ax.set_xlabel(xlabel, fontsize=fontsize)
         ax.set_ylabel("STA amplitude", fontsize=fontsize)
         for sp in ["top", "right"]:
             ax.spines[sp].set_visible(False)
+        next_ax += 1
 
         if add_raster_plot:
-            ax = axs[2]
+            ax = axs[next_ax]
             ax.eventplot(rep_seq_data[cell_id]["spike_trains"])
             ax.set_title("Raster plot", fontsize=fontsize)
             ax.set_xlabel("Time (s)", fontsize=fontsize)

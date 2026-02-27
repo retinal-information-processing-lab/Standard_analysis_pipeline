@@ -8,6 +8,7 @@ from colorama import Fore, Style
 import math
 from scipy.optimize import curve_fit
 from scipy.cluster.hierarchy import dendrogram
+from scipy.signal import convolve
 from skimage import measure
 import itertools
 import time
@@ -1018,7 +1019,7 @@ def compute_3D_sta(
     if np.max(np.abs(sta)) > 0:
         sta = sta / total_spikes
         # Bring values between -1 and 1
-        sta -= np.mean(sta)
+        sta -= np.median(sta)
         sta /= np.max(np.abs(sta))
     else:
         print(
@@ -1265,24 +1266,96 @@ def get_cell_shift(sta):
 ### Standard sta analysis functions (from Tom)
 
 
-def preprocess_fitting_standard(spatial_sta):
+def preprocess_fitting_standard(
+        spatial_sta: np.ndarray,
+        smoothing_kernel: np.ndarray = None,
+) -> np.ndarray:
     """
-    Smooth the spatial STA with a 'gaussian' kernel, apply exponential compression and remove low values
+    Smooth the spatial STA with a 'gaussian' kernel, apply exponential compression and remove low values.
+
+    Args:
+        spatial_sta (np.ndarray): 2D array (N, M) representing the spatial STA to be processed.
+        smoothing_kernel (np.ndarray, optional): 2D array representing the kernel to be used for smoothing.
+        If None, a default kernel resembling a spatial laplacian is used.
+    Returns:
+        np.ndarray: Processed spatial STA after smoothing, compression, and thresholding (N, M)
     """
-    # Smooth STA with a Kernel that looks like a spatial laplacian
-    smoothing_kernel = np.full((3, 3), 0.2 / 9)
-    smoothing_kernel[1, 1] += 0.8
-    sta = convolve(spatial_sta, smoothing_kernel, mode="full", method="direct")
+    if smoothing_kernel is None:
+        # Smooth STA with a Kernel that looks like a spatial laplacian
+        smoothing_kernel = np.full((3, 3), 0.2 / 9)
+        smoothing_kernel[1, 1] += 0.8
+
+    processed_spatial_sta = convolve(spatial_sta, smoothing_kernel, mode="same", method="direct")  # same to keep the same shape, direct to avoid artifacts of fft convolution on small arrays
 
     # Apply exponential ( == signed power-law) compression and threshold small values
     exponent = 1.25
     noise_threshold = 0.2
 
-    sta = np.sign(sta) * np.abs(sta) ** exponent
-    peak = np.max(np.abs(sta)) * 2
-    sta[np.abs(sta) < peak * noise_threshold**exponent] = 0
+    processed_spatial_sta = np.sign(processed_spatial_sta) * np.abs(processed_spatial_sta) ** exponent
+    peak = np.max(np.abs(processed_spatial_sta)) * 2
+    processed_spatial_sta[np.abs(processed_spatial_sta) < peak * noise_threshold**exponent] = 0
 
-    return sta
+    assert processed_spatial_sta.shape == spatial_sta.shape, f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
+
+    return processed_spatial_sta
+
+
+def get_sta_components(
+        sta_3D: np.ndarray, 
+        nb_frames=15
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, tuple[int, int]]:
+    """ 
+    Standard function to extract spatial and temporal components from the 3D STA. 
+    Considering only the last N frames of the 3D STA, find the RF center as the peak standard deviation 
+    over time of the temporally smoothed 3D STA (spatial_mask), then take the temporal STA as the trace of the 3D STA at 
+    this spatial location, and finally take the spatial STA as the slice of the 3D STA at the time bin 
+    corresponding to the absolute max of the temporal STA. Then normalize both components and return them 
+    together with the spatial mask and the coordinates of the RF center. 
+
+        Args:
+            sta_3D (np.ndarray): 3D array of shape (time, height, width) representing the spike-triggered average.
+            nb_frames (int): Number of most recent time steps to consider when identifying the RF center and extracting components.
+        Returns:
+            spatial_sta (np.ndarray): 2D array representing the spatial STA extracted as a slice from the 3D STA (unproceessed).
+            temporal_sta (np.ndarray): 1D array representing the temporal STA extracted as a trace from the 3D STA (unproceessed).
+            spatial_mask (np.ndarray): 2D array representing the standard deviation across time of the temporally smoothed 3D STA, used to identify the RF center.
+            cell_delay (int): Time bin corresponding to the spatial STA.
+            (cx, cy) (tuple): Spatial unit coordinates corresponding to the temporal STA (respectively (col, row) in the matrix reference).
+    """
+    # Assume STA signal within the last N frames of the 3d sta and consider only those 
+    # to help fitting in noisy STAs
+    sta3d = sta_3D[-nb_frames:, :, :]
+
+    # Smoothing in time
+    kernel_length = 2
+    temporal_kernel = np.ones(kernel_length)[:, None, None] / kernel_length  # 1D kernel for temporal smoothing
+    temporally_smoothed_sta3d = convolve(sta3d, temporal_kernel, mode="valid",
+                                         method="direct")  # Apply convolution along the temporal dimension (valid to avoid adding extra null time bins through zero-padding, and direct to have consistent convolution computation)
+
+    # Consider the spatial STA as the std across time of the temporally smoothed STA
+    spatial_mask = temporally_smoothed_sta3d.std(axis=0)
+    # Normalization
+    spatial_mask -= np.median(spatial_mask)
+    spatial_mask /= np.max(np.abs(spatial_mask))
+
+    # Retrieve temporal STA
+    smoothed_spatial_mask = preprocess_fitting_standard(spatial_mask)
+    row_max, col_max = np.unravel_index(np.argmax(smoothed_spatial_mask), shape=smoothed_spatial_mask.shape)
+    temporal_sta = sta_3D[:, row_max, col_max]
+    # Normalization (to later select the slice for the spatial STA as the outlier on the temporal sta not on the 3d sta)
+    temporal_sta -= np.median(temporal_sta)
+    temporal_sta /= np.max(np.abs(temporal_sta))
+
+    # Identify the time bin with the maximum response in the temporal STA
+    t_max = np.argmax(np.abs(temporal_sta))
+    spatial_sta = sta_3D[t_max, :, :]
+    spatial_sta -= np.median(spatial_sta)
+    spatial_sta /= np.max(np.abs(spatial_sta))
+
+    cell_delay = t_max  # time bin corresponding to the spatial STA
+    cx, cy = col_max, row_max  # coordinates of the temporal STA on the spatial STA
+
+    return spatial_sta, temporal_sta, spatial_mask, cell_delay, (cx, cy)
 
 
 ### (Chiara) unifying tom and matias's
@@ -1298,18 +1371,23 @@ def get_temporal_spatial_sta(sta_3D):
         return None, None, None
 
     # double-attempt  (first stronger than weaker) smoothing + peak location
-    (best_t, best_x, best_y) = get_cell_shift(sta_3D)
+    (best_t, best_row, best_col) = get_cell_shift(sta_3D)
     # components extraction
-    sta_temporal = sta_3D[:, best_x, best_y]
+    sta_temporal = sta_3D[:, best_row, best_col]
     sta_spatial = sta_3D[best_t, :, :]
     # max-normalization to have (-1, 1) values
     sta_spatial /= np.max(np.abs(sta_spatial))
+    best_x, best_y = best_col, best_row
 
     return sta_temporal, sta_spatial, (best_t, best_x, best_y)
 
 
 ### (Wrap) sta analysis functions wrapped in one function to call easily
-def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
+def rf_analysis(
+        sta_3d: np.ndarray,
+        cell_id: int = None,
+        method: str = "standard"
+) -> dict:
     """
     Compute the spatial and temporal STA and fit an ellipse (2d gaussian) on the spatial STA to extract RF parameters.
 
@@ -1339,7 +1417,9 @@ def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
     if np.max(np.abs(sta_3d)) == 0:
         return {
             "Spatial": np.zeros_like(sta_3d[0]),
+            "Spatial_mask": np.zeros_like(sta_3d[0]),
             "Temporal": np.zeros_like(sta_3d[:, 0, 0]),
+            "Temporal_STA_coords": (0, 0),
             "EllipseCoor": def_ellipse_params,
             "Cell_delay": default_cell_delay,
             "FittedEllipse": fitted,
@@ -1349,7 +1429,10 @@ def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
 
     if method == "matias" or method == "tom":
         temporal_sta, spatial_sta, best = get_temporal_spatial_sta(sta3d)
-        cell_delay = best[0]
+        cell_delay, cx, cy = best
+        cxy = (cx, cy)
+        spatial_mask = np.zeros_like(spatial_sta)
+        spatial_mask[:] = np.nan
         if method == "matias":
             fitting_data = preprocess_fitting_matias(spatial_sta)
         elif method == "tom":
@@ -1363,15 +1446,21 @@ def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
             fitted = True
         except:
             print(error_msg)
-            plt.imshow(fitting_data)
-            plt.show(block=False)
+            # plt.imshow(fitting_data)
+            # plt.show(block=False)
             ellipse_params = def_ellipse_params
 
     elif method == 'standard':
-        # extract spatial and temporal component of STA
-        # (using Gabriel's method, i.e.
-        
-
+        spatial_sta, temporal_sta, spatial_mask, cell_delay, cxy = get_sta_components(sta3d)
+        smoothed_mask = preprocess_fitting_standard(spatial_mask)
+        try:
+            ellipse_params, cov = double_gaussian_fit(smoothed_mask)
+            fitted = True
+        except:
+            print(error_msg)
+            # plt.imshow(fitting_data)
+            # plt.show(block=False)
+            ellipse_params = def_ellipse_params
 
     # elif method == 'guilhem':
     #     time_window_peak_location = 15
@@ -1398,6 +1487,8 @@ def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
     # wrap results in a dictionary
     result = {
         "Spatial": spatial_sta,
+        "Spatial_mask": spatial_mask,
+        "Temporal_STA_coords": cxy,
         "Temporal": temporal_sta,
         "EllipseCoor": ellipse_params,
         "Cell_delay": cell_delay,
@@ -1405,13 +1496,16 @@ def rf_analysis(sta_3d: np.ndarray, cell_id: int = None, method: str = "tom"):
     }
 
     # check
-    assert set(result.keys()) == {
+    expected_keys = {
         "Spatial",
+        "Spatial_mask",
         "Temporal",
+        "Temporal_STA_coords",
         "EllipseCoor",
         "Cell_delay",
         "FittedEllipse",
-    }, f"Result keys {result.keys()} do not match expected keys ['Spatial', 'Temporal', 'EllipseCoor', 'Cell_delay', 'FittedEllipse']"
+    }
+    assert set(result.keys()) == expected_keys, f"Result keys {result.keys()} do not match expected keys {expected_keys}"
     assert (
         isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2
     ), f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
@@ -1440,8 +1534,8 @@ def plot_sta(
     linestyles="solid",
     cmap="RdBu_r",
     add_center_cross=True,
-    marker_size=30,
-    marker_symbol="+",
+    marker_size=50,
+    marker_symbol="+"
 ):
     """
     Plot the spatial STA and the fitted ellipse on a given axis,  with colormap centered on 0.
@@ -1468,7 +1562,7 @@ def plot_sta(
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
     (amp, x0, y0, sigma_x, sigma_y, rot_angle) = ellipse_params
     vrange = np.max(np.abs(spatial_sta))
-    ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
+    im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     if ellipse_params[0] != 0:
         ax.contour(
             np.abs(gaussian),
@@ -1480,9 +1574,9 @@ def plot_sta(
         )
         if add_center_cross:
             ax.scatter(
-                x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha
+                x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha, label="Ellipse center"
             )
-    return ax
+    return ax, im
 
 
 def add_scalebar(
@@ -2455,10 +2549,11 @@ def matias_temporal_spatial_sta(sta_3D):
         # print(f"Cell {cell_id} : Could not find sta")
         return "Error detected : 3D sta empty", "Error detected : 3D sta empty"
 
-    (best_t, best_x, best_y) = get_cell_shift(sta_3D)
-    sta_temporal = sta_3D[:, best_x, best_y]
+    (best_t, best_row, best_col) = get_cell_shift(sta_3D)
+    sta_temporal = sta_3D[:, best_row, best_col]
     sta_spatial = sta_3D[best_t, :, :]
     sta_spatial /= np.max(np.abs(sta_spatial))
+    best_x, best_y = best_col, best_row
 
     return sta_temporal, sta_spatial, (best_t, best_x, best_y)
 
