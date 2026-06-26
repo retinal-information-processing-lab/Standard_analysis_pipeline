@@ -96,6 +96,8 @@ TODO (Chiara):
     7. compared matias vs tom vs standard fitting methods (`STA_analysis_comparison`) and checked robustness 
     8. checked notebook and recomputed analysis with updated computation and standard method 
 
+2026-06-26 18:00 (Baptiste) standard vec analysis:
+    1. Standardized the vec analysis and move all useful functions to utils
 
 WHAT NEXT?
 - ADJUST STA COMPUTATION AND ANALYSIS:
@@ -112,6 +114,3 @@ WHAT NEXT?
 - REORGANIZE PREPROCESSING
 - ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
 - ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)
-
-
-

@@ -1,6 +1,7 @@
 import numpy as np
 import pickle
 import os
+import gc
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import csv
@@ -1267,8 +1268,8 @@ def get_cell_shift(sta):
 
 
 def preprocess_fitting_standard(
-        spatial_sta: np.ndarray,
-        smoothing_kernel: np.ndarray = None,
+    spatial_sta: np.ndarray,
+    smoothing_kernel: np.ndarray = None,
 ) -> np.ndarray:
     """
     Smooth the spatial STA with a 'gaussian' kernel, apply exponential compression and remove low values.
@@ -1285,32 +1286,39 @@ def preprocess_fitting_standard(
         smoothing_kernel = np.full((3, 3), 0.2 / 9)
         smoothing_kernel[1, 1] += 0.8
 
-    processed_spatial_sta = convolve(spatial_sta, smoothing_kernel, mode="same", method="direct")  # same to keep the same shape, direct to avoid artifacts of fft convolution on small arrays
+    processed_spatial_sta = convolve(
+        spatial_sta, smoothing_kernel, mode="same", method="direct"
+    )  # same to keep the same shape, direct to avoid artifacts of fft convolution on small arrays
 
     # Apply exponential ( == signed power-law) compression and threshold small values
     exponent = 1.25
     noise_threshold = 0.2
 
-    processed_spatial_sta = np.sign(processed_spatial_sta) * np.abs(processed_spatial_sta) ** exponent
+    processed_spatial_sta = (
+        np.sign(processed_spatial_sta) * np.abs(processed_spatial_sta) ** exponent
+    )
     peak = np.max(np.abs(processed_spatial_sta)) * 2
-    processed_spatial_sta[np.abs(processed_spatial_sta) < peak * noise_threshold**exponent] = 0
+    processed_spatial_sta[
+        np.abs(processed_spatial_sta) < peak * noise_threshold**exponent
+    ] = 0
 
-    assert processed_spatial_sta.shape == spatial_sta.shape, f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
+    assert (
+        processed_spatial_sta.shape == spatial_sta.shape
+    ), f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
 
     return processed_spatial_sta
 
 
 def get_sta_components(
-        sta_3D: np.ndarray, 
-        nb_frames=15
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, tuple[int, int]]:
-    """ 
-    Standard function to extract spatial and temporal components from the 3D STA. 
-    Considering only the last N frames of the 3D STA, find the RF center as the peak standard deviation 
-    over time of the temporally smoothed 3D STA (spatial_mask), then take the temporal STA as the trace of the 3D STA at 
-    this spatial location, and finally take the spatial STA as the slice of the 3D STA at the time bin 
-    corresponding to the absolute max of the temporal STA. Then normalize both components and return them 
-    together with the spatial mask and the coordinates of the RF center. 
+    sta_3D: np.ndarray, nb_frames=15
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, int, tuple[int, int]]:
+    """
+    Standard function to extract spatial and temporal components from the 3D STA.
+    Considering only the last N frames of the 3D STA, find the RF center as the peak standard deviation
+    over time of the temporally smoothed 3D STA (spatial_mask), then take the temporal STA as the trace of the 3D STA at
+    this spatial location, and finally take the spatial STA as the slice of the 3D STA at the time bin
+    corresponding to the absolute max of the temporal STA. Then normalize both components and return them
+    together with the spatial mask and the coordinates of the RF center.
 
         Args:
             sta_3D (np.ndarray): 3D array of shape (time, height, width) representing the spike-triggered average.
@@ -1322,15 +1330,18 @@ def get_sta_components(
             cell_delay (int): Time bin corresponding to the spatial STA.
             (cx, cy) (tuple): Spatial unit coordinates corresponding to the temporal STA (respectively (col, row) in the matrix reference).
     """
-    # Assume STA signal within the last N frames of the 3d sta and consider only those 
+    # Assume STA signal within the last N frames of the 3d sta and consider only those
     # to help fitting in noisy STAs
     sta3d = sta_3D[-nb_frames:, :, :]
 
     # Smoothing in time
     kernel_length = 2
-    temporal_kernel = np.ones(kernel_length)[:, None, None] / kernel_length  # 1D kernel for temporal smoothing
-    temporally_smoothed_sta3d = convolve(sta3d, temporal_kernel, mode="valid",
-                                         method="direct")  # Apply convolution along the temporal dimension (valid to avoid adding extra null time bins through zero-padding, and direct to have consistent convolution computation)
+    temporal_kernel = (
+        np.ones(kernel_length)[:, None, None] / kernel_length
+    )  # 1D kernel for temporal smoothing
+    temporally_smoothed_sta3d = convolve(
+        sta3d, temporal_kernel, mode="valid", method="direct"
+    )  # Apply convolution along the temporal dimension (valid to avoid adding extra null time bins through zero-padding, and direct to have consistent convolution computation)
 
     # Consider the spatial STA as the std across time of the temporally smoothed STA
     spatial_mask = temporally_smoothed_sta3d.std(axis=0)
@@ -1340,7 +1351,9 @@ def get_sta_components(
 
     # Retrieve temporal STA
     smoothed_spatial_mask = preprocess_fitting_standard(spatial_mask)
-    row_max, col_max = np.unravel_index(np.argmax(smoothed_spatial_mask), shape=smoothed_spatial_mask.shape)
+    row_max, col_max = np.unravel_index(
+        np.argmax(smoothed_spatial_mask), shape=smoothed_spatial_mask.shape
+    )
     temporal_sta = sta_3D[:, row_max, col_max]
     # Normalization (to later select the slice for the spatial STA as the outlier on the temporal sta not on the 3d sta)
     temporal_sta -= np.median(temporal_sta)
@@ -1371,7 +1384,7 @@ def get_temporal_spatial_sta(sta_3D):
         return None, None, None
 
     # double-attempt  (first stronger than weaker) smoothing + peak location
-    (best_t, best_row, best_col) = get_cell_shift(sta_3D)
+    best_t, best_row, best_col = get_cell_shift(sta_3D)
     # components extraction
     sta_temporal = sta_3D[:, best_row, best_col]
     sta_spatial = sta_3D[best_t, :, :]
@@ -1384,9 +1397,7 @@ def get_temporal_spatial_sta(sta_3D):
 
 ### (Wrap) sta analysis functions wrapped in one function to call easily
 def rf_analysis(
-        sta_3d: np.ndarray,
-        cell_id: int = None,
-        method: str = "standard"
+    sta_3d: np.ndarray, cell_id: int = None, method: str = "standard"
 ) -> dict:
     """
     Compute the spatial and temporal STA and fit an ellipse (2d gaussian) on the spatial STA to extract RF parameters.
@@ -1450,8 +1461,10 @@ def rf_analysis(
             # plt.show(block=False)
             ellipse_params = def_ellipse_params
 
-    elif method == 'standard':
-        spatial_sta, temporal_sta, spatial_mask, cell_delay, cxy = get_sta_components(sta3d)
+    elif method == "standard":
+        spatial_sta, temporal_sta, spatial_mask, cell_delay, cxy = get_sta_components(
+            sta3d
+        )
         smoothed_mask = preprocess_fitting_standard(spatial_mask)
         try:
             ellipse_params, cov = double_gaussian_fit(smoothed_mask)
@@ -1505,7 +1518,9 @@ def rf_analysis(
         "Cell_delay",
         "FittedEllipse",
     }
-    assert set(result.keys()) == expected_keys, f"Result keys {result.keys()} do not match expected keys {expected_keys}"
+    assert (
+        set(result.keys()) == expected_keys
+    ), f"Result keys {result.keys()} do not match expected keys {expected_keys}"
     assert (
         isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2
     ), f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
@@ -1535,7 +1550,7 @@ def plot_sta(
     cmap="RdBu_r",
     add_center_cross=True,
     marker_size=50,
-    marker_symbol="+"
+    marker_symbol="+",
 ):
     """
     Plot the spatial STA and the fitted ellipse on a given axis,  with colormap centered on 0.
@@ -1560,7 +1575,7 @@ def plot_sta(
     """
     # magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
-    (amp, x0, y0, sigma_x, sigma_y, rot_angle) = ellipse_params
+    amp, x0, y0, sigma_x, sigma_y, rot_angle = ellipse_params
     vrange = np.max(np.abs(spatial_sta))
     im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     if ellipse_params[0] != 0:
@@ -1574,7 +1589,13 @@ def plot_sta(
         )
         if add_center_cross:
             ax.scatter(
-                x0, y0, color=color, s=marker_size, marker=marker_symbol, alpha=alpha, label="Ellipse center"
+                x0,
+                y0,
+                color=color,
+                s=marker_size,
+                marker=marker_symbol,
+                alpha=alpha,
+                label="Ellipse center",
             )
     return ax, im
 
@@ -1610,7 +1631,7 @@ def convert_ellipse_params_to_physical_units(
     Returns:
         List of ellipse parameters in physical units [amp, x0_pu, y0_pu, sigma_x_pu, sigma_y_pu, rot_angle_deg]
     """
-    (amp, x0_px, y0_px, sigma_x_px, sigma_y_px, rot_angle_deg) = ellipse_params
+    amp, x0_px, y0_px, sigma_x_px, sigma_y_px, rot_angle_deg = ellipse_params
 
     x0_pu = x0_px * sta_pixel_size
     y0_pu = y0_px * sta_pixel_size
@@ -1858,7 +1879,7 @@ def check_rf_fit(
     }
     # check if ellipse_params are valid
     # default params usually are something like [0, 0, 0, 0.001, 0.001, 0]
-    (amp, x0, y0, sigma_x, sigma_y, rot_angle) = ellipse_params
+    amp, x0, y0, sigma_x, sigma_y, rot_angle = ellipse_params
     if (
         abs(amp) <= min_amp  # null amplitude
         or (x0, y0)
@@ -2230,9 +2251,15 @@ def compute_refractory_period_violation(spike_times, duration=2.0, cell_nb=None)
 ###########################################################
 
 
-def split_spikes_between_triggers(spike_train, triggers):
-    """
-    Returns a list of spikes includes between 2 triggers in a row. Everything must be in sampling point or sec.
+def split_spikes_by_triggers(spike_train, triggers):
+    """Return spikes between consecutive triggers.
+
+    Parameters
+    ----------
+    spike_train : array-like
+        Spike times in samples or seconds.
+    triggers : array-like
+        Trigger times in the same unit as ``spike_train``.
     """
     return [
         spike_train[(spike_train >= triggers[i]) & (spike_train < triggers[i + 1])]
@@ -2240,12 +2267,15 @@ def split_spikes_between_triggers(spike_train, triggers):
     ]
 
 
-def get_sequences_triggers(triggers, vec):
-    """
-    Spilt all triggers into dict of triggers from the same sequence using the keys provided in vec.
-    Same key for the triggers means same sequence.
+def group_triggers_by_sequence(triggers, vec):
+    """Group triggers by sequence identifier.
 
-    Could be rewritten without the "defaultdict" trick
+    Parameters
+    ----------
+    triggers : array-like
+        Trigger times.
+    vec : array-like
+        Sequence identifiers for each trigger.
     """
     sequences = defaultdict(list)
 
@@ -2258,25 +2288,26 @@ def get_sequences_triggers(triggers, vec):
     )  # this dictionnary has its keys ordered as the vec. !! CAUTION !! works for python > 3.7 only
 
 
-def get_spikes_sequences(spike_times, trig_seq):
-    """
-    Read the first trigger of all sequence and group all spikes between each begining of sequence into a dict with
-    sequence key as dict key and a list of spike times with the 0 at the begining of a sequence.
+def get_spike_sequences(spike_times, trig_seq):
+    """Align spike times to the beginning of each sequence.
+
+    Returns a dictionary keyed by sequence identifier, with spike times
+    referenced to the first trigger of each sequence.
     """
     trigs = [
         [trig_list[0], trig_list[-1] + np.mean(np.diff(np.array(trig_list)))]
         for trig_list in trig_seq.values()
     ]  # make a list of all first and last trig of each seq
     splited_spikes = [
-        split_spikes_between_triggers(spike_times, seq_times)[0] for seq_times in trigs
+        split_spikes_by_triggers(spike_times, seq_times)[0] for seq_times in trigs
     ]
     return dict(zip(trig_seq.keys(), splited_spikes))
 
 
-def spikeseq2raster(spikesequences, trig_seq):
-    """
-    Makes a raster from a dictionnary of sequences splited with repetition.
-    Looks for the key to stack repetitions (last 2 digits of the key). Repetition number is not representative of when it has been played
+def spike_sequences_to_raster(spikesequences, trig_seq, n_digit_for_rep=4):
+    """Convert spike sequences into rasters grouped by sequence.
+
+    Repetitions are stacked by sequence prefix.
     """
 
     rasters = defaultdict(
@@ -2284,11 +2315,12 @@ def spikeseq2raster(spikesequences, trig_seq):
     )  # more compliant than dict. Allows you to either use an existing key or create it with empty list and than use it if missing.
 
     for key in spikesequences.keys():
-        rasters[key[:-2]].append(spikesequences[key] - trig_seq[key][0])
+        rasters[key[:-n_digit_for_rep]].append(spikesequences[key] - trig_seq[key][0])
     return dict(rasters)
 
 
-def spikeseq2psth(raster, trig_seq, bin_size=0.025):
+def spike_sequences_to_psth(raster, trig_seq, bin_size=0.025, n_digit_for_rep=4):
+    """Compute a PSTH from rasterized spike sequences."""
     psth = {}
     for key in raster.keys():
         n_rep = len(raster[key])
@@ -2298,11 +2330,14 @@ def spikeseq2psth(raster, trig_seq, bin_size=0.025):
                 trig_seq["0"][-1] - trig_seq["0"][0] + np.mean(np.diff(trig_seq["0"])),
             )
         else:
+            rep_signature = "0" * (
+                n_digit_for_rep
+            )  # Create a string of zeros to pad the key
             seq_range = (
                 0,
-                trig_seq[key + "00"][-1]
-                - trig_seq[key + "00"][0]
-                + np.mean(np.diff(trig_seq[key + "00"])),
+                trig_seq[key + rep_signature][-1]
+                - trig_seq[key + rep_signature][0]
+                + np.mean(np.diff(trig_seq[key + rep_signature])),
             )
 
         n_bin = int(seq_range[1] / bin_size)
@@ -2314,6 +2349,219 @@ def spikeseq2psth(raster, trig_seq, bin_size=0.025):
         psth[key] = np.sum(binned_spike_count, axis=0) / n_rep
 
     return psth
+
+
+def prompt_user_for_vec_file(vec_directory: str) -> tuple[int, str]:
+    """
+    Display the vec (stimulus) files available in a folder and ask the user to pick one.
+
+    Args:
+        vec_directory: Folder containing the .vec stimulus files.
+
+    Returns:
+        Selected vec number as integer.
+        Selected vec file name as string.
+    """
+    available_vec = os.listdir(os.path.normpath(vec_directory))
+    print("Which vec (stimulus) file describes this recording:")
+    for num, vec_file in enumerate(available_vec):
+        print(f"\t{num} --> {vec_file}")
+
+    vec_number = int(input("Vec file number : "))
+    vec_filename = available_vec[vec_number]
+    print(f"Selected vec file: {vec_filename}\n")
+
+    return vec_number, vec_filename
+
+
+def build_spikes_per_sequence_dict(
+    cells: list,
+    spike_times: dict,
+    stim_onsets: np.ndarray,
+    vec_keys: np.ndarray,
+    bin_size: float = 0.025,
+    n_digit_for_rep: int = 4,
+) -> tuple[dict, dict, dict]:
+    """
+    Split each cell's spikes into stimulus sequences and build a raster + PSTH per sequence.
+
+    For every cell and every sequence type (a sequence key with its repetition
+    digits removed) this stacks the repetitions into a raster, computes the PSTH,
+    and stores the timing info needed to plot it.
+
+    Args:
+        cells: Cell/cluster identifiers to process.
+        spike_times: Spike times in seconds per cell, as {cell_id: np.ndarray}.
+        stim_onsets: Trigger times in seconds, one per row of the vec file.
+        vec_keys: Sequence key of each trigger (the vec file's last column).
+        bin_size: PSTH bin width in seconds.
+        n_digit_for_rep: Number of trailing digits of a key that encode the
+            repetition number; the remaining leading digits identify the sequence type.
+
+    Returns:
+        spikes_per_sequence_dict: {cell_id: {sequence_key: {"raster": [np.ndarray],
+            "psth": np.ndarray, "triggers": {"start": float, "end": float,
+            "rng": (0, duration_s)}}}}
+        triggers_per_repetition: {sequence_key+rep: [trigger_times]} (ordered as the vec).
+        spikes_per_repetition: {cell_id: {sequence_key+rep: spikes}} aligned to each rep.
+    """
+    spikes_per_sequence_dict = {}
+    spikes_per_repetition = {}
+
+    # {"<seq><rep>": [trigger times]} — one entry per repetition, ordered as the vec file.
+    triggers_per_repetition = group_triggers_by_sequence(stim_onsets, vec_keys)
+
+    rep_signature = "0" * n_digit_for_rep  # suffix of the first repetition, e.g. "0000"
+
+    for cell in tqdm(cells):
+        spikes_per_sequence_dict[cell] = {}
+
+        # This cell's spikes, split per repetition: {"<seq><rep>": spikes from sequence start}.
+        cell_spikes_per_rep = get_spike_sequences(
+            spike_times[cell], triggers_per_repetition
+        )
+
+        # Stack repetitions of the same sequence type: {"<seq>": [spikes per repetition]}.
+        raster = spike_sequences_to_raster(
+            cell_spikes_per_rep, triggers_per_repetition, n_digit_for_rep=n_digit_for_rep
+        )
+        # Mean firing over repetitions, binned: {"<seq>": np.ndarray of spike counts}.
+        psth = spike_sequences_to_psth(
+            raster, triggers_per_repetition, bin_size=bin_size
+        )
+
+        spikes_per_repetition[cell] = cell_spikes_per_rep
+        for sequence_key in raster.keys():
+            if sequence_key == "":
+                continue
+
+            first_rep_triggers = triggers_per_repetition[sequence_key + rep_signature]
+            duration_s = (
+                first_rep_triggers[-1]
+                - first_rep_triggers[0]
+                + np.mean(np.diff(first_rep_triggers))
+            )
+            spikes_per_sequence_dict[cell][sequence_key] = {
+                "raster": raster[sequence_key],
+                "psth": psth[sequence_key],
+                "triggers": {
+                    "start": first_rep_triggers[0],
+                    "end": first_rep_triggers[-1],
+                    "rng": (0, duration_s),
+                },
+            }
+
+    return spikes_per_sequence_dict, triggers_per_repetition, spikes_per_repetition
+
+
+def plot_sequence(
+    sequence: dict,
+    ax_rast: plt.Axes,
+    ax_psth: plt.Axes,
+    color: str = "#B85A8F",
+    smoothing: float = 0.4,
+    fontsize: int = 18,
+) -> None:
+    """
+    Draw the raster and PSTH of a single sequence (one cell, one sequence type).
+
+    A "sequence" here is one entry of spikes_per_sequence_dict, i.e.
+    spikes_per_sequence_dict[cell][sequence_key], holding its "raster", "psth" and
+    "triggers" info (see build_spikes_per_sequence_dict). Pass your own axes so the
+    plot can be customised or combined with others.
+
+    Args:
+        sequence: One spikes_per_sequence_dict entry with keys "raster", "psth", "triggers".
+        ax_rast: Axis to draw the raster on (one row of spikes per repetition).
+        ax_psth: Axis to draw the PSTH on (firing rate over time).
+        color: Any matplotlib color, used for both plots.
+        smoothing: PSTH smoothing strength between 0 (none) and 1 (very smooth).
+        fontsize: Base font size for titles and axis labels (tick labels use fontsize - 2).
+    """
+    tick_fontsize = fontsize - 2
+
+    # Raster: one line of spikes per repetition.
+    ax_rast.eventplot(sequence["raster"], color=color)
+    ax_rast.set_title("Raster plot", fontsize=fontsize)
+    ax_rast.set_ylabel("N repetitions", fontsize=fontsize)
+
+    # PSTH: turn the binned spike counts into a firing rate (spikes/s), then smooth it.
+    time_range = sequence["triggers"]["rng"]
+    counts = sequence["psth"]
+    firing_rate = counts * (len(counts) / (time_range[1] - time_range[0]))
+    firing_rate = smooth(firing_rate, smoothing)
+
+    time_axis = np.linspace(time_range[0], time_range[1], len(firing_rate))
+    ax_psth.fill_between(time_axis, firing_rate, 0, alpha=1, color=color)
+    ax_psth.set_xlabel("Time (s)", fontsize=fontsize)
+    ax_psth.set_ylabel("Firing rate (spikes/s)", fontsize=fontsize)
+    ax_psth.set_ylim(bottom=-0.1, top=max(1, max(firing_rate)))
+
+    # Bigger tick labels on both panels.
+    for ax in (ax_rast, ax_psth):
+        ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
+
+
+def save_sequence_figures(
+    spikes_per_sequence_dict: dict,
+    analysis_directory: str,
+    color: str = "#B85A8F",
+    smoothing: float = 0.4,
+    clusters_as_folder: bool = True,
+    fontsize: int = 18,
+) -> None:
+    """
+    Plot and save a raster + PSTH figure for every cell x sequence-type pair.
+
+    Figures already present on disk are skipped, so this is cheap to re-run.
+
+    Args:
+        spikes_per_sequence_dict: Output of build_spikes_per_sequence_dict.
+        analysis_directory: Folder where the figures are saved.
+        color: Plot color, passed to plot_sequence.
+        smoothing: PSTH smoothing strength, passed to plot_sequence.
+        clusters_as_folder: If True, make one folder per cell (a figure per sequence
+            inside). If False, make one folder per sequence (a figure per cell inside).
+        fontsize: Base font size, passed to plot_sequence (the figure title uses fontsize + 2).
+    """
+    if clusters_as_folder:
+        dict_to_plot = spikes_per_sequence_dict
+        element, scd_element = "Cell", "Sequence"
+    else:
+        dict_to_plot = reshape_dict(spikes_per_sequence_dict)  # swap cell/sequence nesting
+        element, scd_element = "Sequence", "Cell"
+
+    for elt in tqdm(dict_to_plot.keys()):
+        item_directory = os.path.normpath(
+            os.path.join(analysis_directory, f"{element}_{elt}")
+        )
+        os.makedirs(item_directory, exist_ok=True)
+
+        for scd_elt in dict_to_plot[elt].keys():
+            figure_path = os.path.join(item_directory, f"{scd_element}_{scd_elt}.png")
+            if os.path.isfile(figure_path):
+                continue  # already plotted, skip
+
+            fig, axs = plt.subplots(
+                nrows=2,
+                ncols=1,
+                sharex=True,
+                gridspec_kw={"height_ratios": [3, 1]},
+                figsize=(10, 10),
+            )
+            plot_sequence(
+                dict_to_plot[elt][scd_elt],
+                ax_rast=axs[0],
+                ax_psth=axs[1],
+                color=color,
+                smoothing=smoothing,
+                fontsize=fontsize,
+            )
+            plt.suptitle(f"{scd_element}_{scd_elt}", fontsize=fontsize + 2)
+            plt.subplots_adjust(wspace=0, hspace=0)
+            plt.savefig(figure_path)
+            plt.close(fig)
+            gc.collect()  # free memory between figures (many cells x sequences)
 
 
 def smooth(
@@ -2549,7 +2797,7 @@ def matias_temporal_spatial_sta(sta_3D):
         # print(f"Cell {cell_id} : Could not find sta")
         return "Error detected : 3D sta empty", "Error detected : 3D sta empty"
 
-    (best_t, best_row, best_col) = get_cell_shift(sta_3D)
+    best_t, best_row, best_col = get_cell_shift(sta_3D)
     sta_temporal = sta_3D[:, best_row, best_col]
     sta_spatial = sta_3D[best_t, :, :]
     sta_spatial /= np.max(np.abs(sta_spatial))
