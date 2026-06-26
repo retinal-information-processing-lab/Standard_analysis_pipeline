@@ -19,18 +19,20 @@ import os
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"./data/20251219_PulsingGratings_PupilSize",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20251219_PulsingGratings_PupilSize",  # name of your experiment for saving the triggers
-    "MEA": 3,  # select MEA (3=2p room) (4=MEA1 Polychrome)
+    "root": r"./data/20251215_Bird_vs_retina_4",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20251215_Bird_vs_retina_4",  # name of your experiment for saving the triggers
+    "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "00_AccCheck_30Hz_16px_42sq_50%30ND",
-        "01_Swn_30Hz_48pxCh_6pxL_50%30ND",
-        "02_Chirp_50Hz_50%30ND",
-        "03_DG_50Hz_50%30ND",
-        "04_PulsingGratings-PS0_40Hz_50%30ND",
-        "05_PulsingGratings-PS1_40Hz_50%30ND",
-        "06_PulsingGratings-PS2_40Hz_50%30ND",
+        "20251215_meas00_SWN_30Hz",
+        "20251215_meas01_chirp_50Hz",
+        "20251215_meas02_DG_2sT_50Hz",
+        "20251215_meas03_Bird_40HZ_part1",
+        "20251215_meas04_Bird_40HZ_part2",
+        "20251215_meas05_Bird_40HZ_part3",
+        "20251215_meas06_SWN_30Hz",
+        "20251215_meas07_chirp_50Hz",
+        "20251215_meas08_DG_2sT_50Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }

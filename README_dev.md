@@ -6,7 +6,7 @@ List of completed tasks.
 
 ## Test dataset used
 
-Test dataset used (from Guilhelm): 20251219_PulsingGratings_PupilSize/
+Test dataset used (from Guilhem): 20251219_PulsingGratings_PupilSize/
 
 ## Installation 
 
@@ -139,7 +139,7 @@ Those changes have been implemented up to the notebook (which I tested)
 - 
 ### Noteds PSTH + RASTER ANALYSIS
 
-This is just a sketch of functions tha could be useful.
+This is just a sketch of functions that could be useful.
 Some of it is already handled in utils.py in build_rasters or etract_from_sequence (+ others).
 But it needs to be be slightly reworked to be more general and reusable.
 Overall the notebook 'Standard_Vec_Analysis' should also contain important ideas here!
