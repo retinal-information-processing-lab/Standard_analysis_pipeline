@@ -1,18 +1,55 @@
-"""Module of functions for the drifting gratings analysis
+"""Drifting-gratings (DG) analysis.
+
+The stimulus shows 8 grating directions (45° apart), each repeated 4 times. This
+module reuses the generic vec-based sequence extraction from ``utils`` (the same
+functions the Standard_Vec_Analysis notebook uses) to split each cell's spikes per
+direction and repetition, then computes direction tuning and plots rasters + polar
+tuning curves.
 
 contact: laquitainesteeve@gmail.com
 """
 
 # import packages
 import os
-from matplotlib.pyplot import *
-import numpy as np
 import itertools
+import numpy as np
 from tqdm.auto import tqdm
-from matplotlib import pyplot as plt
+import matplotlib.pyplot as plt
 
 # import custom packages
 import utils
+
+# ==========================
+# Stimulus constants
+# ==========================
+
+N_DIRECTIONS = 8  # number of grating directions (45° apart)
+N_REPETITIONS = 4  # number of times each direction is shown
+
+# Per grating speed: sweep duration of one grating and the separation used to lay
+# the 8 directions side by side on a single plot time axis (purely for display).
+DG_SPEED_SETTINGS = {
+    0: {"label": "FAST", "seq_len": 3.96, "seq_sep": 9},
+    1: {"label": "MEDIUM", "seq_len": 6.0, "seq_sep": 10},
+    2: {"label": "SLOW", "seq_len": 12.0, "seq_sep": 20},
+}
+
+# The original pipeline subtracted no baseline firing rate.
+BASELINE_FIRING = 0
+
+
+def direction_key_to_angle_index(direction_key) -> int:
+    """Map a vec direction key (1..8) to the angle index 0..7 used by the tuning code.
+
+    The original pipeline indexed angles as ``7 - <grating index in presentation
+    order>`` (the "counterclockwise" flip). The vec key encodes ``<grating index> + 1``,
+    so the equivalent angle index is ``N_DIRECTIONS - direction_key``.
+
+    If a later validation shows rotated/flipped tuning curves, the vec's direction
+    ordering differs from the old hardcoded order and THIS is the single place to fix it.
+    """
+    return N_DIRECTIONS - int(direction_key)
+
 
 # ==========================
 # Loading utilities
@@ -20,68 +57,60 @@ import utils
 
 
 def prompt_user_for_dg_speed():
-    """
-    Prompt user to select drifting grating speed.
+    """Ask the user for the grating speed and return its settings.
 
     Returns
     -------
     seq_len : float
         Duration (s) of one grating sweep.
     seq_sep : float
-        Temporal separation (s) between gratings (for plotting).
-    trigsinrep : int
-        Number of trigger samples per repetition.
-    ttext : str
+        Separation (s) between gratings on the plot time axis (display only).
+    label : str
         Human-readable speed label.
     """
-    T = int(input("\nSelect Grating's speed (T=0 fast, T=1 medium, T=2 slow) : "))
-
-    if T == 0:
-        return 3.96, 9, int(50 * 3.96), "FAST"
-    if T == 1:
-        return 6, 10, 50 * 6, "MEDIUM"
-    if T == 2:
-        return 12, 20, 50 * 12, "SLOW"
-
-    raise ValueError("Invalid grating speed selection.")
+    speed = int(input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow): "))
+    if speed not in DG_SPEED_SETTINGS:
+        raise ValueError("Grating speed must be 0 (fast), 1 (medium) or 2 (slow).")
+    settings = DG_SPEED_SETTINGS[speed]
+    return settings["seq_len"], settings["seq_sep"], settings["label"]
 
 
 def get_all_inputs_for_dg_analysis(params):
-    """
-    High-level loader for DG analysis.
-
-    This function:
-    - Prompts user for recording and speed
-    - Loads trigger onsets
-    - Loads spike trains
-    - Prepares output directories
+    """Prompt for the recording, vec file and speed, then load everything needed.
 
     Parameters
     ----------
     params : object
-        Experiment parameters.
+        Experiment parameters (from params.py).
 
     Returns
     -------
     cells : list[np.uint32]
         Cluster identifiers.
-    spike_times : list[np.ndarray]
-        Spike times per cluster.
+    spike_times : dict[int, np.ndarray]
+        Spike times per cell (s).
     stim_onsets : np.ndarray
-        Stimulus onset times (s).
-    trigsinrep : int
-        Number of trigger samples per repetition.
-    seq_sep : float
-        Separation between gratings (s).
+        Stimulus onset times (s), one per row of the vec file.
+    vec_keys : np.ndarray
+        Sequence key of each trigger (the vec file's last column).
     seq_len : float
-        Duration of a grating (s).
+        Duration of a grating sweep (s).
+    seq_sep : float
+        Separation between gratings on the plot time axis (s).
     DG_directory : str
-        Output directory for DG analysis.
+        Output directory for the DG analysis.
     """
     rec_idx, rec = utils.prompt_user_for_recording(params, "DG recording")
     DG_directory = utils.create_analysis_directory(params, rec_idx, "DG")
 
-    seq_len, seq_sep, trigsinrep, _ = prompt_user_for_dg_speed()
+    seq_len, seq_sep, _ = prompt_user_for_dg_speed()
+
+    # Vec file: its last column gives the direction+repetition key of every trigger.
+    vec_directory = os.path.join(params.root, "VEC_Files")
+    _, vec_filename = utils.prompt_user_for_vec_file(vec_directory)
+    vec = np.loadtxt(os.path.join(vec_directory, vec_filename))[1:, :]  # drop header line
+    vec_keys = vec[:, -1]
+
     triggers_path = os.path.normpath(
         os.path.join(params.triggers_directory, f"{params.exp}_{rec}_triggers.pkl")
     )
@@ -90,307 +119,306 @@ def get_all_inputs_for_dg_analysis(params):
     )
     cells, spike_times = utils.load_spike_times(params, rec)
 
-    return cells, spike_times, stim_onsets, trigsinrep, seq_sep, seq_len, DG_directory
+    return cells, spike_times, stim_onsets, vec_keys, seq_len, seq_sep, DG_directory
 
 
 # ==========================
-# Specific DG analysis
+# DG analysis
 # ==========================
-
-# ==========================
-# Baptiste : I only did the plot_single_raster function for this part
 
 
 def compute_dg_rasters(
-    cells: list[np.uint32],
-    spike_times: list[np.array],
-    stim_onsets: np.array,
-    trigsinrep: int,
-    seq_len: int,
-    seq_sep: int,
-    DG_directory: str,
-    params: dict,
+    cells,
+    spike_times,
+    stim_onsets,
+    vec_keys,
+    seq_len,
+    seq_sep,
+    DG_directory,
+    params,
+    n_digit_for_rep: int = 4,
 ):
-    """
-    Compute drifting grating rasters and tuning metrics.
+    """Build per-direction rasters and direction tuning for every cell, then save them.
 
-    Results are saved as a pickle file.
+    Spikes are split per grating direction and repetition with the generic vec
+    function ``utils.build_spikes_per_sequence_dict``. They are then laid out the way
+    ``compute_tuning`` expects: the 8 directions placed side by side on a single
+    time axis, one row per repetition, each direction offset by ``seq_sep``.
+
+    For backward compatibility this reproduces the original pipeline exactly:
+    - the first repetition of each direction is dropped (only repetitions 1..3 are used),
+    - the 4th raster row is left empty,
+    - no baseline firing rate is subtracted.
+
+    The result is saved as ``{cell_id: DG_data}`` to ``DG_data_exp<exp>.pkl`` in
+    ``DG_directory`` (see ``compute_tuning`` for the contents of ``DG_data``).
+    """
+    # Per-direction, per-repetition spikes from the vec file:
+    #   spikes_per_sequence[cell][direction_key]["raster"] = [rep0, rep1, rep2, rep3]
+    # each repetition being the spike times referenced to that grating's onset.
+    spikes_per_sequence, _, _ = utils.build_spikes_per_sequence_dict(
+        cells, spike_times, stim_onsets, vec_keys, n_digit_for_rep=n_digit_for_rep
+    )
+
+    DG_set = {}
+    for cell in tqdm(cells, desc="Computing direction selectivity"):
+        directions = spikes_per_sequence[cell]
+
+        # Lay the 8 directions side by side on one time axis, one row per repetition.
+        # Drop repetition 0 to match the original pipeline: repetitions 1..3 go to rows
+        # 0..2, and the 4th row stays empty.
+        ch_raster = [[] for _ in range(N_REPETITIONS)]
+        for direction_key, sequence in directions.items():
+            angle = direction_key_to_angle_index(direction_key)
+            repetitions = sequence["raster"]  # [rep0, rep1, rep2, rep3]
+            for row, rep in enumerate(range(1, N_REPETITIONS)):  # reps 1,2,3 -> rows 0,1,2
+                ch_raster[row] = np.append(
+                    ch_raster[row], repetitions[rep] + angle * seq_sep
+                )
+
+        if not list(itertools.chain(*ch_raster)):
+            continue  # this cell fired no spikes during the stimulus
+
+        *_, DG_data = compute_tuning(ch_raster, BASELINE_FIRING, seq_len, seq_sep)
+        DG_set[cell] = DG_data
+
+    utils.save_obj(DG_set, os.path.join(DG_directory, f"DG_data_exp{params.exp}"))
+    print("--- Done ---")
+
+
+def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=False):
+    """Plot and save, for every cell, its DG raster + PSTH and polar direction tuning.
+
+    Reads the ``DG_data`` dictionary saved by ``compute_dg_rasters`` and writes one
+    PNG per cell into ``DG_directory/DG_figs``.
 
     Parameters
     ----------
-    cells : list[np.uint32]
-        Cell identifiers list.
-    spike_times : list[np.ndarray]
-        Spike times per cell.
-    stim_onsets : np.ndarray
-        Stimulus onset times.
-    trigsinrep : int
-        Triggers per repetition.
-    seq_len : float
-        Grating duration.
-    seq_sep : float
-        Grating separation.
     DG_directory : str
-        Output directory.
+        Directory containing the saved DG data; figures go in its ``DG_figs`` subfolder.
+    seq_sep : float
+        Separation between gratings on the time axis (s), as used when computing.
+    seq_len : float
+        Duration of a grating sweep (s).
     params : object
-        Experiment parameters.
+        Experiment parameters (from params.py).
+    fontsize : int
+        Base font size for titles and labels (ticks use ``fontsize - 2``).
+    show : bool
+        If True, also display each figure in the notebook.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The last figure created (handy to display the final cell in a notebook).
     """
+    DG_set = utils.load_obj(os.path.join(DG_directory, f"DG_data_exp{params.exp}"))
 
-    # Processsing -----------------------------------------
-    exp = params.exp
+    fig_directory = os.path.normpath(os.path.join(DG_directory, "DG_figs"))
+    os.makedirs(fig_directory, exist_ok=True)
 
-    # DG angle sequence order
-    DG_seq = [
-        0,
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        4,
-        1,
-        5,
-        2,
-        0,
-        3,
-        7,
-        6,
-        1,
-        4,
-        0,
-        3,
-        2,
-        5,
-        6,
-        7,
-        5,
-        2,
-        3,
-        6,
-        1,
-        4,
-        7,
-        0,
-    ]
-    DG_seq = (np.ones(32) * 7 - DG_seq).astype(
-        "int"
-    )  # (angles go counterclockwise in the stim)
+    direction_degrees = np.arange(0, 360, 360 // N_DIRECTIONS)  # 0, 45, ..., 315
 
-    n_angles = 8
+    fig = None
+    for cell in tqdm(DG_set.keys(), desc="Plotting"):
+        data = DG_set[cell]
 
-    Tune_data = {}
-    DG_set = {}
-    Nspikes_set = {}  # a dict that per each cells has the tot nb of spikes that the total stimulus evoked
+        fig = plt.figure(figsize=(12, 11))
+        fig.suptitle(f"Cell {cell}", fontsize=fontsize + 4)
+        gs = fig.add_gridspec(5, 3, hspace=0.6, wspace=0.3)
 
-    i0 = 0
-    iz = len(cells)
-
-    for i in tqdm(np.arange(i0, iz), desc="Computing Direction Selectivity "):
-        clus = cells[i]
-        dg_sptimes = spike_times[clus]  # spike times of the cell being analysed
-        #################################################
-        base_fire = 0  # what is this?? How to calculate it??
-        #################################################
-
-        # --------------------
-        # Get start times and make rasters
-        nb_rep = len(stim_onsets) // trigsinrep  # nb_angles*n_repeats   (32)
-        dg_rep_starts = []
-        for n in np.arange(nb_rep):
-            dg_rep_starts.append(
-                stim_onsets[trigsinrep * n]
-            )  # the times at which each of the 32 gratings starts sweeping
-        dg_count = np.zeros([n_angles], dtype="int")
-        ch_raster = []
-        for rep in np.arange(4):
-            ch_raster.append([])
-        for n in np.arange(
-            8, nb_rep
-        ):  # number between 8 and 32, why excluding first 8 gratings? (1 of the 4 repetitions)
-            # given a grating, rep_sptimes are the times of the spikes it evoked
-            if n == nb_rep - 1:
-                rep_sptimes = dg_sptimes[
-                    (dg_rep_starts[n] < dg_sptimes)
-                    & (dg_sptimes < dg_rep_starts[n] + seq_len)
-                ]
-            else:
-                rep_sptimes = dg_sptimes[
-                    (dg_rep_starts[n] < dg_sptimes)
-                    & (dg_sptimes < dg_rep_starts[n + 1])
-                ]
-
-            ch_raster[dg_count[DG_seq[n]]] = np.append(
-                ch_raster[dg_count[DG_seq[n]]],
-                rep_sptimes - dg_rep_starts[n] + DG_seq[n] * seq_sep,
-            )
-            dg_count[DG_seq[n]] += 1
-            # ch_raster is a list of 4 lists, one per repetition. Each list containes the times at which each orientation angle
-            # evoked spikes. The single grating spike trains are artificially spaced by 20 seconds (seq_sep) for plotting purposes
-
-        if not (list(itertools.chain(*ch_raster))):
-            continue  # checking that ch_raster is not empty
-        # --------------------------------------------------------------
-        # --------------------------------------------------------------
-
-        Nspikes = (
-            len(ch_raster[0])
-            + len(ch_raster[1])
-            + len(ch_raster[2])
-            + len(ch_raster[3])
-        )
-        Nspikes_set.update({clus: Nspikes})
-
-        TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data = utils.compute_tuning(
-            ch_raster, base_fire, seq_len, seq_sep
-        )
-        Tune_data.update({clus: [TuneSum, R, atune]})
-        DG_set.update({clus: DG_data})
-        # if Nspikes<10: continue
-
-    """
-        Saving
-    """
-
-    savef = os.path.join(DG_directory, "DG_data_exp{}".format(exp))
-    utils.save_obj(DG_set, savef)
-
-    print("--- Cell Done ---")
-
-
-def plot_dg_rasters(DG_directory, seq_sep, seq_len, params):
-    """
-    Input
-    """
-    exp = params.exp
-
-    DG_set = utils.load_obj(os.path.join(DG_directory, "DG_data_exp{}".format(exp)))
-
-    # folder where plots will be saved
-    fig_directory = os.path.normpath(os.path.join(DG_directory, r"DG_figs"))
-    if not os.path.isdir(fig_directory):
-        os.makedirs(fig_directory)
-
-    # to print plot in the notbook, set show=True
-    show = False
-    """
-        Plotting
-    """
-
-    for cell in tqdm(DG_set.keys(), desc="Plotting "):
-        ## Loading
-        #     ch_raster = DG_set[cell]['rasters']
-        # DG_set[cell]['']
-        #     DG_data = ({'IDX':IDX,'Tuning':TuneSum,'atune':atune,'Rtune':R, 'rasters': ch_raster, 'counts':counts, 'maxcount':maxcount, 'bins':bins})
-
-        # --------plot the rasters-------------------
-        fig = plt.figure(figsize=(12, 8))
-        plt.suptitle("Cell {}".format(cell))
-
-        gs = fig.add_gridspec(
-            5, 8, left=0.1, right=0.9, bottom=0.1, top=0.9, wspace=0.3, hspace=0.7
-        )
-
-        ax = fig.add_subplot(gs[0:2, 0:8])
-        ax.eventplot(DG_set[cell]["rasters"][:], color="k", lw=1, linelengths=0.95)
-
-        for a in np.arange(8):
-            ax.axvline(a * seq_sep, color="gray", lw=2)
-            ax.axvline(a * seq_sep + seq_len, color="gray", lw=2)
-            ax.axvline(a * seq_sep + seq_len / 6, color="gray", ls="--", lw=1.5)
-
-        ax.set_xlim([-seq_sep / 2, seq_sep * 8])
-        ax.set_ylim([-0.5, 3.5 + 2 + 4 + 2])
-        ax.set_yticks(np.arange(4))
-        ax.set_ylabel("Repetition               Counts       ", size=10)
-        ax.set_xlabel("Time (s) {8 angles}", size=10)
-        # fig.suptitle(ttext+'    cluster '+str(clus) + '      '+'% spikes: ' +str(round(len(dg_sptimes)/len(sp_times)*100,1))+'    Nspikes '+str(Nspikes))
-        plt.rc(
-            "axes.spines",
-            **{"bottom": False, "left": False, "right": False, "top": False},
-        )
-        ax.text(
-            5,
-            12,
-            "0                      45                      90                    135                    180                   225                    270                   315",
-        )
-        ax.axhline(3.5 + 2, color="k", lw=0.5)  # base_firing
-
-        # --------------------------plot the histograms------------------------
-        counts = DG_set[cell]["counts"] / DG_set[cell]["maxcount"] * 4 + 3.5 + 2
+        # ---- Raster (one row per repetition) + PSTH, 8 directions side by side ----
+        ax = fig.add_subplot(gs[0:2, :])
+        ax.eventplot(data["rasters"], color="k", lw=1, linelengths=0.95)
+        for a in range(N_DIRECTIONS):
+            ax.axvline(a * seq_sep, color="lightgray", lw=1)  # grating onset
+            ax.axvline(a * seq_sep + seq_len, color="lightgray", lw=1)  # grating offset
+        # PSTH drawn above the raster rows (scaled to ~N_REPETITIONS rows tall).
+        psth = data["counts"] / data["maxcount"] * N_REPETITIONS + (N_REPETITIONS + 0.5)
         ax.hist(
-            DG_set[cell]["bins"][:-1],
-            DG_set[cell]["bins"],
+            data["bins"][:-1],
+            data["bins"],
             histtype="step",
             lw=1.5,
             color="darkblue",
-            weights=counts,
+            weights=psth,
         )
+        ax.set_xlim([-seq_sep / 2, seq_sep * N_DIRECTIONS])
+        ax.set_xticks([a * seq_sep + seq_len / 2 for a in range(N_DIRECTIONS)])
+        ax.set_xticklabels([f"{d}°" for d in direction_degrees], fontsize=fontsize - 2)
+        ax.set_yticks(range(N_REPETITIONS))
+        ax.tick_params(axis="y", labelsize=fontsize - 2)
+        ax.set_xlabel("Direction", fontsize=fontsize)
+        ax.set_ylabel("Repetition", fontsize=fontsize)
+        ax.set_title("Raster + PSTH per direction", fontsize=fontsize)
 
-        # --------------------------plot the polar plot left--------------
-
-        ax = fig.add_subplot(gs[2:5, 1:4], polar=True)
-
-        theta = np.linspace(0, 2 * np.pi, 9)
-        # Arrange the grid into number of sales equal parts in degrees
-        lines, labels = plt.thetagrids(
-            range(0, 360, int(360 / 8)), np.arange(0, 360, 45)
-        )
-
-        # Plot actual sales graph
-        ax.plot(theta, DG_set[cell]["Tuning"])
-        ax.fill(theta, DG_set[cell]["Tuning"], "b", alpha=0.1)
-        #         ax.plot(theta, TuneMax,'orange')
-
+        # ---- Direction tuning (single polar plot) ----
+        ax = fig.add_subplot(gs[2:5, 1], polar=True)
+        theta = np.linspace(0, 2 * np.pi, N_DIRECTIONS + 1)
+        ax.plot(theta, data["Tuning"], color="#B85A8F", lw=2.5)
+        ax.fill(theta, data["Tuning"], color="#B85A8F", alpha=0.2)
         ax.plot(
-            [DG_set[cell]["atune"], DG_set[cell]["atune"]],
-            [0, DG_set[cell]["Rtune"]],
-            "b-",
-        )
-        ax.plot([DG_set[cell]["atune"]], [DG_set[cell]["Rtune"]], "bo")
-
-        ax.set_yticks([0, 0.25, 0.5, 0.75, 1])
-        ax.set_yticklabels([])
+            [data["atune"], data["atune"]], [0, data["Rtune"]], color="k", lw=2
+        )  # preferred direction
+        ax.plot([data["atune"]], [data["Rtune"]], "ko")
+        ax.set_thetagrids(direction_degrees, fontsize=fontsize - 2)
         ax.set_ylim([0, 1])
-
-        ax.text(
-            np.pi * 1 / 5,
-            1.3,
-            "IDX = " + str(np.round(DG_set[cell]["IDX"], 1)),
-            size=18,
-        )
-        ax.text(
-            np.pi * 1 / 8,
-            1.25,
-            "R = " + str(np.round(DG_set[cell]["Rtune"], 1)),
-            size=18,
+        ax.set_yticks([0.5, 1])
+        ax.set_yticklabels(["0.5", "1"], fontsize=fontsize - 4)
+        ax.set_title(
+            f"Direction tuning\nIDX = {data['IDX']:.2f}    R = {data['Rtune']:.2f}",
+            fontsize=fontsize,
+            pad=25,
         )
 
-        # ---------------------------plot the polar plot right (same as left but not limited between 0 and 1)------
-        ax = fig.add_subplot(gs[2:5, 5:8], polar=True)
-
-        ax.plot(
-            [DG_set[cell]["atune"], DG_set[cell]["atune"]],
-            [0, DG_set[cell]["Rtune"]],
-            "b-",
+        # ---- Save (and optionally show) ----
+        fig_path = os.path.join(
+            fig_directory, f"DG_resp_exp{params.exp}_Cell_{cell}.png"
         )
-        ax.plot([DG_set[cell]["atune"]], [DG_set[cell]["Rtune"]], "bo")
-        ax.plot(theta, DG_set[cell]["Tuning"])
-        ax.fill(theta, DG_set[cell]["Tuning"], "b", alpha=0.1)
-
-        ax.set_yticks([0, 0.5, 1, 1.5, 2])
-        ax.set_yticklabels([0, "", 1, "", 2])
-
-        # -----------------------------------------------------------------------------------
-        fsave = os.path.join(fig_directory, "DG_resp_exp{}_Cell_{}".format(exp, cell))
         if show:
-            print(cell)
             plt.show(block=False)
-        fig.savefig(fsave + ".png", format="png", dpi=90)
-        close(fig)
-        # --------------------------------------------------------------
-        # --------------------------------------------------------------
+        fig.savefig(fig_path, dpi=90, bbox_inches="tight")
+        plt.close(fig)
 
-    print("--- Cell Done ---")
+    print("--- Done ---")
     return fig
+
+# ==========================
+# Compute Tuning
+# ==========================
+
+def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
+    """Compute direction tuning of one cell from its drifting-gratings raster.
+
+    Args:
+        ch_raster: List of repetition rows. Each row holds the spike times of all
+            directions laid side by side on one time axis: direction ``a`` (0..7) is
+            offset by ``a * seq_sep`` and referenced to its grating onset.
+        base_fire: Baseline firing rate to subtract (spikes/s). 0 keeps raw counts.
+        seq_len: Grating sweep duration (s); spikes from ``seq_len / 6`` to ``seq_len``
+            after onset are counted as the response per direction.
+        seq_sep: Separation between directions on the time axis (s).
+        n_repeats: Number of repetitions represented in ``ch_raster``.
+
+    Returns:
+        TuneSum: Per-direction normalised tuning (9 values; index 8 repeats index 0).
+        atune: Preferred direction angle (radians).
+        R: Tuning vector strength.
+        IDX: Direction-selectivity index.
+        counts, maxcount, bins: PSTH histogram of ``ch_raster`` and its peak/bin edges.
+        DG_data: Dict bundling all of the above plus ``rasters`` (the input ``ch_raster``).
+
+    Note:
+        The arithmetic here is preserved exactly from the original pipeline (including
+        its time-binning) so results stay reproducible; only documentation was added.
+    """
+    ###########################################################
+    # computing tuning
+    merged = list(
+        itertools.chain(*ch_raster)
+    )  # all the spike times of all the 32 gratings. In this way when I bin I am
+    # binning per each of the 8 angles the responses to all the 4 repetitions of
+    # that angle
+
+    nbins = 8 * 10 * 20  # totoal nb of bins  (1600)
+    binsize = seq_sep * 8 * 1000 // nbins  # bin size in ms     (100)
+    binsec = 1000 // binsize  # nb bins per second  (10)
+    base_fire = base_fire * (seq_sep * 8 / nbins) * n_repeats
+
+    bins = np.linspace(0, seq_sep * 8, nbins + 1)
+    counts, bins = np.histogram(
+        merged, bins=bins
+    )  # binning the spike times of all the repetitions at once
+    counts = counts - base_fire
+    maxcount = np.amax(counts)
+
+    # for plotting purposes, counts has 1600 bins, 10 each second of the 160 seconds. But some of this bins are fake because
+    # the seq_sep (20 secs for the slow gratings) added in ch_raster is longer than the actual seq_len (12 secs for slow grating),
+    # in which the stimulus was presented. So the last 8 secs after each angle have to have 80 empty.
+
+    # --------------------------
+    TuneSum = np.zeros(9)
+    VxS = 0
+    VyS = 0
+
+    for a in np.arange(8):
+        #################################################
+        # per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
+        sel_bins = np.copy(
+            counts[
+                int(seq_len * 1000 / 6) // binsize
+                + int(seq_sep * binsec * a) : int(
+                    seq_len * binsec + seq_sep * binsec * a
+                )
+            ]
+        )
+        #################################################
+
+        TuneSum[a] = np.sum(
+            sel_bins
+        )  # per each angle these are all the spikes that the cell fired during the 4 repetitions
+        # of that angle from 2 to 12 seconds
+        # print(TuneSum[a])
+        VxS += np.cos(np.pi * a * 45 / 180) * TuneSum[a]
+        VyS += np.sin(np.pi * a * 45 / 180) * TuneSum[a]
+        #             VxM+= np.cos(np.pi*a/180)*TuneMax[a]
+        #             VyM+= np.sin(np.pi*a/180)*TuneMax[a]
+        if a == 0:
+            TuneSum[a + 8] = np.sum(sel_bins)
+
+    ############################
+    if sum(TuneSum) == 0:
+        DG_data = {
+            "IDX": 0,
+            "Tuning": TuneSum,
+            "atune": 0,
+            "Rtune": 0,
+            "rasters": np.zeros((4, len(bins))),
+            "counts": counts,
+            "maxcount": maxcount,
+            "bins": bins,
+        }
+        return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
+    ############################
+    VxS = VxS / np.amax(TuneSum)
+    VyS = VyS / np.amax(TuneSum)
+
+    TuneSum = TuneSum / np.amax(TuneSum)
+    atune = np.arctan2(VyS, VxS)
+    R = np.sqrt(VyS**2 + VxS**2)
+
+    angle = int(np.round(atune / np.pi * 4))
+
+    IDX = (TuneSum[:-1][angle] - TuneSum[:-1][int((angle + 4) % 8)]) / (
+        TuneSum[:-1][angle] + TuneSum[:-1][int((angle + 4) % 8)]
+    )
+    if IDX < -0.2:
+        angle2 = angle + 1
+        IDX = (TuneSum[:-1][angle2] - TuneSum[:-1][int((angle2 + 4) % 8)]) / (
+            TuneSum[:-1][angle2] + TuneSum[:-1][int((angle2 + 4) % 8)]
+        )
+        angle = angle2
+    if IDX < -0.2:
+        angle2 = angle - 2
+        IDX = (TuneSum[:-1][angle2] - TuneSum[:-1][int((angle2 + 4) % 8)]) / (
+            TuneSum[:-1][angle2] + TuneSum[:-1][int((angle2 + 4) % 8)]
+        )
+        if IDX < -0.2:
+            angle = angle + 1
+        IDX = (TuneSum[:-1][angle] - TuneSum[:-1][int((angle + 4) % 8)]) / (
+            TuneSum[:-1][angle] + TuneSum[:-1][int((angle + 4) % 8)]
+        )
+
+    DG_data = {
+        "IDX": IDX,
+        "Tuning": TuneSum,
+        "atune": atune,
+        "Rtune": R,
+        "rasters": ch_raster,
+        "counts": counts,
+        "maxcount": maxcount,
+        "bins": bins,
+    }
+
+    ###########################################################
+    return TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data
