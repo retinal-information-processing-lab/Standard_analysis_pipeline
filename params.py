@@ -16,6 +16,10 @@ Returns:
 
 import os
 
+# setup pipeline parameters
+# relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
+ressources = r"./ressources"
+
 # setup experiment parameters (always check!)
 
 basic_params = {
@@ -58,10 +62,8 @@ advanced_params = {
     "temporal_dimension": 30,
 }
 
-
 # Setup most advanced parameters (Only if you know what you are doing!).
 # Those parameters are following the setups specs of january 2023
-
 
 def setup_threshold_pxl_size_size_dmd(params: dict):
     """setup the optimal threshold for detecting stimuli,
@@ -92,7 +94,6 @@ def setup_threshold_pxl_size_size_dmd(params: dict):
         raise ValueError("MEA is not defined in params")
     return threshold, pxl_size_dmd, size_dmd
 
-
 most_advanced_params = {
     "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[0],
     "pxl_size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[1],
@@ -106,9 +107,6 @@ most_advanced_params = {
     "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
 }
 
-# setup pipeline parameters
-# relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
-ressources = r"./ressources"
 
 
 ########################################################
@@ -201,7 +199,7 @@ def create_path_automatically(params: dict):
         print('- "triggers" path already exists')
 
     # Path to the checkerboard binary file used to generate stimuli
-    binary_source_path = "./ressources/binarysource1000Mbits"
+    binary_source_path = os.path.join(ressources, "binarysource1000Mbits")
 
     raw_filtered_directory = os.path.join(params["root"], "RAW_filtered")
 
