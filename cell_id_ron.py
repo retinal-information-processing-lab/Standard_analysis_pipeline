@@ -64,10 +64,12 @@ def import_data_to_plot(params: dict):
         os.path.join(DG_directory, "DG_data_exp{}.pkl".format(exp)), allow_pickle=True
     )
 
-    # load the STA analysis results
-    sta_results = np.load(
-        os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
-    )
+    # load the STA analysis results from the standard checkerboard analysis (notebook 2):
+    # prefer the extended version (physical units), fall back to the plain analysed one.
+    sta_file = os.path.join(check_directory, "sta_data_analysed_extended.pkl")
+    if not os.path.isfile(sta_file):
+        sta_file = os.path.join(check_directory, "sta_data_analysed.pkl")
+    sta_results = utils.load_obj(sta_file)
     cells = list(sta_results.keys())
 
     # load the chirp
@@ -133,6 +135,8 @@ def create_id_cards_and_plots(
     euler_vec,
     exp,
     rpv_len=0.002,
+    fontsize: int = 16,
+    n_sigma: float = 2.0,
 ):
     """Generate and save ID cards for all cells.
 
@@ -175,7 +179,8 @@ def create_id_cards_and_plots(
             cluster = Chirp_data[cell_nb]["type"]
 
         plt.suptitle(
-            "exp{} _c{}  - Cluster_group_{} ".format(exp, cell_nb, cluster), fontsize=20
+            "exp{} _c{}  - Cluster_group_{} ".format(exp, cell_nb, cluster),
+            fontsize=fontsize + 6,
         )
         # --------------------------------------------------
         # Plot the ISI
@@ -188,26 +193,46 @@ def create_id_cards_and_plots(
         ax.set_title(
             "Interspike Interval histogram\n RPV = {}%. {}/{} spikes".format(
                 round(rpv, 4), int(nb_rpv), nb_spikes
-            )
+            ),
+            fontsize=fontsize,
         )
-        ax.set_xlabel("Interspike time (ms)")
-        ax.set_ylabel("Number of spikes")
+        ax.set_xlabel("Interspike time (ms)", fontsize=fontsize)
+        ax.set_ylabel("Number of spikes", fontsize=fontsize)
         ax.spines["left"].set_visible(False)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.axvline(0, color="k", lw=0.5)
 
         # --------------------------------------------------
-        # Plot spatial STA
+        # Plot spatial STA (from the standard analysis) with the fitted ellipse, and
+        # report the RF quality metrics (SNR, size, fitted) shown on the new RF plot.
         ax = fig.add_subplot(gs[0:2, 3:5])
-        ax.set_title("Spatial receptive field")
-        spatial = sta_results[cell_nb]["center_analyse"]["Spatial"]
-        spatial = spatial**2 * np.sign(spatial)
-        cmap = "RdBu_r"
-        im = ax.imshow(spatial, cmap=cmap, interpolation="gaussian")
-        # plt.colorbar(im, ax=axs[1,2])
-        abs_max = 0.5 * max(np.max(spatial), abs(np.min(spatial)))
-        im.set_clim(-abs_max, abs_max)
+        sta_analysis = sta_results[cell_nb]["sta_analysis"]
+        ellipse = sta_analysis["EllipseCoor"]
+        spatial = sta_analysis["Spatial"]
+        level_factor = np.exp(-(n_sigma**2) / 2)  # peak fraction of a Gaussian at n_sigma
+        utils.plot_sta(ax, spatial, ellipse, level_factor=level_factor, color="yellow")
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        title = "Spatial receptive field"
+        try:
+            if ellipse[0] != 0 and sta_analysis.get("FittedEllipse", True):
+                snr = utils.rf_snr(spatial, ellipse, method="peak_std", level_factor=level_factor)
+                if "EllipseCoor_um" in sta_analysis:
+                    diameter = utils.ellipse_diameter(sta_analysis["EllipseCoor_um"], method="circle_approx")
+                    area = utils.ellipse_area(sta_analysis["EllipseCoor_um"], method="formula")
+                    size_txt = f"Ø {diameter:.0f} µm · {area:.0f} µm²"
+                else:
+                    diameter = utils.ellipse_diameter(ellipse, method="circle_approx")
+                    area = utils.ellipse_area(ellipse, method="formula")
+                    size_txt = f"Ø {diameter:.1f} · {area:.1f} unit²"
+                title += f"\nSNR {snr:.1f} · {size_txt}"
+            else:
+                title += "\n(ellipse not fitted)"
+        except Exception as err:
+            print(f"Warning: RF metrics failed for cell {cell_nb} ({err}).")
+        ax.set_title(title, fontsize=fontsize)
 
         # --------------------------------------------------
         # Plot checkerboard repeated sequence raster
@@ -215,8 +240,8 @@ def create_id_cards_and_plots(
         ax.eventplot(
             check_rast[cell_nb]["spike_trains"], color="k", alpha=1, linelengths=1
         )
-        ax.set_title("Repeated white noise sequences")
-        ax.set_xlabel("Time (s)")
+        ax.set_title("Repeated white noise sequences", fontsize=fontsize)
+        ax.set_xlabel("Time (s)", fontsize=fontsize)
         seq_lenght = (
             check_rast[cell_nb]["repeated_sequences_times"][0][1]
             - check_rast[cell_nb]["repeated_sequences_times"][0][0]
@@ -239,7 +264,7 @@ def create_id_cards_and_plots(
             check_rast[cell_nb]["psth"],
             width=1.3 * width,
         )
-        ax.set_xlabel("Time (s)")
+        ax.set_xlabel("Time (s)", fontsize=fontsize)
         ax.set_xlim([0, seq_lenght])
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
@@ -247,14 +272,14 @@ def create_id_cards_and_plots(
         # --------------------------------------------------
         # Plot temporal STA
         ax = fig.add_subplot(gs[0:2, 1:3])
-        ax.set_title("Temporal receptive field")
+        ax.set_title("Temporal receptive field", fontsize=fontsize)
         ax.step(
             np.linspace(-1, 0, 21),
-            sta_results[cell_nb]["center_analyse"]["Temporal"][-21:],
+            sta_results[cell_nb]["sta_analysis"]["Temporal"][-21:],
             color="k",
             lw=3,
         )
-        ax.set_xlabel("Time (s)")
+        ax.set_xlabel("Time (s)", fontsize=fontsize)
         ax.axhline(0, color="k", lw=0.5)
         ax.set_yticks([])
         ax.axis("off")
@@ -263,8 +288,8 @@ def create_id_cards_and_plots(
         # Plot chirp psth
         ax = fig.add_subplot(gs[6:7, 0:3])
         ax.plot(np.linspace(0, 32, 800), Chirp_data[cell_nb]["psth"])
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Firing rate (spikes/s)")
+        ax.set_xlabel("Time (s)", fontsize=fontsize)
+        ax.set_ylabel("Firing rate (spikes/s)", fontsize=fontsize)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         ax.set_xlim(0, 32)
@@ -275,8 +300,8 @@ def create_id_cards_and_plots(
         ax.eventplot(Chirp_data[cell_nb]["spike_trains"], color="k", alpha=1)
         ax.set_xlim(0, 32)
         ax.set_ylim(0, 20)
-        ax.set_ylabel("#Trial")
-        ax.set_title("Response to the chirp stimulus")
+        ax.set_ylabel("#Trial", fontsize=fontsize)
+        ax.set_title("Response to the chirp stimulus", fontsize=fontsize)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
 
@@ -313,8 +338,8 @@ def create_id_cards_and_plots(
             ax.plot(theta, TuneSum)
             ax.fill(theta, TuneSum, "b", alpha=0.1)
 
-            ax.text(np.pi / 2 * 6 / 8, 2.6, "IDX = " + str(np.round(IDX, 1)), size=18)
-            ax.text(np.pi / 2 * 6 / 9, 2.2, "R = " + str(np.round(R, 1)), size=18)
+            ax.text(np.pi / 2 * 6 / 8, 2.6, "IDX = " + str(np.round(IDX, 1)), size=fontsize)
+            ax.text(np.pi / 2 * 6 / 9, 2.2, "R = " + str(np.round(R, 1)), size=fontsize)
 
             ax.set_yticks([0, 0.5, 1, 1.5, 2])
             ax.set_yticklabels([0, "", 1, "", 2])
@@ -337,7 +362,7 @@ def create_id_cards_and_plots(
             ax.set_xticks(
                 [6, 26, 46, 66, 86, 106, 126, 146], [0, 45, 90, 135, 180, 225, 270, 315]
             )
-            ax.set_title("DG rasters")
+            ax.set_title("DG rasters", fontsize=fontsize)
 
             fsave = os.path.join(
                 fig_directory, "Group{}_cell{}".format(cluster, cell_nb)

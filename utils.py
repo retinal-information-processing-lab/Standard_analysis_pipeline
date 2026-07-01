@@ -1926,20 +1926,57 @@ def check_rf_fit(
 def cell_selection_for_clustering(
     cells,
     CT_directory_path,
+    sta_figures_path,
     selected_cells_sta=[],
     selected_cells_chirp=[],
     save_format: str = "png",
 ):
-    """TODO
+    """Interactively pick cells for clustering: by STA quality, then by chirp response.
 
     Args:
-        TODO
-        save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
+        cells: cell IDs to review.
+        CT_directory_path: folder with the chirp figures ("{cell}_Chirp_raster+STA.png").
+        sta_figures_path: folder with the checkerboard STA figures ("Cell_{cell}.png"),
+            e.g. ``<Checkerboard_Analysis_...>/Stas_figs``.
+        selected_cells_sta: if non-empty, skip the STA selection and use this list.
+        selected_cells_chirp: if non-empty, skip the chirp selection and use this list.
+        save_format: image file extension (e.g. "png").
+
+    Returns:
+        selected_cells (STA-good AND chirp-good), selected_cells_sta, selected_cells_chirp.
     """
-    print("Selecting via STA ...")
+    # Replace each figure in place (instead of stacking them) so there is no endless
+    # scrolling, and show it large enough to read.
+    from IPython.display import clear_output
+
+    print("Selecting via STA (from the checkerboard STA figures) ...")
     if selected_cells_sta == []:
-        for cell_nb in tqdm(cells):
-            plt.figure(r"Current cell", figsize=(10, 10))
+        for i, cell_nb in enumerate(cells):
+            sta_fig = os.path.normpath(
+                os.path.join(sta_figures_path, f"Cell_{cell_nb}.{save_format}")
+            )
+            if not os.path.isfile(sta_fig):
+                print(f"No STA figure for cell {cell_nb}, skipping.")
+                continue
+            clear_output(wait=True)  # remove the previous cell's figure + prompt
+            print(f"STA selection — cell {i + 1}/{len(cells)}")
+            plt.figure(r"Current cell", figsize=(14, 11))
+            plt.imshow(np.asarray(plt.imread(sta_fig)))
+            plt.axis("off")
+            plt.show()
+            if input(
+                "Keep cell {} for clustering using sta? Type Yes to select as good : ".format(
+                    cell_nb
+                )
+            ) in ["Y", "Yes", "y", "yes"]:
+                selected_cells_sta += [cell_nb]
+            plt.close("all")
+
+    print("List of selected cells using sta : ", selected_cells_sta)
+    print("Selecting via chirp ...")
+
+    if selected_cells_chirp == []:
+        for i, cell_nb in enumerate(cells):
             image = np.asarray(
                 plt.imread(
                     os.path.normpath(
@@ -1950,42 +1987,21 @@ def cell_selection_for_clustering(
                     )
                 )
             )
-            plt.imshow(image[50:220, 1330:1550])
+            clear_output(wait=True)  # remove the previous cell's figure + prompt
+            print(f"Chirp selection — cell {i + 1}/{len(cells)}")
+            plt.figure(r"Current cell", figsize=(16, 8))
+            # The chirp (stimulus + raster + PSTH) occupies the left ~2/3 of the figure;
+            # the right third is the STA, which we judge from the checkerboard plots instead.
+            plt.imshow(image[:, : image.shape[1] * 2 // 3])
             plt.axis("off")
-            plt.show(block=False)
-            time.sleep(0.2)
-            if input(
-                "Keep cell {} for clustering using sta? Type Yes to select as good : ".format(
-                    cell_nb
-                )
-            ) in ["Y", "Yes", "y", "yes"]:
-                selected_cells_sta += [cell_nb]
-
-    print("List of selected cells using sta : ", selected_cells_sta)
-    print("Selecting via chirp ...")
-
-    if selected_cells_chirp == []:
-        for cell_nb in tqdm(cells):
-            plt.figure(r"Current cell", figsize=(50, 100))
-            image = np.asarray(
-                plt.imread(
-                    os.path.normpath(
-                        os.path.join(
-                            CT_directory_path,
-                            r"{}_Chirp_raster+STA.png".format(cell_nb),
-                        )
-                    )
-                )
-            )
-            plt.imshow(image[:, :1350])
-            plt.show(block=False)
-            time.sleep(0.2)
+            plt.show()
             if input(
                 "Keep cell {} for clustering using chirp? Type Yes to select as good : ".format(
                     cell_nb
                 )
             ) in ["Y", "Yes", "y", "yes"]:
                 selected_cells_chirp += [cell_nb]
+            plt.close("all")
     print("List of selected cells using chirp : ", selected_cells_chirp)
 
     selected_cells = [id for id in selected_cells_sta if id in selected_cells_chirp]

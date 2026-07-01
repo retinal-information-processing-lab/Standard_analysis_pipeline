@@ -8,12 +8,10 @@ from sklearn.decomposition import PCA, SparsePCA
 import scipy as sc
 from sklearn.cluster import AgglomerativeClustering
 
-
 # Above is just everything from original utils.  Likely overkill but prevents annoying errors from not having a needed module.
 
 
 import utils
-
 
 """Custom functions###################################################################
 
@@ -25,34 +23,33 @@ import utils
 """
 
 
-def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
-    """Load trigger times and spike data, then select chirp stimulus type.
+# Chirp vec files (one sequence repeated many times). The "_std" versions carry the
+# per-repetition sequence keys added by ressources/add_standard_keys_to_chirp_vec.ipynb.
+CHIRP_VEC_FILES = {
+    False: "Euler_50Hz_20reps_1024x768pix_std.vec",  # new 50 Hz chirp
+    True: "EulerStim180530_std.vec",  # old 2p-room chirp (needs its keyed vec generated)
+}
 
-    NOTE : 'old' needs to be clarified
+
+def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
+    """Load triggers, spikes and the chirp vec keys, then build the analysis directories.
 
     Args:
-        params (dict): Experiment parameters from params.py containing:
-            - exp (str): Experiment name
-            - recording_names (list): List of recording names
-            - output_directory (str): Path to analysis output directory
-            - triggers_directory (str): Path to trigger files
-            - fs (float): Sampling rate of the MEA in Hz
-        old (bool): If True, use old 2p room chirp. If False, use new 50Hz chirp.
+        params: Experiment parameters from params.py (exp, recording_names,
+            output_directory, triggers_directory, fs, root).
+        old (bool): If True, use the old 2p-room chirp; if False, the new 50 Hz chirp.
 
     Returns:
-        tuple: Contains:
-            - cells (list[np.uint32]): List of neuron cluster IDs
-            - spike_times (list[np.ndarray]): Spike times for each neuron
-            - spike_trains (dict): Complete spike train data for all neurons
-            - trig_data (dict): Trigger timing information
-            - stim_onsets (np.ndarray): Stimulus onset times in seconds
-            - check_directory (str): Path to checkerboard analysis directory
-            - CT_directory (str): Path to cell typing output directory
-            - old (bool): Chirp type flag (passed through)
+        cells (list[np.uint32]): neuron cluster IDs.
+        spike_times (dict[int, np.ndarray]): spike times per cell (s).
+        stim_onsets (np.ndarray): stimulus onset times (s), aligned with the vec rows.
+        vec_keys (np.ndarray): sequence key of each trigger (the chirp vec's last column).
+        check_directory (str): checkerboard analysis directory.
+        CT_directory (str): cell typing output directory.
+        old (bool): chirp type flag (passed through).
 
     Note:
-        Prompts user to select recording number from available recordings.
-        Creates cell typing directory if it doesn't exist.
+        Prompts the user to select the recording. Creates the cell typing directory.
     """
 
     # Prompt user to select recording
@@ -76,14 +73,19 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
 
     # Load spike trains
     cells, spike_times = utils.load_spike_times(params, rec)
-
     print(f"Total : {len(spike_times)} neurons loaded \n\nClusters id :\n{cells}\n")
+
+    # Load the chirp vec keys (last column) used to split spikes per repetition.
+    vec_filename = CHIRP_VEC_FILES[old]
+    vec_path = os.path.join("./ressources", vec_filename)
+    vec_keys = np.loadtxt(vec_path)[1:, -1]  # drop header row
+    print(f"Chirp vec keys loaded : {vec_filename}")
 
     return (
         cells,
         spike_times,
-        spike_times,
         stim_onsets,
+        vec_keys,
         check_directory,
         CT_directory,
         old,
@@ -92,88 +94,73 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
 
 def compute_chirp_rasters(
     cells: list,
-    spike_times: list,
+    spike_times: dict,
     stim_onsets: np.ndarray,
+    vec_keys: np.ndarray,
     old: bool = False,
     n_bins: int = 800,
     n_bins_small: int = 16000,
+    n_digit_for_rep: int = 4,
 ):
-    """Compute chirp stimulus responses including rasters, PSTH, and noise correlations.
+    """Compute chirp responses (rasters, PSTH, noise) per cell, split per repetition.
+
+    Repetition boundaries come from the chirp vec's sequence keys (the chirp is one
+    sequence type repeated many times) via ``utils.group_triggers_by_sequence`` — the
+    same engine as the other vec-based analyses. This replaces the previous hardcoded
+    trigger slicing while keeping the binning identical.
 
     Args:
-        cells (list): List of cell/cluster IDs
-        spike_times (list[np.ndarray]): Spike times for each cell
-        stim_onsets (np.ndarray): Stimulus onset times in seconds
-        old (bool): If True, use old chirp parameters. Default False.
-        n_bins (int): Number of bins for PSTH. Default 800.
-        n_bins_small (int): Number of bins for noise analysis. Default 16000.
+        cells (list): cell/cluster IDs.
+        spike_times (dict[int, np.ndarray]): spike times per cell (s).
+        stim_onsets (np.ndarray): trigger times (s), aligned with the vec rows.
+        vec_keys (np.ndarray): sequence key of each trigger (the chirp vec's last column).
+        old (bool): if True, old-chirp binning (n_bins=625, rep length 25 s); else new (32 s).
+        n_bins (int): number of PSTH bins.
+        n_bins_small (int): number of fine bins for the noise analysis.
+        n_digit_for_rep (int): trailing key digits encoding the repetition.
 
     Returns:
-        dict: Nested dictionary with structure:
-            cell_data[cell_id] = {
-                'spike_times': original spike times,
-                'repeated_sequences_times': list of [start, end] for each rep,
-                'spike_trains': aligned spike trains for each rep,
-                'psth': peri-stimulus time histogram (Hz),
-                'mean_spikes_count_small_bin': mean spike count at fine timescale,
-                'spikes_counts_small_bin': spike counts for each rep at fine timescale,
-                'noise_small_bin': deviation from mean at fine timescale,
-                'noise_large_bin': deviation from mean at coarse timescale
-            }
+        dict: cell_data[cell_id] with keys 'repeated_sequences_times', 'spike_trains',
+            'psth' (Hz), 'mean_spikes_count_small_bin', 'spikes_counts_small_bin',
+            'noise_small_bin', 'noise_large_bin'.
     """
 
     # Processing-------------------------------------------
     print("Extracting cells responses to Chirp stimulus\n")
 
     if old:
-        nb_repetitions = 30
         n_bins = 625  # Change here for old chirp n_bins
         rep_lenght = 25
     else:
-        nb_repetitions = 20
         rep_lenght = 32
     time_bin = rep_lenght / n_bins  # in seconds
 
+    # Repetition boundaries from the vec: one trigger list per repetition key.
+    # Keys with empty sequence-type part (the "0" lead-in/trailing group) are dropped.
+    triggers_per_repetition = utils.group_triggers_by_sequence(stim_onsets, vec_keys)
+    rep_keys = sorted(
+        key for key in triggers_per_repetition if key[:-n_digit_for_rep] != ""
+    )
+    nb_repetitions = len(rep_keys)
+
+    # [start, end] of each repetition (identical for every cell).
+    repeated_sequences_times = [
+        [triggers_per_repetition[key][0], triggers_per_repetition[key][-1]]
+        for key in rep_keys
+    ]
+
     cell_data = {}
-
-    for idx, cell_nb in tqdm(enumerate(cells[:]), desc="Extraction"):
-        if cell_nb not in cell_data.keys():
-            cell_data[cell_nb] = {}
-
-        # Get spike_times
+    for cell_nb in tqdm(cells, desc="Extraction"):
         euler_sptimes = spike_times[cell_nb]
 
-        aligned_triggers = stim_onsets  # (in seconds)
-
-        # Flashes: Get the repeated sequence times for the specified position
-        repeated_sequences_times = []
-        for i in range(0, nb_repetitions):
-            if old:
-                times = aligned_triggers[i * 999 : 999 * (i + 1)]
-            else:
-                times = aligned_triggers[i * 1600 + 151 : 151 + 1600 * (i + 1)]
-            repeated_sequences_times += [[times[0], times[-1]]]
-
-        # Build the spike trains corresponding to stimulus repetitions
+        # Spike train of each repetition, aligned to its start.
         spike_trains = []
-        for i in range(len(repeated_sequences_times)):
-            spike_train = utils.restrict_array(
-                euler_sptimes,
-                repeated_sequences_times[i][0],
-                repeated_sequences_times[i][1],
-            )
-            spike_trains += [spike_train]
+        for start, end in repeated_sequences_times:
+            spike_trains.append(utils.restrict_array(euler_sptimes, start, end) - start)
 
-        # Align the spike trains
-        for i in range(len(spike_trains)):
-            spike_trains[i] = spike_trains[i] - repeated_sequences_times[i][0]
-
-        # Compute psth
-        binned_spikes = np.empty((nb_repetitions, n_bins))  # 40 ms time bin
-        spike_counts_small_bin = np.empty(
-            (nb_repetitions, n_bins_small)
-        )  # 2 ms time bin
-
+        # Bin at two timescales: coarse for the PSTH, fine for the noise analysis.
+        binned_spikes = np.empty((nb_repetitions, n_bins))
+        spike_counts_small_bin = np.empty((nb_repetitions, n_bins_small))
         for i in range(nb_repetitions):
             binned_spikes[i, :] = np.histogram(
                 spike_trains[i], bins=n_bins, range=(0, rep_lenght)
@@ -185,21 +172,15 @@ def compute_chirp_rasters(
         psth = np.sum(binned_spikes, axis=0)
         mean_spikes_count = np.sum(spike_counts_small_bin, axis=0) / nb_repetitions
 
-        # Transform spike count in firing rate
-        binned_spikes = binned_spikes
-        cell_data[cell_nb]["spike_times"] = spike_times
-        cell_data[cell_nb]["repeated_sequences_times"] = repeated_sequences_times
-        cell_data[cell_nb]["spike_trains"] = spike_trains
-        cell_data[cell_nb]["psth"] = psth / time_bin
-
-        cell_data[cell_nb]["mean_spikes_count_small_bin"] = mean_spikes_count
-        cell_data[cell_nb]["spikes_counts_small_bin"] = spike_counts_small_bin
-        cell_data[cell_nb]["noise_small_bin"] = np.subtract(
-            spike_counts_small_bin, mean_spikes_count
-        )
-        cell_data[cell_nb]["noise_large_bin"] = np.subtract(
-            binned_spikes, psth / rep_lenght
-        )
+        cell_data[cell_nb] = {
+            "repeated_sequences_times": repeated_sequences_times,
+            "spike_trains": spike_trains,
+            "psth": psth / time_bin,
+            "mean_spikes_count_small_bin": mean_spikes_count,
+            "spikes_counts_small_bin": spike_counts_small_bin,
+            "noise_small_bin": np.subtract(spike_counts_small_bin, mean_spikes_count),
+            "noise_large_bin": np.subtract(binned_spikes, psth / rep_lenght),
+        }
 
     return cell_data
 
@@ -210,8 +191,12 @@ def plot_chirp_rasters(
     CT_directory: str,
     check_directory: str,
     old: bool = False,
+    fontsize: int = 16,
 ):
     """Generate and save chirp raster plots for all cells.
+
+    Each figure stacks the chirp stimulus, the spike raster and the PSTH on the left,
+    with the cell's spatial STA shown large on the right (full height).
 
     Args:
         cells (list): List of cell/cluster IDs to plot
@@ -219,6 +204,7 @@ def plot_chirp_rasters(
         CT_directory (str): Path to cell typing output directory
         check_directory (str): Path to checkerboard analysis directory containing STA results
         old (bool): If True, use old chirp parameters. Default False.
+        fontsize (int): Base font size for titles and labels (ticks use fontsize - 2).
 
     Returns:
         None. Saves PNG files to CT_directory/Chirp_rasters+STA/
@@ -251,58 +237,84 @@ def plot_chirp_rasters(
 
     time_bin = rep_lenght / n_bins  # in seconds
     for cell_nb in tqdm(cells[:]):
-        fig = plt.figure(figsize=(19, 6))
+        fig = plt.figure(figsize=(18, 8))
+        # Left column (cols 0-15): stimulus / raster / PSTH stacked and sharing the x-axis.
+        # Right column (cols 17-23): the spatial STA, spanning the full height.
         gs = GridSpec(
             8,
-            19,
-            left=0.1,
-            right=0.9,
+            24,
+            left=0.07,
+            right=0.97,
             bottom=0.1,
-            top=0.9,
-            wspace=0.4,
-            hspace=0,
+            top=0.92,
+            wspace=0.5,
+            hspace=0.0,
             figure=fig,
         )
-        #     fig=plt.figure(figsize=(16,6))
 
-        # plot Chirp stimulus
-        ax = fig.add_subplot(gs[0:2, :-3])
+        # --- Chirp stimulus (top) ---
+        ax_stim = fig.add_subplot(gs[0:2, :16])
         if old:
-            ax.plot(np.linspace(0, rep_lenght, 999), euler_vec[1:1000, 1], color="k")
+            ax_stim.plot(
+                np.linspace(0, rep_lenght, 999), euler_vec[1:1000, 1], color="k", lw=1.5
+            )
         else:
-            ax.plot(np.linspace(0, rep_lenght, 1600), euler_vec[151:1751, 1], color="k")
-        ax.set_ylabel("Chirp Stimulus")
-        ax.set_yticks([])
-        ax.set_title("Cluster {}".format(cell_nb))
-        ax.set_xlim([0, rep_lenght])
+            ax_stim.plot(
+                np.linspace(0, rep_lenght, 1600),
+                euler_vec[151:1751, 1],
+                color="k",
+                lw=1.5,
+            )
+        ax_stim.set_ylabel("Stimulus", fontsize=fontsize)
+        ax_stim.set_yticks([])
+        ax_stim.set_title(f"Cluster {cell_nb}", fontsize=fontsize + 4)
+        ax_stim.set_xlim([0, rep_lenght])
 
-        # plot chirp raster
-        ax = fig.add_subplot(gs[2:5, :-3])
-        ax.eventplot(cell_data[cell_nb]["spike_trains"], color="k", lw=1, linelengths=1)
-        ax.set_ylabel("#Trial")
-        ax.set_xlim([0, rep_lenght])
+        # --- Spike raster ---
+        ax_rast = fig.add_subplot(gs[2:5, :16], sharex=ax_stim)
+        ax_rast.eventplot(
+            cell_data[cell_nb]["spike_trains"], color="k", lw=1, linelengths=1
+        )
+        ax_rast.set_ylabel("Trial", fontsize=fontsize)
+        ax_rast.tick_params(axis="y", labelsize=fontsize - 2)
 
-        # plot chirp psth
-        ax = fig.add_subplot(gs[5:, :-3])
-        ax.step(np.linspace(0, rep_lenght, n_bins), cell_data[cell_nb]["psth"])
-        ax.set_ylabel("Firing rate Hz \n ({} ms time bin)".format(int(time_bin * 1000)))
-        ax.set_xlabel("Time (s)")
-        ax.set_xlim([0, rep_lenght])
+        # --- PSTH (bottom, the only panel with the time axis) ---
+        ax_psth = fig.add_subplot(gs[5:8, :16], sharex=ax_stim)
+        ax_psth.step(
+            np.linspace(0, rep_lenght, n_bins),
+            cell_data[cell_nb]["psth"],
+            color="#1f5fb0",
+            lw=1.5,
+        )
+        ax_psth.set_ylabel(
+            f"Firing rate (Hz)\n{int(time_bin * 1000)} ms bins", fontsize=fontsize
+        )
+        ax_psth.set_xlabel("Time (s)", fontsize=fontsize)
+        ax_psth.set_xlim([0, rep_lenght])
+        ax_psth.tick_params(labelsize=fontsize - 2)
 
-        # plot spatial STA
-        ax = fig.add_subplot(gs[0:3, -3:])
-        ax.set_title("STA", fontsize=12)
+        # Declutter: hide the redundant x tick labels on the top two panels (shared x),
+        # and drop the top/right (and stimulus left) spines.
+        plt.setp(ax_stim.get_xticklabels(), visible=False)
+        plt.setp(ax_rast.get_xticklabels(), visible=False)
+        for ax in (ax_stim, ax_rast, ax_psth):
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+        ax_stim.spines["left"].set_visible(False)
+
+        # --- Spatial STA (right, full height) ---
+        ax_sta = fig.add_subplot(gs[:, 17:])
+        ax_sta.set_title("STA", fontsize=fontsize + 2)
         spatial = sta_results[cell_nb]["center_analyse"]["Spatial"]
         spatial = spatial**2 * np.sign(spatial)
-        cmap = "RdBu_r"
-        image = ax.imshow(spatial, cmap=cmap, interpolation="gaussian")
+        image = ax_sta.imshow(spatial, cmap="RdBu_r", interpolation="gaussian")
         abs_max = 0.5 * max(np.max(spatial), abs(np.min(spatial)))
         image.set_clim(-abs_max, abs_max)
-        ax.set_xticks([])
-        ax.set_yticks([])
+        ax_sta.set_xticks([])
+        ax_sta.set_yticks([])
 
         fsave = os.path.join(fig_directory, "{}_Chirp_raster+STA".format(cell_nb))
-        fig.savefig(fsave + ".png", format="png", dpi=90)
+        fig.savefig(fsave + ".png", format="png", dpi=90, bbox_inches="tight")
         plt.close(fig)
 
     print("--- Cell Done ---")
@@ -311,7 +323,12 @@ def plot_chirp_rasters(
 
 
 def select_and_save_cells_for_clustering(
-    cells, good_sta_cells: list, good_chirp_cells: list, CT_directory: str, params: dict
+    cells,
+    good_sta_cells: list,
+    good_chirp_cells: list,
+    CT_directory: str,
+    check_directory: str,
+    params: dict,
 ):
     """Update cell selection for clustering analysis.
 
@@ -319,6 +336,8 @@ def select_and_save_cells_for_clustering(
         good_sta_cells (list): Cell IDs with good STA quality (or empty list)
         good_chirp_cells (list): Cell IDs with good chirp responses (or empty list)
         CT_directory (str): Path to cell typing output directory
+        check_directory (str): Path to the checkerboard analysis directory (its
+            ``Stas_figs`` subfolder holds the STA figures used to judge STA quality)
         params (dict): Experiment parameters containing 'exp' field
 
     Returns:
@@ -364,6 +383,7 @@ def select_and_save_cells_for_clustering(
         utils.cell_selection_for_clustering(
             cells,
             CT_directory_path=fig_directory,
+            sta_figures_path=os.path.join(check_directory, "Stas_figs"),
             selected_cells_sta=selected_cells_sta,
             selected_cells_chirp=selected_cells_chirp,
         )
@@ -384,6 +404,7 @@ def modify_cells_for_clustering(
     selected_cells_chirp_to_remove: list,
     remove_any_way: list,
     CT_directory: str,
+    check_directory: str,
     params: dict,
 ):
     """Modify selected cells by adding/removing specific cells and save updated selection.
@@ -410,7 +431,9 @@ def modify_cells_for_clustering(
         Function to review entirely completely
     """
 
-    exp = params.exp  # Otherwise it can think that exp means the built in function exp not the experiment from params.
+    exp = (
+        params.exp
+    )  # Otherwise it can think that exp means the built in function exp not the experiment from params.
 
     # 2026-01-22 Leaving for now but this looks like a typo.  First line seems like it should be selected_cells_chirp and second selected_cells_sta, not both _sta
     selected_cells_sta = list(
@@ -435,7 +458,8 @@ def modify_cells_for_clustering(
     selected_cells, selected_cells_sta, selected_cells_chirp = (
         utils.cell_selection_for_clustering(
             cells,
-            CT_directory_path=CT_directory,
+            CT_directory_path=os.path.join(CT_directory, "Chirp_rasters+STA"),
+            sta_figures_path=os.path.join(check_directory, "Stas_figs"),
             selected_cells_sta=list(set(selected_cells_sta)),
             selected_cells_chirp=list(set(selected_cells_chirp)),
         )
@@ -452,6 +476,83 @@ def modify_cells_for_clustering(
     )
 
     return selected_cells, selected_cells_sta, selected_cells_chirp
+
+
+def select_direction_selective_cells(
+    selected_cells: list,
+    ds_cells: list,
+    DG_directory: str,
+    CT_directory: str,
+    params: dict,
+):
+    """Partition the clustering-selected cells into direction-selective (DS) and non-DS.
+
+    The clustered cells are split in two so that the two groups can be cell-typed
+    independently. Selection is either manual (pass a non-empty ``ds_cells`` list) or
+    interactive: each cell's drifting-gratings figure (from the DG analysis, notebook 3)
+    is shown and you confirm whether it is direction selective.
+
+    Args:
+        selected_cells (list): cells chosen for clustering (good STA + chirp).
+        ds_cells (list): DS cell IDs to use directly; if empty, select interactively
+            (or reload a previously saved selection).
+        DG_directory (str): the DG analysis directory (its ``DG_figs`` holds the figures).
+            Get it with ``utils.find_analysis_directory("DG")``.
+        CT_directory (str): cell typing output directory (the selection is saved here).
+        params (dict): experiment parameters containing 'exp'.
+
+    Returns:
+        ds_cells (list): direction-selective cells (a subset of selected_cells).
+        non_ds_cells (list): the remaining selected cells.
+    """
+    exp = params.exp
+    ds_file = os.path.normpath(
+        os.path.join(CT_directory, f"{exp}_direction_selective_cells.pkl")
+    )
+
+    # Reuse a previously saved selection if none was given.
+    if not ds_cells and os.path.isfile(ds_file):
+        print(f"Loading previous DS selection from : {ds_file}")
+        ds_cells = utils.load_obj(ds_file)["ds_cells"]
+
+    # Otherwise ask the user, showing each cell's DG figure. Each figure replaces the
+    # previous one (no endless scrolling) and is shown large enough to read.
+    if not ds_cells:
+        from IPython.display import clear_output
+
+        dg_fig_directory = os.path.normpath(os.path.join(DG_directory, "DG_figs"))
+        print("Selecting direction-selective cells from the DG plots ...")
+        ds_cells = []
+        for i, cell_nb in enumerate(selected_cells):
+            fig_path = os.path.join(
+                dg_fig_directory, f"DG_resp_exp{exp}_Cell_{cell_nb}.png"
+            )
+            if not os.path.isfile(fig_path):
+                print(f"No DG figure for cell {cell_nb}, skipping.")
+                continue
+            clear_output(wait=True)  # remove the previous cell's figure + prompt
+            print(f"DS selection — cell {i + 1}/{len(selected_cells)}")
+            plt.figure("Current cell", figsize=(12, 11))
+            plt.imshow(np.asarray(plt.imread(fig_path)))
+            plt.axis("off")
+            plt.show()
+            if input(
+                f"Is cell {cell_nb} direction selective? Type Yes to select : "
+            ) in ["Y", "Yes", "y", "yes"]:
+                ds_cells.append(cell_nb)
+            plt.close("all")
+
+    # Keep only DS cells that are actually in the clustering set; the rest are non-DS.
+    ds_cells = [cell for cell in selected_cells if cell in ds_cells]
+    non_ds_cells = [cell for cell in selected_cells if cell not in ds_cells]
+
+    utils.save_obj(
+        {"ds_cells": ds_cells, "non_ds_cells": non_ds_cells},
+        os.path.join(CT_directory, f"{exp}_direction_selective_cells"),
+    )
+    print(f"{len(ds_cells)} direction-selective, {len(non_ds_cells)} non-DS cells.")
+
+    return ds_cells, non_ds_cells
 
 
 def run_cell_typing_AC(
@@ -478,11 +579,16 @@ def run_cell_typing_AC(
 
     Returns:
         tuple: Contains:
-            - psth_z (np.ndarray): Z-scored PSTHs, shape (n_cells, n_time_bins)
+            - psth_z (np.ndarray): Z-scored PSTHs, shape (n_kept_cells, n_time_bins)
             - sta_results (dict): Loaded STA analysis results
             - model: Fitted AgglomerativeClustering model with cluster labels
+            - kept_cells (list): selected_cells minus any dropped for a flat/NaN PSTH
+              or STA; ``model.labels_[i]`` corresponds to ``kept_cells[i]``.
 
     Note:
+        Cells whose chirp PSTH is flat (silent) or whose STA temporal course is flat
+        or NaN are dropped (with a printed message), since z-scoring them produces NaN
+        that PCA rejects. Use the returned kept_cells to map labels back to cells.
         Displays diagnostic plots: PCA variance, dendrogram, cluster centroids.
         You want ~80% cumulative variance explained by PCA components.
         Adjust dist_thres to get approximately 50 clusters.
@@ -494,6 +600,23 @@ def run_cell_typing_AC(
     )
 
     # Processing-----------------------------------------------------------
+
+    # Drop cells whose features would be NaN: a flat (silent) chirp PSTH or a flat/NaN
+    # STA temporal course both break the per-cell z-scoring used below, which PCA rejects.
+    valid_cells, dropped = [], []
+    for cell_id in selected_cells:
+        sta_tc = np.asarray(
+            sta_results[cell_id]["center_analyse"]["Temporal"][-21:], dtype=float
+        )
+        psth_ok = np.std(cell_data[cell_id]["psth"]) > 0
+        sta_ok = np.all(np.isfinite(sta_tc)) and np.std(sta_tc) > 0
+        (valid_cells if psth_ok and sta_ok else dropped).append(cell_id)
+    if dropped:
+        print(
+            f"Dropping {len(dropped)} cell(s) with a flat/NaN PSTH or STA "
+            f"(cannot be clustered): {dropped}"
+        )
+    selected_cells = valid_cells
 
     n_cells = len(selected_cells)
     # -----------------------------------
@@ -623,7 +746,7 @@ def run_cell_typing_AC(
     #     plt.plot(psth_z[idx_cluster,:].transpose())
     #     plt.show()
 
-    return psth_z, sta_results, model
+    return psth_z, sta_results, model, selected_cells
 
 
 def save_cluster_number_for_cells(selected_cells: list, cell_data: dict, model):
@@ -791,368 +914,195 @@ def create_cluster_summary_figure(
     params: dict,
     CT_directory: str,
     old: bool,
+    fontsize: int = 16,
+    rf_zoom: int = 10,
 ):
-    """Create comprehensive summary figures for each cluster showing all cells.
+    """Create one summary figure per cluster (robust to missing per-cell data).
+
+    Each figure shows, per cell: orientation tuning (from the DG analysis), spatial and
+    temporal STA and chirp PSTH; plus per-cluster summaries (RF-ellipse overlay, mean
+    temporal STA, mean chirp PSTH, stimulus trace). Any missing piece is replaced by a
+    "missing" note in the figure and a printed warning, instead of raising.
 
     Args:
-        cell_data (dict): Dictionary containing chirp response data for all cells
-        selected_cells (list): List of cell IDs included in clustering
-        psth_z (np.ndarray): Z-scored PSTHs, shape (n_cells, n_time_bins)
-        sta_results (dict): Dictionary containing STA analysis results
-        params (dict): Experiment parameters containing 'exp' field
-        CT_directory (str): Path to cell typing output directory
-        old (bool): If True, use old chirp parameters. If False, use new chirp.
+        cell_data (dict): chirp response data for all cells.
+        selected_cells (list): cells actually clustered; psth_z rows are aligned to this list.
+        psth_z (np.ndarray): z-scored PSTHs, shape (len(selected_cells), n_time_bins).
+        sta_results (dict): STA analysis results per cell.
+        params (dict): experiment parameters ('exp').
+        CT_directory (str): cell typing output directory (figures go in its Cell_typing/ subfolder).
+        old (bool): if True, use the old chirp stimulus vec; else the new one.
+        fontsize (int): base font size for titles/labels.
+        rf_zoom (int): half-width (in STA pixels) of the spatial-STA window around the RF center.
 
     Returns:
-        None. Saves summary figures to CT_directory/Cell_typing/
-
-    Note:
-        Creates one figure per cluster showing:
-        - Individual cell responses (orientation tuning, STA, chirp PSTH, correlations)
-        - Cluster averages (mean STA, mean PSTH, RF positions)
-        - Spatial correlation structure
+        None. Saves one figure per cluster to CT_directory/Cell_typing/.
     """
-
-    # Input--------------------------------------------------
-
-    # Name of the experiment
     exp = params.exp
-    DG_set = utils.load_obj(
-        os.path.join(utils.find_analysis_directory(dir_type="DG"), f"DG_data_exp{exp}")
+
+    fig_directory = os.path.normpath(os.path.join(CT_directory, "Cell_typing"))
+    os.makedirs(fig_directory, exist_ok=True)
+
+    # Optional inputs: warn and continue (with placeholders) if they cannot be loaded.
+    DG_set = {}
+    try:
+        DG_set = utils.load_obj(
+            os.path.join(utils.find_analysis_directory(dir_type="DG"), f"DG_data_exp{exp}")
+        )
+    except Exception as err:
+        print(f"Warning: could not load DG tuning data ({err}); orientation plots skipped.")
+
+    euler_vec = None
+    try:
+        vec_name = "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix.vec"
+        euler_vec = np.genfromtxt(os.path.join("./ressources", vec_name))
+        if old:
+            euler_vec = -euler_vec
+    except Exception as err:
+        print(f"Warning: could not load chirp stimulus vec ({err}); stimulus trace skipped.")
+
+    def missing(ax, message):
+        """Blank an axis and write a small 'missing' note in it."""
+        ax.axis("off")
+        ax.text(
+            0.5, 0.5, message, transform=ax.transAxes, ha="center", va="center",
+            fontsize=fontsize - 4, color="gray", style="italic",
+        )
+
+    cluster_ids = sorted(
+        {cell_data[c]["type"] for c in cell_data if cell_data[c]["type"] != "Not assigned"}
     )
 
-    fig_directory = os.path.normpath(os.path.join(CT_directory, r"Cell_typing"))
-    if not os.path.isdir(fig_directory):
-        os.makedirs(fig_directory)
+    for icluster in tqdm(cluster_ids, desc="Cluster summary figures"):
+        cluster_cells = [c for c in selected_cells if cell_data[c].get("type") == icluster]
+        n_cells = len(cluster_cells)
+        print(f"Cluster {icluster}: {n_cells} cells")
 
-    if old:
-        vec_path = os.path.join("./ressources", r"EulerStim180530.vec")
-        euler_vec = -np.genfromtxt(vec_path)
-    else:
-        vec_path = os.path.join("./ressources", r"Euler_50Hz_20reps_1024x768pix.vec")
-        euler_vec = np.genfromtxt(vec_path)
-
-    # Plotting-----------------------------------------------------
-
-    for icluster in tqdm(
-        range(
-            len(
-                list(
-                    set(
-                        [
-                            cell_data[cell]["type"]
-                            for cell in cell_data.keys()
-                            if cell_data[cell]["type"] != "Not assigned"
-                        ]
-                    )
-                )
-            )
-        )[:]
-    ):
-        idx_cluster = sorted(
-            list(
-                np.where(
-                    np.asarray(
-                        [
-                            cell_data[cell]["type"]
-                            for cell in selected_cells
-                            if cell_data[cell]["type"] != "Not assigned"
-                        ]
-                    )
-                    == icluster
-                )[0]
-            )
+        fig = plt.figure(figsize=(16, (n_cells + 2) * 1.9), constrained_layout=True)
+        gs = fig.add_gridspec(
+            n_cells + 2, 8, width_ratios=[1, 1, 1, 0.6, 1, 1, 1, 1]
         )
-        print("Number of cells in cluster {}: {}".format(icluster, len(idx_cluster)))
+        fig.suptitle(
+            f"Cell group {icluster} — {n_cells} cells", fontsize=fontsize + 4, fontweight="bold"
+        )
 
-        gs = GridSpec(len(idx_cluster) + 2, 10)
+        ax_ellipses = fig.add_subplot(gs[0:2, 1:3])
 
-        if len(idx_cluster) < 7:
-            yspan = 2
-        else:
-            yspan = -2
-        fig = plt.figure(figsize=(22, (len(idx_cluster) + yspan) * 1.75))
-        plt.suptitle("Cell group {}.\n {} cells.".format(icluster, len(idx_cluster)))
+        temporal_sum = np.zeros(21)
+        temporal_count = 0
 
-        # -------------------------------
-        # Loop cells in cluster
-        line = 2
-        STAs = np.zeros(21)
-        STAcount = 0
-        np.zeros(101)
-        ax0 = fig.add_subplot(gs[0:2, 1:3])
-        ax_dist_corr = fig.add_subplot(gs[0:2, 8:])
+        for row, cell_nb in enumerate(cluster_cells, start=2):
 
-        # Set the color cycle for the axis
-        #     colors = ['blue', 'lightblue', 'skyblue', 'deepskyblue', 'dodgerblue', 'royalblue', 'steelblue', 'mediumslateblue', 'darkslateblue', 'midnightblue']
-        #     ax_dist_corr.set_prop_cycle('color', colors)
-        cum_dist = []
-        cum_corr = []
-
-        for index in sorted(idx_cluster):
-            cell_nb = selected_cells[index]
-
-            # -----------------
-            # Plot temp STA
-            ax = fig.add_subplot(gs[line, 2])
-
-            #         ax.set_ylim([-4,4])
-            ax.axis("off")
-            ax.set_aspect(0.175)
-            temporal_sta = sta_results[cell_nb]["center_analyse"]["Temporal"][-21:]
-            ax.step(np.linspace(-21 / 30, 0, 21), temporal_sta, "k", lw=3)
-            #         ax.set_title('Cluster {}'.format(cell_nb))
-            ax.axhline(0, color="k", lw=0.5)
-
-            STAs += temporal_sta
-            STAcount += 1
-
-            # -----------------
-            # Plot temp STA avg
-            ax = fig.add_subplot(gs[0, 3])
-
-            ax.set_title("Temp STA")
-            ax.set_ylim([-4, 4])
-            ax.plot(np.linspace(-21 / 30, 0, 21), temporal_sta, lw=0.5)
-            ax.axhline(0, color="k", lw=0.5)
-            ax.set_xlabel("Time(s)")
-
-            # -----------------
-            # plot Chirp
-            ax = fig.add_subplot(gs[line, 4:8])
-
-            selected_cells.index(cell_nb)
-            ax.plot(np.linspace(0, 32, 800), cell_data[cell_nb]["psth"])
-            ax.spines["bottom"].set_visible(False)
-            ax.spines["left"].set_visible(False)
-            ax.spines["top"].set_visible(False)
-            ax.spines["right"].set_visible(False)
-            ax.set_xticks([])
-            plt.locator_params(axis="y", nbins=3)
-
-            if cell_data[cell_nb]["corrs"] != []:
-                # -----------------
-                # plot correlation over distance
-                sorted_dists, sorted_max_corr = zip(
-                    *sorted(
-                        zip(
-                            cell_data[cell_nb]["distances"],
-                            cell_data[cell_nb]["max_corr"],
-                        )
-                    )
-                )
-                cum_dist += list(sorted_dists)
-                cum_corr += list(sorted_max_corr)
-
-                ax_dist_corr.scatter(
-                    sorted_dists,
-                    sorted_max_corr,
-                    marker="o",
-                    linewidths=1,
-                    color="lightblue",
-                    alpha=0.5,
-                )
-                ax_dist_corr.plot(
-                    sorted_dists, sorted_max_corr, linestyle="-", linewidth=1, alpha=0.5
-                )
-                ax_dist_corr.set_title("Correlations")
-                ax_dist_corr.set_zorder(20)
-                ax_dist_corr.set_visible(True)
-                # -----------------
-                # plot correlations
-
-                ax = fig.add_subplot(gs[line, 8:])
-                plt.plot(
-                    np.arange(
-                        -int(len(cell_data[cell_nb]["mean_corr"]) / 2),
-                        int(len(cell_data[cell_nb]["mean_corr"]) / 2) + 1,
-                        1,
-                    ),
-                    cell_data[cell_nb]["mean_corr"],
-                    linewidth=1,
-                )
-                plt.fill_between(
-                    np.arange(
-                        -int(len(cell_data[cell_nb]["mean_corr"]) / 2),
-                        int(len(cell_data[cell_nb]["mean_corr"]) / 2) + 1,
-                        1,
-                    ),
-                    np.min(np.asarray(cell_data[cell_nb]["corrs"]), axis=0),
-                    np.max(np.asarray(cell_data[cell_nb]["corrs"]), axis=0),
-                    alpha=0.35,
-                )
-                ax.set_xticks([])
-                #             ax.set_yticks([0,0.5,1])
-
-                ax.spines["bottom"].set_visible(False)
-                ax.spines["left"].set_visible(False)
-                ax.spines["top"].set_visible(False)
-                ax.spines["right"].set_visible(False)
+            # --- Orientation tuning (polar, from DG) ---
+            ax = fig.add_subplot(gs[row, 0], polar=True)
+            if cell_nb in DG_set:
+                dg = DG_set[cell_nb]
+                theta = np.linspace(0, 2 * np.pi, len(dg["Tuning"]))
+                ax.plot(theta, dg["Tuning"], "b")
+                ax.fill(theta, dg["Tuning"], "b", alpha=0.1)
+                ax.plot([dg["atune"], dg["atune"]], [0, dg["Rtune"]], "b-")
+                ax.plot([dg["atune"]], [dg["Rtune"]], "bo")
+                ax.set_thetagrids(range(0, 360, 45), fontsize=fontsize - 6)
+                ax.set_yticks([0.5, 1])
+                ax.set_yticklabels([])
+                ax.set_ylim([0, 1])
             else:
-                ax_dist_corr.set_visible(False)
-                sorted_dists = []
-                sorted_max_corr = []
+                missing(ax, "no DG")
 
-            # -----------------
-            # plot Spatial STA
-            ax = fig.add_subplot(gs[line, 1])
+            # --- Spatial STA (broad zoom) + ellipse overlay ---
+            ax = fig.add_subplot(gs[row, 1])
+            try:
+                ellipse = sta_results[cell_nb]["center_analyse"]["EllipseCoor"]
+                spatial = sta_results[cell_nb]["center_analyse"]["Spatial"]
+                x0, y0 = ellipse[1], ellipse[2]
+                utils.plot_sta(ax, spatial, ellipse)
+                ax.set_xlim(x0 - rf_zoom, x0 + rf_zoom)
+                ax.set_ylim(y0 + rf_zoom, y0 - rf_zoom)
+                ax.set_aspect("equal")
+                ax.set_xticks([])
+                ax.set_yticks([])
+                gaussian = utils.gaussian2D(spatial.shape, *ellipse)
+                if ellipse[0] != 0:
+                    ax_ellipses.contour(
+                        np.abs(gaussian), levels=[0.6 * np.max(np.abs(gaussian))],
+                        colors="k", linestyles="solid", alpha=0.8,
+                    )
+            except Exception as err:
+                print(f"Warning: no spatial STA for cell {cell_nb} ({err}).")
+                missing(ax, "no STA")
 
-            parameters = sta_results[cell_nb]["center_analyse"]["EllipseCoor"]
-            x0 = parameters[1]
-            y0 = parameters[2]
-
-            ax = utils.plot_sta(
-                ax, sta_results[cell_nb]["center_analyse"]["Spatial"], parameters
-            )
-            ax.set_xlim(x0 - 4, x0 + 4)
-            ax.set_ylim(y0 + 4, y0 - 4)
-            ax.set_aspect("equal")
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            gaussian = utils.gaussian2D(
-                sta_results[cell_nb]["center_analyse"]["Spatial"].shape, *parameters
-            )
-            if parameters[0] != 0:
-                ax0.contour(
-                    np.abs(gaussian),
-                    levels=[0.6 * np.max(np.abs(gaussian))],
-                    colors="k",
-                    linestyles="solid",
-                    alpha=0.8,
+            # --- Temporal STA ---
+            ax = fig.add_subplot(gs[row, 2])
+            try:
+                temporal = np.asarray(
+                    sta_results[cell_nb]["center_analyse"]["Temporal"][-21:], dtype=float
                 )
+                ax.step(np.linspace(-21 / 30, 0, 21), temporal, "k", lw=2)
+                ax.axhline(0, color="k", lw=0.5)
+                ax.set_aspect(0.175)
+                ax.axis("off")
+                temporal_sum += temporal
+                temporal_count += 1
+            except Exception as err:
+                print(f"Warning: no temporal STA for cell {cell_nb} ({err}).")
+                missing(ax, "no STA")
 
-            ax = fig.add_subplot(gs[line, 3])
-            ax.annotate("Cluster {}".format(cell_nb), (0, 0.5), (0, 0.5), fontsize=15)
-
+            # --- Cell label ---
+            ax = fig.add_subplot(gs[row, 3])
             ax.axis("off")
+            ax.text(0, 0.5, f"Cell {cell_nb}", fontsize=fontsize, va="center")
 
-            # ----------------
-            # plot orientation selectivity
-            ax = fig.add_subplot(gs[line, 0], polar=True)
+            # --- Chirp PSTH ---
+            ax = fig.add_subplot(gs[row, 4:8])
+            try:
+                psth = cell_data[cell_nb]["psth"]
+                ax.plot(np.linspace(0, 32, len(psth)), psth)
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+                ax.set_xticks([])
+                ax.tick_params(labelsize=fontsize - 4)
+                ax.locator_params(axis="y", nbins=3)
+            except Exception as err:
+                print(f"Warning: no chirp PSTH for cell {cell_nb} ({err}).")
+                missing(ax, "no chirp PSTH")
 
-            theta = np.linspace(0, 2 * np.pi, 9)
-            # Arrange the grid into number of sales equal parts in degrees
-            lines, labels = plt.thetagrids(
-                range(0, 360, int(360 / 8)), np.arange(0, 360, 45)
-            )
-            # Plot actual sales graph
-            ax.plot(theta, DG_set[cell_nb]["Tuning"])
-            ax.fill(theta, DG_set[cell_nb]["Tuning"], "b", alpha=0.1)
-            ax.plot(
-                [DG_set[cell_nb]["atune"], DG_set[cell_nb]["atune"]],
-                [0, DG_set[cell_nb]["Rtune"]],
-                "b-",
-            )  # 2026-01-23 RWD: changed third call of DG_set[cell] to DG_set[cell_nb] as getting error cell is not defined and all other calls have cell_nb
-            ax.plot([DG_set[cell_nb]["atune"]], [DG_set[cell_nb]["Rtune"]], "bo")
-            ax.set_yticks([0, 0.333, 0.666, 1])
-            ax.set_yticklabels([])
-            ax.set_xticklabels([0, "", "", 135, "", 225, "", ""])
-            ax.set_ylim([0, 1])
+        # --- Summary header (rows 0-1) ---
 
-            line += 1
-
-        # -----------------
-        # avg STA
-        STAs = STAs / STAcount
+        # mean temporal STA
         ax = fig.add_subplot(gs[0, 3])
-        ax.plot(np.linspace(-21 / 30, 0, 21), STAs, "k", lw=2)
-        #     ax.set_ylim([-4,4])
-        ax.set_aspect(0.175)
+        if temporal_count:
+            ax.plot(np.linspace(-21 / 30, 0, 21), temporal_sum / temporal_count, "k", lw=2)
+            ax.set_aspect(0.175)
+        ax.set_title("Mean temporal STA", fontsize=fontsize)
         ax.axis("off")
 
-        # -----------------
-        # size ellipses
+        ax_ellipses.set_title("RF ellipses", fontsize=fontsize)
+        ax_ellipses.set_aspect("equal")
+        ax_ellipses.set_xticks([])
+        ax_ellipses.set_yticks([])
 
-        ax0.set_title("Ellipses")
-        #     ax0.set_xlim(4,20)
-        #     ax0.set_ylim(20,4)
-        ax0.set_aspect("equal")
-        ax0.set_xticks([])
-        ax0.set_yticks([])
-
-        # -----------------
-        # mean chirp psth
+        # mean chirp PSTH
         ax = fig.add_subplot(gs[0, 4:8])
-        ax.set_title("Chirp psth")
-
-        ax.plot(np.linspace(0, 32, 800), np.mean(psth_z[idx_cluster, :], 0), "b")
+        ax.set_title("Mean chirp PSTH", fontsize=fontsize)
+        try:
+            rows = [selected_cells.index(c) for c in cluster_cells]
+            ax.plot(np.linspace(0, 32, psth_z.shape[1]), np.mean(psth_z[rows, :], axis=0), "b")
+        except Exception as err:
+            print(f"Warning: mean chirp PSTH failed for cluster {icluster} ({err}).")
         ax.axis("off")
 
-        # -----------------
-        # plot chirp stim
+        # stimulus trace
         ax = fig.add_subplot(gs[1, 4:8])
+        if euler_vec is not None:
+            ax.plot(np.linspace(0, 32, 1600), euler_vec[151 : 151 + 1600, 1], color="k")
+            ax.set_ylim([-100, 350])
+            ax.set_yticks([])
+            ax.set_xlabel("Time (s)", fontsize=fontsize - 2)
+            ax.tick_params(labelsize=fontsize - 4)
+            for name, spine in ax.spines.items():
+                spine.set_visible(name == "bottom")
+        else:
+            missing(ax, "no stimulus trace")
 
-        ax.plot(
-            np.linspace(0, 32, 1600),
-            euler_vec[0 + 151 : 151 + 1600, 1] * 1.0,
-            color="k",
-        )
-        ax.set_yticks([])
-        ax.set_ylim([-100, 350])
-        ax.set_xlabel("Time(s)")
-        ax.spines["right"].set_visible(False)
-        ax.spines["bottom"].set_visible(True)
-        ax.spines["left"].set_visible(False)
-        ax.spines["top"].set_visible(False)
-
-        # -----------------
-        # plot mean correlation over distance
-
-        if cell_data[cell_nb]["corrs"] != []:
-            sorted_dists, sorted_max_corr = zip(*sorted(zip(cum_dist, cum_corr)))
-            #     n_bin = int(len(sorted_dists)/1)
-            #     print(n_bin)
-            n_bin = 10
-
-            xlim = np.linspace(min(sorted_dists), max(sorted_dists), n_bin + 1)
-            mean = [
-                np.mean(
-                    np.asarray(sorted_max_corr)[
-                        np.where(
-                            np.logical_and(
-                                sorted_dists >= xlim[i], sorted_dists <= xlim[i + 1]
-                            )
-                        )[0]
-                    ]
-                )
-                for i in range(len(xlim) - 1)
-            ]
-            [
-                min(
-                    np.asarray(sorted_max_corr)[
-                        np.where(
-                            np.logical_and(
-                                sorted_dists >= xlim[i], sorted_dists <= xlim[i + 1]
-                            )
-                        )[0]
-                    ],
-                    default=np.nan,
-                )
-                for i in range(len(xlim) - 1)
-            ]
-            [
-                max(
-                    np.asarray(sorted_max_corr)[
-                        np.where(
-                            np.logical_and(
-                                sorted_dists >= xlim[i], sorted_dists <= xlim[i + 1]
-                            )
-                        )[0]
-                    ],
-                    default=np.nan,
-                )
-                for i in range(len(xlim) - 1)
-            ]
-
-            x_pos = np.linspace(min(sorted_dists), max(sorted_dists), n_bin)
-            ax_dist_corr.plot(
-                x_pos[np.isfinite(mean)],
-                np.asarray(mean)[np.isfinite(mean)],
-                color="#1f77b4",
-            )
-        #         ax_dist_corr.fill_between(x_pos[np.isfinite(lmin) & np.isfinite(lmax)],np.asarray(lmin)[np.isfinite(lmin) & np.isfinite(lmax)],np.asarray(lmax)[np.isfinite(lmin) & np.isfinite(lmax)], alpha=0.2)
-
-        fsave = os.path.join(fig_directory, "Cluster_{}".format(icluster))
-        fig.savefig(fsave + ".png", format="png", dpi=250)
+        fig.savefig(os.path.join(fig_directory, f"Cluster_{icluster}.png"), dpi=200)
         plt.close(fig)

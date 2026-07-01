@@ -87,30 +87,34 @@ TODO (Chiara):
 - sigma is not var but std (DONE)
 
 2026-02-27-14:00 (Chiara, Baptiste, Guilhem) standard rf analysis:
-    1. normalization of the 3d sta with - median instead of - mean (not changed much in the result)
-    2. `preprocess_fitting_standard` as standard function to spatial sta smoothing + noise thresholding inspired from tom preprocessing but with optimized convolution and cleaned thresholding
-    3. `get_sta_components` standard function to get spatial and temporal componenets from the 3d sta, using gabriel approach to identify the rf center in time and space (max of the mask, he was using the variance, we switched to the std to avoid narrowing the rf with the square, upon normalization and processing), but spatial and temporal sta returned are slice/trace from unprocessed 3d sta (only normlized inside sta 3d computation)
-    4. Added i `rf_analysis` spatial mask and spatial coords of the temporal sta in the data returned, removed plotting in case of failed fitting and added standard method
-    5. Added in `plot_sta_fitted_with_ellipse` spatial mask (optional and if available), spatial and temporal components markers in cyan, colorbars for spatial components
-    6. explicited correct best_x, best_y in the convention x are cols and y are rows in `get_temporal_spatial_sta` and `matias_temporal_spatial_sta`
-    7. compared matias vs tom vs standard fitting methods (`STA_analysis_comparison`) and checked robustness 
-    8. checked notebook and recomputed analysis with updated computation and standard method 
+    1. normalization of the 3d sta with - median instead of - mean (not changed much in the result)(DONE) 
+    2. `preprocess_fitting_standard` as standard function to spatial sta smoothing + noise thresholding inspired from tom preprocessing but with optimized convolution and cleaned thresholding(DONE) 
+    3. `get_sta_components` standard function to get spatial and temporal componenets from the 3d sta, using gabriel approach to identify the rf center in time and space (max of the mask, he was using the variance, we switched to the std to avoid narrowing the rf with the square, upon normalization and processing), but spatial and temporal sta returned are slice/trace from unprocessed 3d sta (only normlized inside sta 3d computation)(DONE) 
+    4. Added i `rf_analysis` spatial mask and spatial coords of the temporal sta in the data returned, removed plotting in case of failed fitting and added standard method(DONE) 
+    5. Added in `plot_sta_fitted_with_ellipse` spatial mask (optional and if available), spatial and temporal components markers in cyan, colorbars for spatial components(DONE) 
+    6. explicited correct best_x, best_y in the convention x are cols and y are rows in `get_temporal_spatial_sta` and `matias_temporal_spatial_sta`(DONE) 
+    7. compared matias vs tom vs standard fitting methods (`STA_analysis_comparison`) and checked robustness (DONE) 
+    8. checked notebook and recomputed analysis with updated computation and standard method (DONE) 
+    9. Make more robust the sta computation to not be constrained on sequence portion half (LATER)
+    10.use num of sigma instead that levl factor (DONE): This means the RF are now bigger (2 sigmas), previosuly we used 1.35 sigmas
 
 2026-06-26 18:00 (Baptiste) standard vec analysis:
     1. Standardized the vec analysis and move all useful functions to utils
+    2. Corrected DG plot to use standard VEC analysis
+    3. Corrected Chirp plot to use standard VEC analysis
+    4. Upgraded the Typing notebook
+        a. Added a function to select DS cell interactively before clustering
+        b. This function and the one that passes though STA and Chirps responses now display the images correctly without a need to scroll down
+        c. The clustering code is now more robust in case a cell without responses to the chirp was included by mistakes
+        d. nonDS and DS cells are now clustered one after the others and clusterID are corrected afterward so that DS cells have the biggest IDs
+    
 
 WHAT NEXT?
-- ADJUST STA COMPUTATION AND ANALYSIS:
-    - make more robust the sta computation to not be constrained on sequence portion half
-    - use num of sigma instead that levl factor
-- STANDARD VEC ANALYSIS (bottleneck to other stim analysis)
-    | CHIRP, DGs 
 - CLEANING UTILS including 
     - homogenize in utils use of params: in some functions is given as argument in others is only used upon import. Is it ok to use a module as an argument in a function? If not modify also other .py modules to have everywhere the same behavior.
     - check all args and return casts and descriptions 
     - reorganize in sections 
 - ADD OTHER STANDARD STIMULI ANALYSIS (SWaN, Multisize spots, Barcode, MSF)
-- CELL CARDS
 - REORGANIZE PREPROCESSING
 - ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
 - ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)
