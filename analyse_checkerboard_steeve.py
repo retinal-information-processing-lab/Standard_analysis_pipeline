@@ -614,7 +614,7 @@ def plot_all_stas(sta_data: dict,
                   show_labels: bool = False,
                   add_fitted_indicator: bool = True,
                   border_width: int = 2,
-                  level_factor: float = 0.4,
+                  n_sigma: float = 2.0,
                   order_by_property: str = None,
                   set_axis_off: bool = True,
                   ):
@@ -628,10 +628,14 @@ def plot_all_stas(sta_data: dict,
         show_labels: Boolean indicating whether to show axis labels or not
         add_fitted_indicator: Boolean indicating whether to add a colored border indicating the quality of the ellipse fit
         border_width: Width of the border to indicate ellipse fit quality
-        level_factor: Float factor to apply to the ellipse level when plotting the ellipse contour (default: 0.4, meaning the contour will be plotted at 40% of the ellipse amplitude)
+        n_sigma: Number of standard deviations of the fitted Gaussian at which the RF ellipse contour / SNR mask is defined (default: 2.0). Replaces the old level_factor (peak-fraction) parameter.
         order_by_property: String specifying a property from sta_analysis to order the cells by before plotting ("rf_diameter", "snr", "amp")
 
     """
+    # A 2D Gaussian reaches exp(-n^2/2) of its peak at n standard deviations, so this is
+    # the peak fraction that the internal contour/SNR helpers expect.
+    level_factor = np.exp(-(n_sigma**2) / 2)
+
     if cell_ids is None:
         cell_ids = list(sta_data.keys())
     size = int(math.sqrt(len(cell_ids))) + 1
@@ -739,7 +743,7 @@ def plot_sta_fitted_with_ellipse(
         add_raster_plot: bool = False,
         add_spatial_mask: bool = False,
         rep_seq_data: dict = None,
-        level_factor: float = 0.4,
+        n_sigma: float = 2.0,
         xdim: float = 8,
         ydim: float = 5,
         save_format: str = "png",
@@ -760,7 +764,7 @@ def plot_sta_fitted_with_ellipse(
         show_figures: Boolean indicating whether to display figures interactively
         add_raster_plot: Boolean indicating whether to add raster plot to the figure (requires rep_seq_data)
         rep_seq_data: Dictionary containing extracted responses for each cell (from extract_all_cell_responses_to_repeated_sequences), required if add_raster_plot is True
-        level_factor: Float factor to apply to the ellipse level when plotting the ellipse contour (default: 0.4, meaning the contour will be plotted at 40% of the ellipse amplitude)
+        n_sigma: Number of standard deviations of the fitted Gaussian at which the RF ellipse contour / SNR mask is defined (default: 2.0). Replaces the old level_factor (peak-fraction) parameter.
         xdim: horizontal dimension of the figure in inches
         ydim: vertical dimension of the figure in inches
         save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
@@ -773,6 +777,10 @@ def plot_sta_fitted_with_ellipse(
     # check if raster data is provided when add_raster_plot is True
     if add_raster_plot and rep_seq_data is None:
         raise ValueError("rep_seq_data must be provided when add_raster_plot is True")
+
+    # A 2D Gaussian reaches exp(-n^2/2) of its peak at n standard deviations, so this is
+    # the peak fraction that the internal contour/SNR helpers expect.
+    level_factor = np.exp(-(n_sigma**2) / 2)
 
     # Folder where figure will be saved
     fig_directory = os.path.normpath(os.path.join(check_directory, folder_name))
@@ -828,7 +836,7 @@ def plot_sta_fitted_with_ellipse(
                 rf_area_um2 = utils.ellipse_area(ellipse_params_um, method="formula")
                 add_physical_units = True
         text = ""
-        text += f"Ellipse plotted at {level_factor*100:.0f}% of peak\n\n"
+        text += f"Ellipse plotted at {n_sigma:g}σ\n\n"
         text += f"Amplitude {amp:.3f} a.u.\n"
         if add_physical_units:
             text += (f"Center xy ({x0_um:.0f}, {y0_um:.0f}) µm [({x0_unit:.1f}, {y0_unit:.1f}) unit]\n"
