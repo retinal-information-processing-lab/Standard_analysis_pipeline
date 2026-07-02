@@ -100,8 +100,8 @@ def get_all_inputs_for_dg_analysis(params):
     DG_directory : str
         Output directory for the DG analysis.
     """
-    rec_idx, rec = utils.prompt_user_for_recording(params, "DG recording")
-    DG_directory = utils.create_analysis_directory(params, rec_idx, "DG")
+    rec_idx, rec = utils.prompt_user_for_recording(params.recording_names, "DG recording")
+    DG_directory = utils.create_analysis_directory(params.output_directory, rec_idx, "DG")
 
     seq_len, seq_sep, _ = prompt_user_for_dg_speed()
 
@@ -115,9 +115,9 @@ def get_all_inputs_for_dg_analysis(params):
         os.path.join(params.triggers_directory, f"{params.exp}_{rec}_triggers.pkl")
     )
     stim_onsets = utils.load_stim_onset_from_triggers_path(
-        triggers_path, params, verbose=True
+        triggers_path, params.fs, verbose=True
     )
-    cells, spike_times = utils.load_spike_times(params, rec)
+    cells, spike_times = utils.load_spike_times(rec, params.output_directory, params.exp)
 
     return cells, spike_times, stim_onsets, vec_keys, seq_len, seq_sep, DG_directory
 

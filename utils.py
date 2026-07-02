@@ -81,16 +81,18 @@ def plot_raster_and_psth(
 # ==========================
 
 
-def load_spike_times(params, rec, verbose=False):
+def load_spike_times(rec, output_directory, exp, verbose=False):
     """
     Load spike times for all neurons for a given recording from the fullexp_neurons_data.pkl file.
 
     Parameters
     ----------
-    params : object
-        Experiment parameters.
     rec : str
         Recording name.
+    output_directory : str
+        Analysis output directory (holds ``<exp>_fullexp_neurons_data.pkl``).
+    exp : str
+        Experiment name.
 
     Returns
     -------
@@ -100,7 +102,7 @@ def load_spike_times(params, rec, verbose=False):
         Spike times per cell (seconds).
     """
     spike_trains = load_obj(
-        os.path.join(params.output_directory, f"{params.exp}_fullexp_neurons_data.pkl")
+        os.path.join(output_directory, f"{exp}_fullexp_neurons_data.pkl")
     )
 
     cells = list(spike_trains.keys())
@@ -113,21 +115,21 @@ def load_spike_times(params, rec, verbose=False):
 
 
 def load_stim_onset_from_triggers_path(
-    triggers_path: str, params: ModuleType, verbose: bool = False
+    triggers_path: str, fs: float, verbose: bool = False
 ) -> np.ndarray:
     """
     Load trigger data from saved file and give the stim onset already converted in second.
 
     Args:
         triggers_path: Path to the saved trigger data file (e.g., "../triggers_data.pkl").
-        params: Module from params.py containing experiment parameters including sampling rate (fs)
+        fs: Sampling rate of the MEA in Hz (params.fs).
         verbose: If True, print information about the loaded triggers.
 
     Returns:
         stim_onsets: Numpy array of stimulus onset times in seconds.
     """
     triggers_data = load_obj(triggers_path)
-    stim_onsets = triggers_data["indices"] / params.fs
+    stim_onsets = triggers_data["indices"] / fs
     if verbose:
         print(f"Total triggers number : {len(stim_onsets)}")
         print(f"Triggers type loaded : {triggers_data['trigger_type']}")
@@ -135,12 +137,12 @@ def load_stim_onset_from_triggers_path(
     return stim_onsets
 
 
-def prompt_user_for_recording(params: ModuleType, stim_name: str) -> tuple[int, str]:
+def prompt_user_for_recording(recording_names, stim_name: str) -> tuple[int, str]:
     """
     Display available recordings and prompt user to select one.
 
     Args:
-        params: Module from params.py containing experiment parameters including recording_names
+        recording_names: List of recording names to choose from (params.recording_names)
         stim_name: Name of the stimulus type (e.g., "Checkerboard", "DG") to display in the prompt
 
     Returns:
@@ -148,24 +150,24 @@ def prompt_user_for_recording(params: ModuleType, stim_name: str) -> tuple[int, 
         Selected recording name as string
     """
     print(f"Which of the following is the {stim_name}: ")
-    for num, rec in enumerate(params.recording_names):
+    for num, rec in enumerate(recording_names):
         print(f"\t{num} --> {rec}")
 
     recording_number = int(input(f"{stim_name} number : "))
-    recording_name = params.recording_names[recording_number]
+    recording_name = recording_names[recording_number]
     print(f"Selected recording: {recording_name}\n")
 
     return recording_number, recording_name
 
 
 def create_analysis_directory(
-    params: ModuleType, recording_number: int, analysis_name: str
+    output_directory: str, recording_number: int, analysis_name: str
 ) -> str:
     """
     Create directory for specified analysis output.
 
     Args:
-        params: Dictionary containing 'output_directory' key
+        output_directory: Base directory where the analysis folder is created (params.output_directory)
         recording_number: Recording number for directory naming
         analysis_name: Name of the analysis (e.g., 'DG', 'Checkerboard')
 
@@ -173,10 +175,10 @@ def create_analysis_directory(
         Path to created directory
     """
     print("Creating analysis directory...")
-    print(params.output_directory)
+    print(output_directory)
     check_directory = os.path.normpath(
         os.path.join(
-            params.output_directory, f"{analysis_name}_Analysis_rec_{recording_number}"
+            output_directory, f"{analysis_name}_Analysis_rec_{recording_number}"
         )
     )
 
@@ -186,9 +188,7 @@ def create_analysis_directory(
     return check_directory
 
 
-def find_analysis_directory(
-    dir_type="Checkerboard", output_directory=params.output_directory
-):
+def find_analysis_directory(output_directory, dir_type="Checkerboard"):
     """
     Automatically calls for the analysis folder using names defined in the pipeline :
         - Checkerboard_Analysis_rec_i
@@ -841,7 +841,7 @@ def build_rasters(
     return analyse
 
 
-def image_projection(image, mea=params.MEA):
+def image_projection(image, mea):
     """
     Project the image following setup transformation of image compared to the bin displayed on a computer before the setup
     image has to be a numpy array. It can have values from 0 to 1 or 0 to 255, both works.
@@ -861,8 +861,8 @@ def checkerboard_from_binary(
     nb_checks_x,
     nb_checks_y,
     checkerboard_file,
-    binary_source_path=params.binary_source_path,
-    mea=params.MEA,
+    binary_source_path,
+    mea,
 ):
     binary_source_file = open(binary_source_path, mode="rb")
     checkerboard = np.zeros((nb_frames, nb_checks_x, nb_checks_y), dtype="uint8")

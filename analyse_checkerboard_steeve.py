@@ -63,11 +63,11 @@ def get_all_inputs_for_checkerboard_analysis(
             - check_directory: Path to analysis output directory
     """
     recording_number, recording_name = utils.prompt_user_for_recording(
-        params, "checkerboard"
+        params.recording_names, "checkerboard"
     )
     stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = prompt_user_for_checkerboard_params()
     check_directory = utils.create_analysis_directory(
-        params, recording_number, "Checkerboard"
+        params.output_directory, recording_number, "Checkerboard"
     )
 
     return (
@@ -148,6 +148,7 @@ def load_or_create_checkerboard_stimulus(
             nb_checks_y,
             checkerboard_file=stimulus_path,
             binary_source_path=params.binary_source_path,
+            mea=params.MEA,
         )
 
     return checkerboard
@@ -191,9 +192,11 @@ def load_checkerboard_data(
     )
     print(f"Loading triggers from:\t {triggers_path}")
     stim_onsets = utils.load_stim_onset_from_triggers_path(
-        triggers_path, params, verbose=True
+        triggers_path, params.fs, verbose=True
     )
-    cells_id, checkerboard_spikes = utils.load_spike_times(params, checkerboard_name)
+    cells_id, checkerboard_spikes = utils.load_spike_times(
+        checkerboard_name, params.output_directory, params.exp
+    )
     nb_repeats, _ = calculate_checkerboard_experiment_stats(
         stim_onsets, params, stimulus_frequency
     )

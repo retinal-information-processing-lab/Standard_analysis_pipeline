@@ -107,6 +107,7 @@ TODO (Chiara):
         b. This function and the one that passes though STA and Chirps responses now display the images correctly without a need to scroll down
         c. The clustering code is now more robust in case a cell without responses to the chirp was included by mistakes
         d. nonDS and DS cells are now clustered one after the others and clusterID are corrected afterward so that DS cells have the biggest IDs
+    5. Cleaning call to params to always vbe explicit, ex: params.x is passed to the functions, never params alone
     
 
 WHAT NEXT?
@@ -115,6 +116,6 @@ WHAT NEXT?
     - check all args and return casts and descriptions 
     - reorganize in sections 
 - ADD OTHER STANDARD STIMULI ANALYSIS (SWaN, Multisize spots, Barcode, MSF)
-- REORGANIZE PREPROCESSING
+- REORGANIZE PREPROCESSING + CORRECT CALL TO PARAMS IN PREPROCESSING
 - ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
 - ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)

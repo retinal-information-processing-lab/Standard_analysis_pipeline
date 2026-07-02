@@ -53,26 +53,30 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
     """
 
     # Prompt user to select recording
-    recording_number, rec = utils.prompt_user_for_recording(params, "chirp recording")
+    recording_number, rec = utils.prompt_user_for_recording(
+        params.recording_names, "chirp recording"
+    )
     print(f"\nSelected recording : {rec} \n")
 
     # Create cell typing directory
     CT_directory = utils.create_analysis_directory(
-        params, recording_number, "CellTyping"
+        params.output_directory, recording_number, "CellTyping"
     )
 
-    check_directory = utils.find_analysis_directory(dir_type="Checkerboard")
+    check_directory = utils.find_analysis_directory(
+        params.output_directory, dir_type="Checkerboard"
+    )
 
     # Load triggers
     triggers_path = os.path.normpath(
         os.path.join(params.triggers_directory, f"{params.exp}_{rec}_triggers.pkl")
     )
     stim_onsets = utils.load_stim_onset_from_triggers_path(
-        triggers_path, params, verbose=True
+        triggers_path, params.fs, verbose=True
     )
 
     # Load spike trains
-    cells, spike_times = utils.load_spike_times(params, rec)
+    cells, spike_times = utils.load_spike_times(rec, params.output_directory, params.exp)
     print(f"Total : {len(spike_times)} neurons loaded \n\nClusters id :\n{cells}\n")
 
     # Load the chirp vec keys (last column) used to split spikes per repetition.
@@ -497,7 +501,7 @@ def select_direction_selective_cells(
         ds_cells (list): DS cell IDs to use directly; if empty, select interactively
             (or reload a previously saved selection).
         DG_directory (str): the DG analysis directory (its ``DG_figs`` holds the figures).
-            Get it with ``utils.find_analysis_directory("DG")``.
+            Get it with ``utils.find_analysis_directory(params.output_directory, "DG")``.
         CT_directory (str): cell typing output directory (the selection is saved here).
         params (dict): experiment parameters containing 'exp'.
 
@@ -790,7 +794,10 @@ def create_cluster_summary_figure(
     DG_set = {}
     try:
         DG_set = utils.load_obj(
-            os.path.join(utils.find_analysis_directory(dir_type="DG"), f"DG_data_exp{exp}")
+            os.path.join(
+                utils.find_analysis_directory(params.output_directory, dir_type="DG"),
+                f"DG_data_exp{exp}",
+            )
         )
     except Exception as err:
         print(f"Warning: could not load DG tuning data ({err}); orientation plots skipped.")

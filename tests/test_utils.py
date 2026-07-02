@@ -263,7 +263,7 @@ class TestCreateAnalysisDirectory(unittest.TestCase):
         params = MagicMock()
         params.output_directory = self.test_dir
 
-        result = utils.create_analysis_directory(params, 1, "DG")
+        result = utils.create_analysis_directory(params.output_directory, 1, "DG")
 
         self.assertTrue(os.path.isdir(result))
         self.assertIn("DG_Analysis_rec_1", result)
@@ -274,9 +274,9 @@ class TestCreateAnalysisDirectory(unittest.TestCase):
         params.output_directory = self.test_dir
 
         # Create directory first time
-        result1 = utils.create_analysis_directory(params, 2, "Checkerboard")
+        result1 = utils.create_analysis_directory(params.output_directory, 2, "Checkerboard")
         # Call again with same parameters
-        result2 = utils.create_analysis_directory(params, 2, "Checkerboard")
+        result2 = utils.create_analysis_directory(params.output_directory, 2, "Checkerboard")
 
         self.assertEqual(result1, result2)
         self.assertTrue(os.path.isdir(result2))
@@ -286,8 +286,8 @@ class TestCreateAnalysisDirectory(unittest.TestCase):
         params = MagicMock()
         params.output_directory = self.test_dir
 
-        dg_dir = utils.create_analysis_directory(params, 0, "DG")
-        check_dir = utils.create_analysis_directory(params, 0, "Checkerboard")
+        dg_dir = utils.create_analysis_directory(params.output_directory, 0, "DG")
+        check_dir = utils.create_analysis_directory(params.output_directory, 0, "Checkerboard")
 
         self.assertIn("DG_Analysis_rec_0", dg_dir)
         self.assertIn("Checkerboard_Analysis_rec_0", check_dir)
@@ -308,7 +308,7 @@ class TestFindAnalysisDirectory(unittest.TestCase):
         """Test finding a single matching directory."""
         os.makedirs(os.path.join(self.test_dir, "Checkerboard_Analysis_rec_0"))
 
-        result = utils.find_analysis_directory("Checkerboard", self.test_dir)
+        result = utils.find_analysis_directory(self.test_dir, "Checkerboard")
 
         self.assertIn("Checkerboard_Analysis_rec_0", result)
 
@@ -319,14 +319,14 @@ class TestFindAnalysisDirectory(unittest.TestCase):
         os.makedirs(os.path.join(self.test_dir, "DG_Analysis_rec_0"))
         os.makedirs(os.path.join(self.test_dir, "DG_Analysis_rec_1"))
 
-        result = utils.find_analysis_directory("DG", self.test_dir)
+        result = utils.find_analysis_directory(self.test_dir, "DG")
 
         self.assertIn("DG_Analysis_rec_1", result)
 
     def test_no_directory_found_raises_assertion(self):
         """Test that assertion is raised when no matching directory exists."""
         with self.assertRaises(AssertionError):
-            utils.find_analysis_directory("CellTyping", self.test_dir)
+            utils.find_analysis_directory(self.test_dir, "CellTyping")
 
 
 class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
@@ -344,7 +344,7 @@ class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
         }
 
         stim_onsets = utils.load_stim_onset_from_triggers_path(
-            "fake_path.pkl", self.params, verbose=False
+            "fake_path.pkl", self.params.fs, verbose=False
         )
 
         np.testing.assert_array_equal(stim_onsets, np.array([0.0, 1.0, 2.0, 3.0]))
@@ -358,7 +358,7 @@ class TestLoadStimOnsetFromTriggersPath(unittest.TestCase):
         }
 
         stim_onsets = utils.load_stim_onset_from_triggers_path(
-            "fake_path.pkl", self.params, verbose=False
+            "fake_path.pkl", self.params.fs, verbose=False
         )
 
         self.assertEqual(len(stim_onsets), 0)

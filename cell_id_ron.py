@@ -45,9 +45,9 @@ def import_data_to_plot(params: dict):
     phy_directory = params.phy_directory
 
     # Find analysis directories
-    check_directory = utils.find_analysis_directory(dir_type="Checkerboard")
-    DG_directory = utils.find_analysis_directory(dir_type="DG")
-    CT_directory = utils.find_analysis_directory(dir_type="CellTyping")
+    check_directory = utils.find_analysis_directory(output_directory, dir_type="Checkerboard")
+    DG_directory = utils.find_analysis_directory(output_directory, dir_type="DG")
+    CT_directory = utils.find_analysis_directory(output_directory, dir_type="CellTyping")
 
     # Load data
     # load chirp stimulus for plotting the profile
