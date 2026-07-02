@@ -1,7 +1,7 @@
 import utils
 import os
 from tqdm import tqdm
-import analyse_checkerboard_steeve as analysis
+import analyse_checkerboard as analysis
 
 root = r'C:\Users\cboscarino\Documents\GitHub\Standard_analysis_pipeline\data\20251219_PulsingGratings_PupilSize\Analysis\Checkerboard_Analysis_rec_0'
 data_filename = "sta_data_analysed.pkl"

@@ -108,14 +108,12 @@ TODO (Chiara):
         c. The clustering code is now more robust in case a cell without responses to the chirp was included by mistakes
         d. nonDS and DS cells are now clustered one after the others and clusterID are corrected afterward so that DS cells have the biggest IDs
     5. Cleaning call to params to always vbe explicit, ex: params.x is passed to the functions, never params alone
-    
+    6. Moving all utils in a new util folder for clarity and better calls, changed the way functions are called in notebooks to accomodate for this
+    7. 
 
 WHAT NEXT?
-- CLEANING UTILS including 
-    - homogenize in utils use of params: in some functions is given as argument in others is only used upon import. Is it ok to use a module as an argument in a function? If not modify also other .py modules to have everywhere the same behavior.
-    - check all args and return casts and descriptions 
-    - reorganize in sections 
-- ADD OTHER STANDARD STIMULI ANALYSIS (SWaN, Multisize spots, Barcode, MSF)
+- ADD OTHER STANDARD STIMULI ANALYSIS (SWaN (Top Priority), Multisize spots, Barcode, MSF)
 - REORGANIZE PREPROCESSING + CORRECT CALL TO PARAMS IN PREPROCESSING
 - ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
+- CORRECT STIM-VIWER TO HELP WITH STIMULUS DESIGN
 - ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)
