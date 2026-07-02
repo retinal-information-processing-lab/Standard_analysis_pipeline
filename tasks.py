@@ -31,9 +31,9 @@ def check_formatting():
 
 
 def test():
-    """Run tests"""
+    """Run tests (stdlib unittest, no pytest needed)"""
     print("🧪 Running tests...")
-    run("pytest tests/test_utils.py -v")
+    run("python -m unittest discover -s tests -v")
 
 
 def clean():
@@ -51,7 +51,8 @@ def clean():
 def install_dev():
     """Install development dependencies"""
     print("📦 Installing development dependencies...")
-    run("pip install ruff pytest pytest-cov")
+    # Tests use the standard-library unittest, so only ruff (linter/formatter) is needed.
+    run("pip install ruff")
     print("✅ Dependencies installed!")
 
 

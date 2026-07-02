@@ -109,7 +109,7 @@ TODO (Chiara):
         d. nonDS and DS cells are now clustered one after the others and clusterID are corrected afterward so that DS cells have the biggest IDs
     5. Cleaning call to params to always vbe explicit, ex: params.x is passed to the functions, never params alone
     6. Moving all utils in a new util folder for clarity and better calls, changed the way functions are called in notebooks to accomodate for this
-    7. 
+    7. Addind some unitest to the standard VEC analysis, the rest of the pipeline won't be tested since no one in the lab. is going to use testing correctly
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (SWaN (Top Priority), Multisize spots, Barcode, MSF)
