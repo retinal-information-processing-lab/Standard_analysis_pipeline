@@ -1076,90 +1076,8 @@ def gaussian2D_flat(x, amp, x0, y0, rx, ry, rot):
     return gaussian2D(x, amp, x0, y0, rx, ry, rot).flatten()
 
 
-def reduced_gaussian2D(
-    x,
-    amp,
-    sigma_x,
-    sigma_y,
-    angle,
-):
-    shape = (int(x[0]), int(x[1]))
-    x0 = int(x[2])
-    y0 = int(x[3])
-
-    x = np.linspace(0, shape[1], shape[1])
-    y = np.linspace(0, shape[0], shape[0])
-    X, Y = np.meshgrid(x, y)
-
-    theta = 3.14 * angle / 180
-    a = (math.cos(theta) ** 2) / (2 * sigma_x**2) + (math.sin(theta) ** 2) / (
-        2 * sigma_y**2
-    )
-    b = -(math.sin(2 * theta)) / (4 * sigma_x**2) + (math.sin(2 * theta)) / (
-        4 * sigma_y**2
-    )
-    c = (math.sin(theta) ** 2) / (2 * sigma_x**2) + (math.cos(theta) ** 2) / (
-        2 * sigma_y**2
-    )
-
-    return amp * np.exp(
-        -(
-            a * np.power((X - x0), 2)
-            + 2 * b * np.multiply((X - x0), (Y - y0))
-            + c * np.power((Y - y0), 2)
-        )
-    )
-
-
 def reduced_gaussian2D_flat(x, amp, rx, ry, rot):
     return reduced_gaussian2D(x, amp, rx, ry, rot).flatten()
-
-
-def gaussian_ellipse(amp, x0, y0, sigma_x, sigma_y, angle, ratio=math.sqrt(2)):
-    level = amp * 0.5
-
-    theta = 3.14 * angle / 180
-    a = (math.cos(theta) ** 2) / (2 * sigma_x**2) + (math.sin(theta) ** 2) / (
-        2 * sigma_y**2
-    )
-    b = -(math.sin(2 * theta)) / (4 * sigma_x**2) + (math.sin(2 * theta)) / (
-        4 * sigma_y**2
-    )
-    c = (math.sin(theta) ** 2) / (2 * sigma_x**2) + (math.cos(theta) ** 2) / (
-        2 * sigma_y**2
-    )
-
-    lim = math.sqrt((c * math.log(level / amp)) / (b**2 - c * a))
-    xmin = x0 - lim
-    xmax = x0 + lim
-
-    X = np.linspace(xmin, xmax, 1000)
-    Ym = (
-        y0
-        + (
-            -2 * b * (X - x0)
-            - np.sqrt(
-                4 * b**2 * (X - x0) ** 2
-                - 4 * c * (a * (X - x0) ** 2 + math.log(level / amp))
-            )
-        )
-        / 2
-        * c
-    )
-    Yp = (
-        y0
-        + (
-            -2 * b * (X - x0)
-            + np.sqrt(
-                4 * b**2 * (X - x0) ** 2
-                - 4 * c * (a * (X - x0) ** 2 + math.log(level / amp))
-            )
-        )
-        / 2
-        * c
-    )
-
-    return np.append(X, X), np.append(Ym, Yp)
 
 
 def double_gaussian_fit(
@@ -2051,34 +1969,6 @@ def correlate_PersonPM(cell1, cell2, max_shift=25):
     return np.asarray(left + [center] + right)
 
 
-def noise_and_stim_correlations(
-    resp_cell1, resp_cell2, max_shift=25, shift_time_resolution=1
-):
-    """
-    Exactly the same as above but manually computed. Not in use.
-    """
-    # resp_cell should be of the form (nb_trials, nb_response points)
-    # THIS MIGHT HAVE NORMALIZATION PROBLEMS IN CASE OF CURRENTS!!!!
-    noise_corr = []
-
-    for lag in range(-max_shift, max_shift + 1, shift_time_resolution):
-        shifted_c2 = np.roll(resp_cell2, lag, axis=0)
-
-        V_1 = ((resp_cell1 - resp_cell1.mean()) ** 2).mean()
-        V_2 = ((shifted_c2 - shifted_c2.mean()) ** 2).mean()
-
-        nc = (
-            (resp_cell1 - resp_cell1.mean(axis=0))
-            * (shifted_c2 - shifted_c2.mean(axis=0))
-        ).mean() - np.sqrt(V_1 * V_2)
-        noise_corr.append(nc)
-    #         tot_corr=((resp_cell1-resp_cell1.mean())*(shifted_c2-shifted_c2.mean()) ).mean()/np.sqrt(V_1*V_2)
-    #         sc=tot_corr-nc
-    #         stim_corr.append(sc)
-    #     return np.array(noise_corr), np.array(stim_corr)
-    return np.array(noise_corr)
-
-
 #############################################
 ######          ID card                ######
 #############################################
@@ -2501,50 +2391,6 @@ def reshape_dict(original_dict):
 
 
 # Functions
-def buildH(t_pre, s, t_post, r=0):
-    H_pre_translation = np.array([[1, 0, t_pre[1]], [0, 1, t_pre[0]], [0, 0, 1]])
-
-    H_rotation = np.array(
-        [[math.cos(r), -math.sin(r), 0], [math.sin(r), math.cos(r), 0], [0, 0, 1]]
-    )
-
-    H_scaling = np.array([[s[0], 0, 0], [0, s[1], 0], [0, 0, 1]])
-
-    H_post_translation = np.array([[1, 0, t_post[1]], [0, 1, t_post[0]], [0, 0, 1]])
-    return H_post_translation @ H_rotation @ H_scaling @ H_pre_translation
-
-
-def transform_coordinates(coordinates, homography):
-    coordinates = np.append(coordinates, np.array([1]))
-    transformation = homography @ coordinates.T
-    transformation = transformation / transformation[2]
-    transformed_coordinates = np.array(transformation[:2])
-    return transformed_coordinates
-
-
-def get_ellipse(parameters, factor=2):
-    amplitude, x0, y0, sigma_x, sigma_y, theta = parameters
-    width = factor * 2.0 * sigma_x
-    height = factor * 2.0 * sigma_y
-
-    t = np.linspace(0, 2 * np.pi, 360)
-
-    Ell = np.array([sigma_x * np.cos(t), sigma_y * np.sin(t)])
-
-    R_rot = np.array(
-        [
-            [np.cos(-np.deg2rad(theta)), -np.sin(-np.deg2rad(theta))],
-            [np.sin(-np.deg2rad(theta)), np.cos(-np.deg2rad(theta))],
-        ]
-    )
-
-    Ell = np.dot(R_rot, Ell)
-    Ell[0, :] += x0
-    Ell[1, :] += y0
-    ell_size = np.abs(np.pi * width * height)
-    ell_meas = 1 - min(width, height) / max(width, height)
-
-    return Ell, ell_size, ell_meas
 
 
 def find_angle(a, b, c):
@@ -2555,35 +2401,6 @@ def find_angle(a, b, c):
     angle = np.arccos(cosine_angle)
 
     return np.degrees(angle)
-
-
-def find_aligned_point(point, ellipse, sanity_check=True):
-    ellipse_center = np.mean(ellipse, axis=1)
-    index = 0
-
-    angle = 10000
-
-    for i in range(360):
-        angle_temp = find_angle(point, ellipse_center, ellipse[:, i])
-        if angle_temp < angle:
-            angle = angle_temp
-            index = i
-
-    closest_point = ellipse[:, index]
-
-    if sanity_check:
-        plt.figure()
-        plt.plot(ellipse[1], ellipse[0])
-        plt.scatter(ellipse_center[1], ellipse_center[0], marker="+")
-        plt.scatter(closest_point[1], closest_point[0], color="green")
-        plt.scatter(point[1], point[0], color="r")
-
-    return closest_point
-
-
-def compute_distance_between_points(point_1, point_2):
-    distance = np.linalg.norm(point_1 - point_2)
-    return distance
 
 
 # ------------------------------------------------------------------------ #
@@ -2657,36 +2474,6 @@ def fit_gaussian(sta_spatial):
     )
 
 
-def analyse_sta_gabriel(sta, cell_id):
-    sta_3D = sta.copy()
-
-    try:
-        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
-        ellipse_params, cov = fit_gaussian(fitting_data)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-
-    except Exception as e:
-        print(f"Error Could not fit ellipse {cell_id}")
-        fitting_data, spatial_sta = gabriel_preprocessing(sta_3D)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": temporal_sta,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": np.nan,
-        }
-        print(e)
-
-    return {
-        "Spatial": spatial_sta,
-        "Temporal": temporal_sta,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": np.nan,
-    }
-
-
 ####  Matias's STA analysis ####
 
 
@@ -2704,90 +2491,10 @@ def matias_temporal_spatial_sta(sta_3D):
     return sta_temporal, sta_spatial, (best_t, best_x, best_y)
 
 
-def analyse_sta_matias(sta, cell_id):
-    sta_3D = sta.copy()
-
-    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
-    fitting_data = preprocess_fitting_matias(sta_spatial)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": sta_spatial,
-            "Temporal": sta_temporal,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": best[0],
-        }
-    return {
-        "Spatial": sta_spatial,
-        "Temporal": sta_temporal,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": best[0],
-    }
-
-
 ### Guilhem's STA analysis ### (mixed between both)
 
 
-def analyse_sta_guilhem(sta, cell_id):
-    sta_3D = sta.copy()
-    fitting_data, spatial_sta = gabriel_preprocessing(sta_3D, tresholding_factor=1)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-        temporal_sta = gabriel_temporal_sta(sta_3D, ellipse_params)
-        best_t = np.argmax(np.abs(temporal_sta[-15:]))
-        best_t += max(sta.shape[0] - 15, 0)
-
-        spatial_sta = sta_3D[best_t]
-
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": temporal_sta,
-            "EllipseCoor": ellipse_params,
-            "Cell_delay": best_t,
-        }
-
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": spatial_sta,
-            "Temporal": np.zeros(40),
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": np.nan,
-        }
-
-
 ### Tom's STA analysis ### (new fitting of ellipse with new denoising and smoothing of STAs)
-
-
-def analyse_sta_tom(sta, cell_id):
-    sta_3D = sta.copy()
-
-    sta_temporal, sta_spatial, best = matias_temporal_spatial_sta(sta_3D)
-    fitting_data = preprocess_fitting_standard(sta_spatial)
-    try:
-        ellipse_params, cov = double_gaussian_fit(fitting_data)
-    except:
-        print(f"Error Could not fit ellipse {cell_id}")
-        plt.imshow(fitting_data)
-        plt.show(block=False)
-        return {
-            "Spatial": sta_spatial,
-            "Temporal": sta_temporal,
-            "EllipseCoor": [0, 0, 0, 0.001, 0.001, 0],
-            "Cell_delay": best[0],
-        }
-    return {
-        "Spatial": sta_spatial,
-        "Temporal": sta_temporal,
-        "EllipseCoor": ellipse_params,
-        "Cell_delay": best[0],
-    }
 
 
 # New display with max and min equal and new coulor
