@@ -75,8 +75,22 @@ def prompt_user_for_dg_speed():
     return settings["seq_len"], settings["seq_sep"], settings["label"]
 
 
+def infer_n_repetitions_from_vec(vec_keys, n_digit_for_rep: int = 4) -> int:
+    """Infer the number of repetitions per direction from the vec sequence keys.
+
+    Each vec key is ``<direction><repetition>``; the last ``n_digit_for_rep`` digits are
+    the 0-based repetition index. The number of repetitions is therefore the largest
+    repetition index seen, plus one.
+    """
+    reps = np.asarray(vec_keys).astype(int) % (10**n_digit_for_rep)
+    return int(reps.max()) + 1
+
+
 def get_all_inputs_for_dg_analysis(params):
     """Prompt for the recording, vec file and speed, then load everything needed.
+
+    The number of repetitions per direction is read from the vec and shown to you for
+    confirmation (press Enter to accept, or type the correct number).
 
     Parameters
     ----------
@@ -99,6 +113,8 @@ def get_all_inputs_for_dg_analysis(params):
         Separation between gratings on the plot time axis (s).
     DG_directory : str
         Output directory for the DG analysis.
+    n_repetitions : int
+        Number of repetitions per direction (read from the vec, confirmed by the user).
     """
     rec_idx, rec = utils.prompt_user_for_recording(params.recording_names, "DG recording")
     DG_directory = utils.create_analysis_directory(params.output_directory, rec_idx, "DG")
@@ -112,6 +128,15 @@ def get_all_inputs_for_dg_analysis(params):
     vec = np.loadtxt(vec_path)[1:, :]  # drop header line
     vec_keys = vec[:, -1]
 
+    # Number of repetitions per direction: read from the vec, confirmed by the user.
+    detected = infer_n_repetitions_from_vec(vec_keys, n_digit_for_rep=4)
+    answer = input(
+        f"\nDetected {detected} repetitions per direction from the vec. "
+        "Press Enter to accept, or type the correct number: "
+    ).strip()
+    n_repetitions = int(answer) if answer else detected
+    print(f"Using {n_repetitions} repetitions per direction.\n")
+
     triggers_path = os.path.normpath(
         os.path.join(params.triggers_directory, f"{params.exp}_{rec}_triggers.pkl")
     )
@@ -120,7 +145,16 @@ def get_all_inputs_for_dg_analysis(params):
     )
     cells, spike_times = utils.load_spike_times(rec, params.output_directory, params.exp)
 
-    return cells, spike_times, stim_onsets, vec_keys, seq_len, seq_sep, DG_directory
+    return (
+        cells,
+        spike_times,
+        stim_onsets,
+        vec_keys,
+        seq_len,
+        seq_sep,
+        DG_directory,
+        n_repetitions,
+    )
 
 
 # ==========================
@@ -137,6 +171,7 @@ def compute_dg_rasters(
     seq_sep,
     DG_directory,
     params,
+    n_repetitions: int = N_REPETITIONS,
     n_digit_for_rep: int = 4,
 ):
     """Build per-direction rasters and direction tuning for every cell, then save them.
@@ -146,10 +181,11 @@ def compute_dg_rasters(
     ``compute_tuning`` expects: the 8 directions placed side by side on a single
     time axis, one row per repetition, each direction offset by ``seq_sep``.
 
-    For backward compatibility this reproduces the original pipeline exactly:
-    - the first repetition of each direction is dropped (only repetitions 1..3 are used),
-    - the 4th raster row is left empty,
-    - no baseline firing rate is subtracted.
+    ``n_repetitions`` is how many times each direction is shown in YOUR stimulus (the vec)
+    — set it to match your experiment (e.g. 10 for a 10-rep DG). As in the original
+    pipeline, the first repetition of each direction is dropped (repetitions
+    1..n_repetitions-1 are used), the last raster row is left empty, and no baseline
+    firing rate is subtracted.
 
     The result is saved as ``{cell_id: DG_data}`` to ``DG_data_exp<exp>.pkl`` in
     ``DG_directory`` (see ``compute_tuning`` for the contents of ``DG_data``).
@@ -168,11 +204,11 @@ def compute_dg_rasters(
         # Lay the 8 directions side by side on one time axis, one row per repetition.
         # Drop repetition 0 to match the original pipeline: repetitions 1..3 go to rows
         # 0..2, and the 4th row stays empty.
-        ch_raster = [[] for _ in range(N_REPETITIONS)]
+        ch_raster = [[] for _ in range(n_repetitions)]
         for direction_key, sequence in directions.items():
             angle = direction_key_to_angle_index(direction_key)
-            repetitions = sequence["raster"]  # [rep0, rep1, rep2, rep3]
-            for row, rep in enumerate(range(1, N_REPETITIONS)):  # reps 1,2,3 -> rows 0,1,2
+            repetitions = sequence["raster"]  # [rep0, rep1, ..., rep(n_repetitions-1)]
+            for row, rep in enumerate(range(1, n_repetitions)):  # drop rep 0
                 ch_raster[row] = np.append(
                     ch_raster[row], repetitions[rep] + angle * seq_sep
                 )
@@ -180,7 +216,9 @@ def compute_dg_rasters(
         if not list(itertools.chain(*ch_raster)):
             continue  # this cell fired no spikes during the stimulus
 
-        *_, DG_data = compute_tuning(ch_raster, BASELINE_FIRING, seq_len, seq_sep)
+        *_, DG_data = compute_tuning(
+            ch_raster, BASELINE_FIRING, seq_len, seq_sep, n_repeats=n_repetitions
+        )
         DG_set[cell] = DG_data
 
     utils.save_obj(DG_set, os.path.join(DG_directory, f"DG_data_exp{params.exp}"))
@@ -223,6 +261,7 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
     fig = None
     for cell in tqdm(DG_set.keys(), desc="Plotting"):
         data = DG_set[cell]
+        n_rep = len(data["rasters"])  # repetitions used (matches compute_dg_rasters)
 
         fig = plt.figure(figsize=(12, 11))
         fig.suptitle(f"Cell {cell}", fontsize=fontsize + 4)
@@ -234,8 +273,8 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
         for a in range(N_DIRECTIONS):
             ax.axvline(a * seq_sep, color="lightgray", lw=1)  # grating onset
             ax.axvline(a * seq_sep + seq_len, color="lightgray", lw=1)  # grating offset
-        # PSTH drawn above the raster rows (scaled to ~N_REPETITIONS rows tall).
-        psth = data["counts"] / data["maxcount"] * N_REPETITIONS + (N_REPETITIONS + 0.5)
+        # PSTH drawn above the raster rows (scaled to ~n_rep rows tall).
+        psth = data["counts"] / data["maxcount"] * n_rep + (n_rep + 0.5)
         ax.hist(
             data["bins"][:-1],
             data["bins"],
@@ -247,7 +286,7 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
         ax.set_xlim([-seq_sep / 2, seq_sep * N_DIRECTIONS])
         ax.set_xticks([a * seq_sep + seq_len / 2 for a in range(N_DIRECTIONS)])
         ax.set_xticklabels([f"{d}°" for d in direction_degrees], fontsize=fontsize - 2)
-        ax.set_yticks(range(N_REPETITIONS))
+        ax.set_yticks(range(n_rep))
         ax.tick_params(axis="y", labelsize=fontsize - 2)
         ax.set_xlabel("Direction", fontsize=fontsize)
         ax.set_ylabel("Repetition", fontsize=fontsize)

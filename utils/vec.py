@@ -136,34 +136,51 @@ def prompt_user_for_vec_file(vec_directory: str) -> tuple[int, str]:
 
 
 def find_vec_file(vec_filename: str, stim_directory: str) -> str:
-    """Return the path to a stimulus ``.vec`` file, prompting the user if it is missing.
+    """Ask the user which stimulus file to use, from ``stim_directory``.
 
-    The pipeline ships the standard stimulus ``.vec`` files in ``stim_directory``
-    (``params.stim_directory``). This looks for ``vec_filename`` there and returns its
-    path. If that exact file is not present — e.g. your experiment used a different
-    version of the stimulus, with a different name and/or parameters — it lists the
-    ``.vec`` files in the folder and asks you to pick the matching one.
+    ALWAYS prompts: it lists the files of the same type as ``vec_filename`` (e.g. all
+    ``.vec`` files, or all ``.bin`` files) in ``stim_directory`` and asks which one to
+    use. When ``vec_filename`` itself is present it is offered as the default, so you can
+    just press Enter to accept it — but you can always pick a different one (e.g. your own
+    version of the stimulus, with different parameters), which is why it never picks
+    automatically.
 
     Args:
-        vec_filename: the expected ``.vec`` file name.
-        stim_directory: folder holding the stimulus ``.vec`` files (params.stim_directory).
+        vec_filename: the expected / default stimulus file name.
+        stim_directory: folder holding the stimulus files (``params.stim_directory``).
 
     Returns:
-        Full path to the chosen ``.vec`` file.
+        Full path to the chosen stimulus file.
     """
-    path = os.path.join(stim_directory, vec_filename)
-    if os.path.isfile(path):
-        return path
-
-    print(f"\n/!\\ Expected stimulus file '{vec_filename}' was not found in:\n    {stim_directory}")
-    if not os.path.isdir(stim_directory) or not os.listdir(stim_directory):
+    if not os.path.isdir(stim_directory):
         raise FileNotFoundError(
-            f"The stimulus folder is missing or empty:\n    {stim_directory}\n"
-            "Set 'stim_directory' in params.py to the folder that holds your stimulus "
-            "files, or copy the right file there."
+            f"The stimulus folder does not exist:\n    {stim_directory}\n"
+            "Set 'stim_directory' in params.py to the folder that holds your stimulus files."
         )
-    print("Your experiment may use a different version — pick the matching stimulus file:")
-    _, chosen = prompt_user_for_vec_file(stim_directory)
+    ext = os.path.splitext(vec_filename)[1]  # ".vec" or ".bin"
+    files = sorted(f for f in os.listdir(stim_directory) if f.endswith(ext))
+    if not files:
+        raise FileNotFoundError(
+            f"No '{ext}' files found in:\n    {stim_directory}\n"
+            "Copy the right file there, or set 'stim_directory' in params.py."
+        )
+
+    default_idx = files.index(vec_filename) if vec_filename in files else None
+    print(f"\nStimulus files in {stim_directory}:")
+    for i, f in enumerate(files):
+        print(f"    {i} : {f}" + ("   <- default" if i == default_idx else ""))
+
+    if default_idx is not None:
+        answer = input(
+            f"Pick a file number, or press Enter for the default ({vec_filename}): "
+        ).strip()
+        chosen = files[int(answer)] if answer else vec_filename
+    else:
+        print(f"(the expected file '{vec_filename}' is not in this folder)")
+        answer = input("Pick the matching file number: ").strip()
+        chosen = files[int(answer)]
+
+    print(f"Using stimulus file: {chosen}\n")
     return os.path.join(stim_directory, chosen)
 
 
