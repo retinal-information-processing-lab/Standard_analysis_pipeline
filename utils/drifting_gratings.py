@@ -105,10 +105,11 @@ def get_all_inputs_for_dg_analysis(params):
 
     seq_len, seq_sep, _ = prompt_user_for_dg_speed()
 
-    # Vec file: its last column gives the direction+repetition key of every trigger.
-    vec_directory = os.path.join(params.root, "VEC_Files")
-    _, vec_filename = utils.prompt_user_for_vec_file(vec_directory)
-    vec = np.loadtxt(os.path.join(vec_directory, vec_filename))[1:, :]  # drop header line
+    # Vec file (its last column gives the direction+repetition key of every trigger).
+    # Looks for the standard DG vec in params.stim_directory; if your experiment used a
+    # different version, it lists the .vec files there and asks you to pick the right one.
+    vec_path = utils.find_vec_file("DG_50hZ_8reps_8dir_2sT_std.vec", params.stim_directory)
+    vec = np.loadtxt(vec_path)[1:, :]  # drop header line
     vec_keys = vec[:, -1]
 
     triggers_path = os.path.normpath(

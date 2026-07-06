@@ -135,6 +135,38 @@ def prompt_user_for_vec_file(vec_directory: str) -> tuple[int, str]:
     return vec_number, vec_filename
 
 
+def find_vec_file(vec_filename: str, stim_directory: str) -> str:
+    """Return the path to a stimulus ``.vec`` file, prompting the user if it is missing.
+
+    The pipeline ships the standard stimulus ``.vec`` files in ``stim_directory``
+    (``params.stim_directory``). This looks for ``vec_filename`` there and returns its
+    path. If that exact file is not present — e.g. your experiment used a different
+    version of the stimulus, with a different name and/or parameters — it lists the
+    ``.vec`` files in the folder and asks you to pick the matching one.
+
+    Args:
+        vec_filename: the expected ``.vec`` file name.
+        stim_directory: folder holding the stimulus ``.vec`` files (params.stim_directory).
+
+    Returns:
+        Full path to the chosen ``.vec`` file.
+    """
+    path = os.path.join(stim_directory, vec_filename)
+    if os.path.isfile(path):
+        return path
+
+    print(f"\n/!\\ Expected stimulus file '{vec_filename}' was not found in:\n    {stim_directory}")
+    if not os.path.isdir(stim_directory) or not os.listdir(stim_directory):
+        raise FileNotFoundError(
+            f"The stimulus folder is missing or empty:\n    {stim_directory}\n"
+            "Set 'stim_directory' in params.py to the folder that holds your stimulus "
+            "files, or copy the right file there."
+        )
+    print("Your experiment may use a different version — pick the matching stimulus file:")
+    _, chosen = prompt_user_for_vec_file(stim_directory)
+    return os.path.join(stim_directory, chosen)
+
+
 def build_spikes_per_sequence_dict(
     cells: list,
     spike_times: dict,

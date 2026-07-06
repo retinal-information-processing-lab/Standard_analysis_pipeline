@@ -226,25 +226,6 @@ def load_checkerboard_data(
 # pipeline; only the stimulus reconstruction and one decorrelation step differ.
 # ------------------------------------------------------------------------------------------------------------------- #
 
-def _check_swn_files_exist(bin_path: str, vec_path: str) -> None:
-    """Raise a clear, actionable error if the (large, non-versioned) SWN files are missing."""
-    for label, path in [
-        ("SWN .bin file (raw noise frames)", bin_path),
-        ("SWN .vec file (frame list)", vec_path),
-    ]:
-        if not os.path.isfile(path):
-            raise FileNotFoundError(
-                f"\nCannot find the {label} at:\n    {path}\n\n"
-                "The SWN stimulus files are very large and are NOT stored in this repository.\n"
-                "To run the SWN analysis:\n"
-                "  1. Get the SWN .bin and .vec for this recording. Small debug copies are in\n"
-                "     'RessourcesAndTools/StimMaking/'; the full files are usually under\n"
-                "     'LabPipeline/SWN/'.\n"
-                "  2. Copy them somewhere on your machine.\n"
-                "  3. Set 'swn_bin_path' and 'swn_vec_path' in params.py to point at them.\n"
-            )
-
-
 def load_swn_stimulus(
     bin_path: str,
     vec_path: str,
@@ -274,8 +255,6 @@ def load_swn_stimulus(
         C_I: np.ndarray (H*W, H*W) regularised stimulus covariance matrix.
     """
     from .binfile import BinFile
-
-    _check_swn_files_exist(bin_path, vec_path)
 
     vec_data = np.loadtxt(vec_path)
     vec_trigs, vec_header = vec_data[1:], vec_data[0]
@@ -315,8 +294,9 @@ def load_swn_data(
     covariance matrix C_I is returned for the later STA decorrelation.
 
     Args:
-        params: params module (uses triggers_directory, exp, fs, output_directory,
-            MEA, swn_bin_path, swn_vec_path, swn_shift_x, swn_shift_y, swn_cov_regularization).
+        params: params module (uses triggers_directory, exp, fs, output_directory, MEA,
+            stim_directory, swn_bin_file, swn_vec_file, swn_shift_x, swn_shift_y,
+            swn_cov_regularization).
         swn_recording_name: the SWN recording name (to locate its triggers/spikes).
         stimulus_frequency: stimulus frequency in Hz.
 
@@ -333,9 +313,13 @@ def load_swn_data(
     )
     nb_repeats, _ = calculate_checkerboard_experiment_stats(stim_onsets, params, stimulus_frequency)
 
+    # Resolve the SWN .bin/.vec from the stimulus folder (prompts if the exact file is
+    # not there), the same way the other analyses find their .vec files.
+    swn_bin_path = utils.find_vec_file(params.swn_bin_file, params.stim_directory)
+    swn_vec_path = utils.find_vec_file(params.swn_vec_file, params.stim_directory)
     stimulus, C_I = load_swn_stimulus(
-        params.swn_bin_path,
-        params.swn_vec_path,
+        swn_bin_path,
+        swn_vec_path,
         params.MEA,
         params.swn_shift_x,
         params.swn_shift_y,

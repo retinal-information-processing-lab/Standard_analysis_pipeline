@@ -66,7 +66,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
 
     # Load the chirp vec keys (last column) used to split spikes per repetition.
     vec_filename = CHIRP_VEC_FILES[old]
-    vec_path = os.path.join(params.stim_directory, vec_filename)
+    vec_path = utils.find_vec_file(vec_filename, params.stim_directory)
     vec_keys = np.loadtxt(vec_path)[1:, -1]  # drop header row
     print(f"Chirp vec keys loaded : {vec_filename}")
 
@@ -209,13 +209,13 @@ def plot_chirp_rasters(
     )
 
     if old:
-        vec_path = os.path.join(params.stim_directory, r"EulerStim180530.vec")
+        vec_path = utils.find_vec_file("EulerStim180530.vec", params.stim_directory)
         euler_vec = -np.genfromtxt(vec_path)
         rep_lenght = 25
         n_bins = 625
 
     else:
-        vec_path = os.path.join(params.stim_directory, r"Euler_50Hz_20reps_1024x768pix.vec")
+        vec_path = utils.find_vec_file("Euler_50Hz_20reps_1024x768pix.vec", params.stim_directory)
         euler_vec = np.genfromtxt(vec_path)
         rep_lenght = 32
         n_bins = 800

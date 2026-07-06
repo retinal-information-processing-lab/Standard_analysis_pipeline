@@ -56,8 +56,16 @@ basic_params = {
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
 phy_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting/recording_0/recording_0.GUI"
 
-# Folder holding the stimulus (.vec) files used by the chirp / DG / cell-typing steps.
-stim_directory = r"./RessourcesAndTools/StimMaking"
+# ---------------------------------------------------------------------------
+# Stimulus (.vec) files
+# ---------------------------------------------------------------------------
+# Folder holding the standard stimulus ".vec" files (chirp, drifting-gratings,
+# cell-typing). The pipeline ships them in "RessourcesAndTools/StandardVec".
+# If YOUR experiment used a different version of a stimulus (a differently-named .vec,
+# possibly with different parameters), either drop that .vec into this folder, or point
+# this path at wherever your .vec files live. When a step cannot find the .vec it expects
+# here, it lists the .vec files in this folder and asks you to pick the right one.
+stim_directory = r"./RessourcesAndTools/StandardVec"
 
 
 # setup MEA parameters (always check!)
@@ -175,25 +183,30 @@ def find_files(path: str):
     )
 
 
-def find_phy_directory(sorting_directory: str):
-    """Locate the phy export folder (name ends in '.GUI') inside the sorting directory.
+def find_phy_directory(search_dirs):
+    """Locate the phy export folder (name ends in '.GUI').
 
     Phy writes its arrays (spike_clusters.npy, spike_times.npy, ...) into a folder
-    whose name ends in '.GUI'. Its exact name and depth depend on how the sorting was
-    run, so we search for it (down to 3 levels) rather than hardcoding a name.
+    whose name ends in '.GUI'. Its name and location depend on how the sorting was run:
+    it may sit under the Sorting folder, or next to the raw file in the recordings
+    folder. So we search several directories (up to 3 levels deep) instead of hardcoding.
+
+    Args:
+        search_dirs: a directory, or a list of directories, to search.
 
     Returns:
-        Path to the .GUI folder, or None if none is found yet (e.g. before the sorting
-        has been run). If several are found, the first is used and the rest are listed.
+        Path to the .GUI folder, or None if none is found. If several are found, the
+        first is returned and the rest are listed.
     """
-    if not os.path.isdir(sorting_directory):
-        return None
-    candidates = (
-        glob.glob(os.path.join(sorting_directory, "*.GUI"))
-        + glob.glob(os.path.join(sorting_directory, "*", "*.GUI"))
-        + glob.glob(os.path.join(sorting_directory, "*", "*", "*.GUI"))
-    )
-    candidates = sorted(os.path.normpath(c) for c in candidates if os.path.isdir(c))
+    if isinstance(search_dirs, str):
+        search_dirs = [search_dirs]
+    candidates = []
+    for base in search_dirs:
+        if base and os.path.isdir(base):
+            candidates += glob.glob(os.path.join(base, "*.GUI"))
+            candidates += glob.glob(os.path.join(base, "*", "*.GUI"))
+            candidates += glob.glob(os.path.join(base, "*", "*", "*.GUI"))
+    candidates = sorted({os.path.normpath(c) for c in candidates if os.path.isdir(c)})
     if not candidates:
         return None
     if len(candidates) > 1:
@@ -212,39 +225,38 @@ def create_path_automatically(params: dict):
     # listed in the input_file
     recording_directory = os.path.join(params["root"], params["raw_files_folder"])
 
-    # Sorting folder (where spiking-circus / phy output lives). Default is
-    # <root>/Sorting; override it if you sorted on another machine / folder.
-    # Only the default location is auto-created (an override is expected to exist).
+    # Sorting folder (where spike-sorting / phy output lives). This is only a PATH:
+    # it is NOT created here. You only need it if you run the sorting with this pipeline,
+    # and that step creates it on demand — so users who sort elsewhere get no empty
+    # "Sorting" folder. Override it if you sorted in another location.
     if sorting_directory_override:
-        symbolic_link_directory = os.path.normpath(sorting_directory_override)
-        if os.path.isdir(symbolic_link_directory):
-            print(f'- "Sorting" path (override): {symbolic_link_directory}')
-        else:
-            print(f'- /!\\ "Sorting" override path not found: {symbolic_link_directory}')
+        sorting_directory = os.path.normpath(sorting_directory_override)
     else:
-        symbolic_link_directory = os.path.join(params["root"], r"Sorting")
-        if not os.path.exists(symbolic_link_directory):
-            os.makedirs(symbolic_link_directory)
-            print(f'- Created "Sorting" path: {symbolic_link_directory}')
-        else:
-            print('- "Sorting" path already exists')
+        sorting_directory = os.path.join(params["root"], r"Sorting")
+    # kept for backward compatibility (create_symlinks still expects this name)
+    symbolic_link_directory = sorting_directory
 
-    # copy path
-    sorting_directory = symbolic_link_directory
-
-    # phy ".GUI" folder (spike_clusters.npy, spike_times.npy, ...). Resolution order:
-    #   1. explicit user override (phy_directory_override)
-    #   2. auto-detected *.GUI folder inside the sorting directory (after sorting)
-    #   3. the conventional default, used before the sorting has been run
+    # phy ".GUI" folder (contains spike_clusters.npy, spike_times.npy, ...).
+    # Resolution order:
+    #   1. explicit override (phy_directory_override)
+    #   2. auto-detected *.GUI folder, searched in BOTH the Sorting folder and the raw-
+    #      recordings folder (spyking-circus often writes it next to the raw file)
     if phy_directory_override:
         phy_directory = os.path.normpath(phy_directory_override)
+        ok = "" if os.path.isdir(phy_directory) else "   /!\\ (this path does not exist!)"
+        print(f"- phy (.GUI): using your override{ok}\n    {phy_directory}")
     else:
-        phy_directory = find_phy_directory(symbolic_link_directory)
-        if phy_directory is None:
-            phy_directory = os.path.normpath(
-                os.path.join(symbolic_link_directory, r"recording_00/recording_00.GUI")
+        phy_directory = find_phy_directory([sorting_directory, recording_directory])
+        if phy_directory is not None:
+            print(f"- phy (.GUI): found automatically\n    {phy_directory}")
+        else:
+            phy_directory = os.path.join(sorting_directory, "recording_00", "recording_00.GUI")
+            print(
+                "- phy (.GUI): NOT found yet — no '.GUI' folder under the Sorting or the\n"
+                "    raw-recordings folder. This is fine if you have not sorted yet.\n"
+                "    If you HAVE sorted, set 'phy_directory_override' in params.py to your\n"
+                "    .GUI folder (the one containing spike_clusters.npy)."
             )
-    print(f'- phy (.GUI) path: {phy_directory}')
 
     # Link to the directory where output data should be saved
     output_directory = os.path.join(params["root"], r"Analysis")
@@ -329,15 +341,17 @@ make_dict_keys_global_variables(most_advanced_params)
 
 # ---------------------------------------------------------------------------
 # SWN (Sparse White Noise) stimulus — an alternative to the checkerboard.
-# Used by 2-Analyse_Checkerboard.ipynb when is_swn = True. The .bin (raw noise
-# frames) and .vec files are large and live OUTSIDE the repo (debug copies are in
-# RessourcesAndTools/StimMaking/). Point these paths at your SWN files. The MEA /
-# rig id and DMD pixel size are taken from the MEA settings above (MEA, pxl_size_dmd).
-# The filename usually encodes the settings, e.g.
+# Used by 2-Analyse_Checkerboard.ipynb when is_swn = True.
+# Give just the file NAMES: they are looked up in 'stim_directory' (StandardVec),
+# exactly like the other stimulus files — and if a name is not found there, the folder
+# is listed and you are asked to pick the matching file. The real SWN .bin can be very
+# large; if you keep it outside the repo, put its full absolute path here instead of a
+# bare file name (that works too). The MEA/rig id and DMD pixel size come from the MEA
+# settings above. The name usually encodes the settings, e.g.
 #   20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2  ->  48 px/check, 6 px shift, 30 Hz, MEA 2
 # ---------------------------------------------------------------------------
-swn_bin_path = "/home/idv-s8/Documents/LabPipeline/SWN/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
-swn_vec_path = "/home/idv-s8/Documents/LabPipeline/SWN/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
+swn_bin_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
+swn_vec_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
 swn_shift_x = 6  # spatial down-sampling step in x (pixels) — matches "6pixShift" in the stim design
 swn_shift_y = 6  # spatial down-sampling step in y (pixels)
 swn_cov_regularization = 5.0  # sigma added to the stimulus-covariance diagonal (stabilises STA whitening)
