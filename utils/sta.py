@@ -571,19 +571,47 @@ def add_scalebar(
     ax,
     scalebar_size_um,
     pixel_size_um,
-    scalebar_left_location,
-    nx,
-    ny,
-    scale_bar_color,
-    scale_bar_width,
+    scalebar_left_location=(0.9, 0.9),
+    nx=None,
+    ny=None,
+    scale_bar_color="black",
+    scale_bar_width=4,
+    label=True,
+    fontsize=10,
 ):
-    scalebar_size_px = scalebar_size_um / pixel_size_um
-    scale_bar_x = [
-        scalebar_left_location[0] * nx - scalebar_size_px,
-        scalebar_left_location[0] * nx,
-    ]
-    scale_bar_y = [scalebar_left_location[1] * ny, scalebar_left_location[1] * ny]
-    ax.plot(scale_bar_x, scale_bar_y, color=scale_bar_color, lw=scale_bar_width)
+    """Draw a labelled scale bar of ``scalebar_size_um`` micrometres on an image axis.
+
+    The bar is placed in axes fractions (``scalebar_left_location`` = the (x, y) of its
+    RIGHT end, both in 0-1) so it stays visible even on a zoomed receptive-field plot,
+    and its length is scaled to the current view so it always represents the true
+    physical size. When ``label`` is True the size (e.g. "100 µm") is written just below
+    the bar. ``nx``/``ny`` are kept for backward compatibility but are no longer used.
+    """
+    view_px = abs(ax.get_xlim()[1] - ax.get_xlim()[0])  # current view width, in STA pixels
+    bar_frac = (scalebar_size_um / pixel_size_um) / view_px  # bar length as an axes fraction
+    x_right, y = scalebar_left_location
+    x_left = x_right - bar_frac
+    ax.plot(
+        [x_left, x_right],
+        [y, y],
+        transform=ax.transAxes,
+        color=scale_bar_color,
+        lw=scale_bar_width,
+        solid_capstyle="butt",
+        clip_on=False,
+    )
+    if label:
+        ax.text(
+            (x_left + x_right) / 2,
+            y - 0.03,
+            f"{scalebar_size_um:.0f} µm",
+            transform=ax.transAxes,
+            color=scale_bar_color,
+            ha="center",
+            va="top",
+            fontsize=fontsize,
+            clip_on=False,
+        )
     return
 
 

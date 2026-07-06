@@ -227,6 +227,17 @@ def create_id_cards_and_plots(
         utils.plot_sta(ax, spatial, ellipse, level_factor=level_factor, color="yellow")
         ax.set_xticks([])
         ax.set_yticks([])
+        # Scale bar (legend for the RF size), labelled with its length.
+        if "Spatial_unit_size_um" in sta_analysis:
+            utils.add_scalebar(
+                ax,
+                scalebar_size_um=100,
+                pixel_size_um=sta_analysis["Spatial_unit_size_um"],
+                scalebar_left_location=(0.95, 0.1),
+                scale_bar_color="black",
+                scale_bar_width=3,
+                fontsize=max(8, fontsize - 4),
+            )
 
         title = "Spatial receptive field"
         try:

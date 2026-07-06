@@ -115,6 +115,7 @@ TODO (Chiara):
     10. New version of preprocessing (spiking circus part not tested)
     11. Added SWAN integration
     12. Added BackUp guide and reminder
+    13. Added bar for RF size everywhere needed
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)

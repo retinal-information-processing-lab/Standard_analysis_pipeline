@@ -693,6 +693,17 @@ def create_cluster_summary_figure(
                 ax.set_aspect("equal")
                 ax.set_xticks([])
                 ax.set_yticks([])
+                # Scale bar (legend for the RF size), labelled with its length.
+                if "Spatial_unit_size_um" in sta_results[cell_nb]["sta_analysis"]:
+                    utils.add_scalebar(
+                        ax,
+                        scalebar_size_um=100,
+                        pixel_size_um=sta_results[cell_nb]["sta_analysis"]["Spatial_unit_size_um"],
+                        scalebar_left_location=(0.95, 0.13),
+                        scale_bar_color="black",
+                        scale_bar_width=3,
+                        fontsize=max(6, fontsize - 4),
+                    )
                 gaussian = utils.gaussian2D(spatial.shape, *ellipse)
                 if ellipse[0] != 0:
                     ax_ellipses.contour(
