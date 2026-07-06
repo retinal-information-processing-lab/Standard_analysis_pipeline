@@ -117,6 +117,14 @@ def gaussian2D_flat(x, amp, x0, y0, rx, ry, rot):
     return gaussian2D(x, amp, x0, y0, rx, ry, rot).flatten()
 
 
+def reduced_gaussian2D(x, amp, rx, ry, rot):
+    # "Reduced" 2D gaussian used for the first fit stage of double_gaussian_fit: the
+    # center is held FIXED (passed inside x) and only amplitude/radii/rotation are fit.
+    # x packs [ny, nx, x0, y0] — the spatial STA shape and the peak location.
+    ny, nx, x0, y0 = x
+    return gaussian2D((ny, nx), amp, x0, y0, rx, ry, rot)
+
+
 def reduced_gaussian2D_flat(x, amp, rx, ry, rot):
     return reduced_gaussian2D(x, amp, rx, ry, rot).flatten()
 

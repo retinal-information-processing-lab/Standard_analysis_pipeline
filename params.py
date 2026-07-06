@@ -15,6 +15,7 @@ Returns:
 """
 
 import os
+import glob
 
 # setup pipeline parameters
 # relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
@@ -23,23 +24,41 @@ ressources = r"./ressources"
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"./data/20251215_Bird_vs_retina_4",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20251215_Bird_vs_retina_4",  # name of your experiment for saving the triggers
+    "root": r"/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # name of your experiment for saving the triggers
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20251215_meas00_SWN_30Hz",
-        "20251215_meas01_chirp_50Hz",
-        "20251215_meas02_DG_2sT_50Hz",
-        "20251215_meas03_Bird_40HZ_part1",
-        "20251215_meas04_Bird_40HZ_part2",
-        "20251215_meas05_Bird_40HZ_part3",
-        "20251215_meas06_SWN_30Hz",
-        "20251215_meas07_chirp_50Hz",
-        "20251215_meas08_DG_2sT_50Hz",
+        "20260702_00_SWN_30Hz",
+        "20260702_01_SWN_30Hz",
+        "20260702_02_chirp_50Hz",
+        "20260702_03_DG_2sT_10rep_8dir_50Hz",
+        "20260702_04_barcode_3dir_50Hz",
+        "20260702_05_black_eagle_CTL_40Hz",
+        "20260702_05_black_eagle_CTL_40Hz_part2",
+        "20260702_06_SWN_drug_being_added_30Hz",
+        "20260702_07_black_eagle_strychnine_40Hz",
+        "20260702_08_SWN_drug_being_removed_30Hz",
+        "20260702_09_black_eagle_post_strychnine_CTL_40Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
+
+
+# ---------------------------------------------------------------------------
+# Paths that can differ per user / machine — EDIT these if your setup differs.
+# (Leave a value as None to use the automatic default.)
+# ---------------------------------------------------------------------------
+# Spike-sorting output:
+#   - If you ran the sorting with notebook 1, leave both as None: the Sorting folder
+#     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
+#   - If you sorted on another machine / in another folder, set the path(s) explicitly.
+sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
+phy_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting/recording_0/recording_0.GUI"
+
+# Folder holding the stimulus (.vec) files used by the chirp / DG / cell-typing steps.
+stim_directory = r"./RessourcesAndTools/StimMaking"
+
 
 # setup MEA parameters (always check!)
 mea_params = {
@@ -156,6 +175,36 @@ def find_files(path: str):
     )
 
 
+def find_phy_directory(sorting_directory: str):
+    """Locate the phy export folder (name ends in '.GUI') inside the sorting directory.
+
+    Phy writes its arrays (spike_clusters.npy, spike_times.npy, ...) into a folder
+    whose name ends in '.GUI'. Its exact name and depth depend on how the sorting was
+    run, so we search for it (down to 3 levels) rather than hardcoding a name.
+
+    Returns:
+        Path to the .GUI folder, or None if none is found yet (e.g. before the sorting
+        has been run). If several are found, the first is used and the rest are listed.
+    """
+    if not os.path.isdir(sorting_directory):
+        return None
+    candidates = (
+        glob.glob(os.path.join(sorting_directory, "*.GUI"))
+        + glob.glob(os.path.join(sorting_directory, "*", "*.GUI"))
+        + glob.glob(os.path.join(sorting_directory, "*", "*", "*.GUI"))
+    )
+    candidates = sorted(os.path.normpath(c) for c in candidates if os.path.isdir(c))
+    if not candidates:
+        return None
+    if len(candidates) > 1:
+        print(
+            "- /!\\ Several phy (.GUI) folders found; using the first. "
+            "Set phy_directory_override in params.py to pick another:"
+        )
+        print(*[f"    {c}" for c in candidates], sep="\n")
+    return candidates[0]
+
+
 def create_path_automatically(params: dict):
     print("\n-------- Creating all paths ---------\n")
 
@@ -163,23 +212,39 @@ def create_path_automatically(params: dict):
     # listed in the input_file
     recording_directory = os.path.join(params["root"], params["raw_files_folder"])
 
-    # Link to the folder where spiking circus will look
-    # for the symbolic links "recording_0i.raw"
-    symbolic_link_directory = os.path.join(params["root"], r"Sorting")
-    if not os.path.exists(symbolic_link_directory):
-        os.makedirs(symbolic_link_directory)
-        print(f'- Created "Sorting" path: {symbolic_link_directory}')
+    # Sorting folder (where spiking-circus / phy output lives). Default is
+    # <root>/Sorting; override it if you sorted on another machine / folder.
+    # Only the default location is auto-created (an override is expected to exist).
+    if sorting_directory_override:
+        symbolic_link_directory = os.path.normpath(sorting_directory_override)
+        if os.path.isdir(symbolic_link_directory):
+            print(f'- "Sorting" path (override): {symbolic_link_directory}')
+        else:
+            print(f'- /!\\ "Sorting" override path not found: {symbolic_link_directory}')
     else:
-        print('- "Sorting" path already exists')
+        symbolic_link_directory = os.path.join(params["root"], r"Sorting")
+        if not os.path.exists(symbolic_link_directory):
+            os.makedirs(symbolic_link_directory)
+            print(f'- Created "Sorting" path: {symbolic_link_directory}')
+        else:
+            print('- "Sorting" path already exists')
 
     # copy path
     sorting_directory = symbolic_link_directory
 
-    # link to .GUI directory where phy extracts all
-    # arrays and data on spikes (folder name ends by .GUI)
-    phy_directory = os.path.normpath(
-        os.path.join(symbolic_link_directory, r"recording_00/recording_00.GUI")
-    )
+    # phy ".GUI" folder (spike_clusters.npy, spike_times.npy, ...). Resolution order:
+    #   1. explicit user override (phy_directory_override)
+    #   2. auto-detected *.GUI folder inside the sorting directory (after sorting)
+    #   3. the conventional default, used before the sorting has been run
+    if phy_directory_override:
+        phy_directory = os.path.normpath(phy_directory_override)
+    else:
+        phy_directory = find_phy_directory(symbolic_link_directory)
+        if phy_directory is None:
+            phy_directory = os.path.normpath(
+                os.path.join(symbolic_link_directory, r"recording_00/recording_00.GUI")
+            )
+    print(f'- phy (.GUI) path: {phy_directory}')
 
     # Link to the directory where output data should be saved
     output_directory = os.path.join(params["root"], r"Analysis")
@@ -260,3 +325,19 @@ make_dict_keys_global_variables(basic_params)
 make_dict_keys_global_variables(mea_params)
 make_dict_keys_global_variables(advanced_params)
 make_dict_keys_global_variables(most_advanced_params)
+
+
+# ---------------------------------------------------------------------------
+# SWN (Sparse White Noise) stimulus — an alternative to the checkerboard.
+# Used by 2-Analyse_Checkerboard.ipynb when is_swn = True. The .bin (raw noise
+# frames) and .vec files are large and live OUTSIDE the repo (debug copies are in
+# RessourcesAndTools/StimMaking/). Point these paths at your SWN files. The MEA /
+# rig id and DMD pixel size are taken from the MEA settings above (MEA, pxl_size_dmd).
+# The filename usually encodes the settings, e.g.
+#   20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2  ->  48 px/check, 6 px shift, 30 Hz, MEA 2
+# ---------------------------------------------------------------------------
+swn_bin_path = "/home/idv-s8/Documents/LabPipeline/SWN/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
+swn_vec_path = "/home/idv-s8/Documents/LabPipeline/SWN/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
+swn_shift_x = 6  # spatial down-sampling step in x (pixels) — matches "6pixShift" in the stim design
+swn_shift_y = 6  # spatial down-sampling step in y (pixels)
+swn_cov_regularization = 5.0  # sigma added to the stimulus-covariance diagonal (stabilises STA whitening)

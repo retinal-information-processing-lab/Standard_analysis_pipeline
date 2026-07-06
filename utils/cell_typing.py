@@ -8,6 +8,7 @@ from sklearn.cluster import AgglomerativeClustering
 import scipy as sc
 
 import utils
+import params
 
 #############################################
 ######            Clustering           ######
@@ -422,7 +423,7 @@ def run_cell_typing_AC(
     # Input---------------------------------------------------
 
     sta_results = np.load(
-        os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
+        os.path.join(check_directory, "sta_data_analysed_extended.pkl"), allow_pickle=True
     )
 
     # Processing-----------------------------------------------------------
@@ -432,7 +433,7 @@ def run_cell_typing_AC(
     valid_cells, dropped = [], []
     for cell_id in selected_cells:
         sta_tc = np.asarray(
-            sta_results[cell_id]["center_analyse"]["Temporal"][-21:], dtype=float
+            sta_results[cell_id]["sta_analysis"]["Temporal"][-21:], dtype=float
         )
         psth_ok = np.std(cell_data[cell_id]["psth"]) > 0
         sta_ok = np.all(np.isfinite(sta_tc)) and np.std(sta_tc) > 0
@@ -478,7 +479,7 @@ def run_cell_typing_AC(
     STA_time_course = np.zeros((n_cells, 21))  # 21 data points for these STAs
     for cell_index in range(len(selected_cells)):
         cell_id = selected_cells[cell_index]
-        TempSTA_cell = sta_results[selected_cells[cell_index]]["center_analyse"][
+        TempSTA_cell = sta_results[selected_cells[cell_index]]["sta_analysis"][
             "Temporal"
         ][-21:]
         STA_time_course[cell_index] = TempSTA_cell
@@ -503,8 +504,8 @@ def run_cell_typing_AC(
     for cell_index in range(len(selected_cells)):
         cell_id = selected_cells[cell_index]
         width, height = [
-            sta_results[selected_cells[cell_index]]["center_analyse"]["EllipseCoor"][3],
-            sta_results[selected_cells[cell_index]]["center_analyse"]["EllipseCoor"][4],
+            sta_results[selected_cells[cell_index]]["sta_analysis"]["EllipseCoor"][3],
+            sta_results[selected_cells[cell_index]]["sta_analysis"]["EllipseCoor"][4],
         ]
         #     width,height = cell_data[cell_id]["ellipseSigmaXY"]
         ell_size[cell_index] = np.abs(np.pi * width * height)
@@ -626,8 +627,8 @@ def create_cluster_summary_figure(
 
     euler_vec = None
     try:
-        vec_name = "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix.vec"
-        euler_vec = np.genfromtxt(os.path.join("./ressources", vec_name))
+        vec_name = "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix_std.vec"
+        euler_vec = np.genfromtxt(os.path.join(params.stim_directory, vec_name))
         if old:
             euler_vec = -euler_vec
     except Exception as err:
@@ -684,8 +685,8 @@ def create_cluster_summary_figure(
             # --- Spatial STA (broad zoom) + ellipse overlay ---
             ax = fig.add_subplot(gs[row, 1])
             try:
-                ellipse = sta_results[cell_nb]["center_analyse"]["EllipseCoor"]
-                spatial = sta_results[cell_nb]["center_analyse"]["Spatial"]
+                ellipse = sta_results[cell_nb]["sta_analysis"]["EllipseCoor"]
+                spatial = sta_results[cell_nb]["sta_analysis"]["Spatial"]
                 x0, y0 = ellipse[1], ellipse[2]
                 utils.plot_sta(ax, spatial, ellipse)
                 ax.set_xlim(x0 - rf_zoom, x0 + rf_zoom)
@@ -707,7 +708,7 @@ def create_cluster_summary_figure(
             ax = fig.add_subplot(gs[row, 2])
             try:
                 temporal = np.asarray(
-                    sta_results[cell_nb]["center_analyse"]["Temporal"][-21:], dtype=float
+                    sta_results[cell_nb]["sta_analysis"]["Temporal"][-21:], dtype=float
                 )
                 ax.step(np.linspace(-21 / 30, 0, 21), temporal, "k", lw=2)
                 ax.axhline(0, color="k", lw=0.5)

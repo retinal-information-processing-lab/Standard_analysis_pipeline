@@ -8,6 +8,7 @@ from math import *
 
 
 import utils
+import params
 
 
 def import_data_to_plot(params: dict):
@@ -45,19 +46,30 @@ def import_data_to_plot(params: dict):
     phy_directory = params.phy_directory
 
     # Find analysis directories
-    check_directory = utils.find_analysis_directory(output_directory, dir_type="Checkerboard")
+    check_directory = utils.find_analysis_directory(
+        output_directory, dir_type="Checkerboard"
+    )
     DG_directory = utils.find_analysis_directory(output_directory, dir_type="DG")
-    CT_directory = utils.find_analysis_directory(output_directory, dir_type="CellTyping")
+    CT_directory = utils.find_analysis_directory(
+        output_directory, dir_type="CellTyping"
+    )
 
     # Load data
     # load chirp stimulus for plotting the profile
-    vec_path = os.path.join("./ressources", r"Euler_50Hz_20reps_1024x768pix.vec")
+    vec_path = os.path.join(
+        params.stim_directory, r"Euler_50Hz_20reps_1024x768pix.vec"
+    )
     euler_vec = np.genfromtxt(vec_path)
 
-    # load the check rasters of the recording of choice
-    check_rast = np.load(
-        os.path.join(check_directory, "Check_rasters_data.npy"), allow_pickle=True
-    ).item()
+    # load the checkerboard repeated-sequence rasters (notebook 2 saves them via
+    # save_obj, i.e. as "Check_rasters_data.pkl", not a standalone .npy anymore)
+    if not os.path.isfile(os.path.join(check_directory, "Check_rasters_data.pkl")):
+        print(
+            "Checkerboard rasters not found. If you did not use SWAN, please run the checkerboard analysis (notebook 2) first."
+        )
+        check_rast = None
+    else:
+        check_rast = utils.load_obj(os.path.join(check_directory, "Check_rasters_data.pkl"))
 
     # load the DG data
     DG_data = np.load(
@@ -114,7 +126,7 @@ def select_and_save_good_cells(
     """
     good_cells = []
     for cell_nb in cells:
-        if cell_rpvs[cell_nb]["rpv"] < 0.5:
+        if cell_rpvs[cell_nb]["rpv"] < rpv_threshold:
             good_cells.append(cell_nb)
 
     good_cells = np.array(good_cells)
@@ -210,7 +222,9 @@ def create_id_cards_and_plots(
         sta_analysis = sta_results[cell_nb]["sta_analysis"]
         ellipse = sta_analysis["EllipseCoor"]
         spatial = sta_analysis["Spatial"]
-        level_factor = np.exp(-(n_sigma**2) / 2)  # peak fraction of a Gaussian at n_sigma
+        level_factor = np.exp(
+            -(n_sigma**2) / 2
+        )  # peak fraction of a Gaussian at n_sigma
         utils.plot_sta(ax, spatial, ellipse, level_factor=level_factor, color="yellow")
         ax.set_xticks([])
         ax.set_yticks([])
@@ -218,10 +232,16 @@ def create_id_cards_and_plots(
         title = "Spatial receptive field"
         try:
             if ellipse[0] != 0 and sta_analysis.get("FittedEllipse", True):
-                snr = utils.rf_snr(spatial, ellipse, method="peak_std", level_factor=level_factor)
+                snr = utils.rf_snr(
+                    spatial, ellipse, method="peak_std", level_factor=level_factor
+                )
                 if "EllipseCoor_um" in sta_analysis:
-                    diameter = utils.ellipse_diameter(sta_analysis["EllipseCoor_um"], method="circle_approx")
-                    area = utils.ellipse_area(sta_analysis["EllipseCoor_um"], method="formula")
+                    diameter = utils.ellipse_diameter(
+                        sta_analysis["EllipseCoor_um"], method="circle_approx"
+                    )
+                    area = utils.ellipse_area(
+                        sta_analysis["EllipseCoor_um"], method="formula"
+                    )
                     size_txt = f"Ø {diameter:.0f} µm · {area:.0f} µm²"
                 else:
                     diameter = utils.ellipse_diameter(ellipse, method="circle_approx")
@@ -236,38 +256,39 @@ def create_id_cards_and_plots(
 
         # --------------------------------------------------
         # Plot checkerboard repeated sequence raster
-        ax = fig.add_subplot(gs[4:6, 3:5])
-        ax.eventplot(
-            check_rast[cell_nb]["spike_trains"], color="k", alpha=1, linelengths=1
-        )
-        ax.set_title("Repeated white noise sequences", fontsize=fontsize)
-        ax.set_xlabel("Time (s)", fontsize=fontsize)
-        seq_lenght = (
-            check_rast[cell_nb]["repeated_sequences_times"][0][1]
-            - check_rast[cell_nb]["repeated_sequences_times"][0][0]
-        )
-        ax.set_xlim([0, seq_lenght])
-        ax.set_ylim([0, None])
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+        if check_rast is not None:
+            ax = fig.add_subplot(gs[4:6, 3:5])
+            ax.eventplot(
+                check_rast[cell_nb]["spike_trains"], color="k", alpha=1, linelengths=1
+            )
+            ax.set_title("Repeated white noise sequences", fontsize=fontsize)
+            ax.set_xlabel("Time (s)", fontsize=fontsize)
+            seq_lenght = (
+                check_rast[cell_nb]["repeated_sequences_times"][0][1]
+                - check_rast[cell_nb]["repeated_sequences_times"][0][0]
+            )
+            ax.set_xlim([0, seq_lenght])
+            ax.set_ylim([0, None])
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
 
-        # --------------------------------------------------
-        # Plot checkerboard repeated sequence psth (superimposed)
-        ax = fig.add_subplot(gs[6:7, 3:5])
-        width = check_rast[cell_nb]["repeated_sequences_times"][0][0] / int(1200 / 2)
-        seq_lenght = (
-            check_rast[cell_nb]["repeated_sequences_times"][0][1]
-            - check_rast[cell_nb]["repeated_sequences_times"][0][0]
-        )
-        ax.bar(
-            np.linspace(0, seq_lenght, int(1200 / 2)) + width / 2,
-            check_rast[cell_nb]["psth"],
-            width=1.3 * width,
-        )
-        ax.set_xlabel("Time (s)", fontsize=fontsize)
-        ax.set_xlim([0, seq_lenght])
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
+            # --------------------------------------------------
+            # Plot checkerboard repeated sequence psth (superimposed)
+            ax = fig.add_subplot(gs[6:7, 3:5])
+            width = check_rast[cell_nb]["repeated_sequences_times"][0][0] / int(1200 / 2)
+            seq_lenght = (
+                check_rast[cell_nb]["repeated_sequences_times"][0][1]
+                - check_rast[cell_nb]["repeated_sequences_times"][0][0]
+            )
+            ax.bar(
+                np.linspace(0, seq_lenght, int(1200 / 2)) + width / 2,
+                check_rast[cell_nb]["psth"],
+                width=1.3 * width,
+            )
+            ax.set_xlabel("Time (s)", fontsize=fontsize)
+            ax.set_xlim([0, seq_lenght])
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
 
         # --------------------------------------------------
         # Plot temporal STA
@@ -338,7 +359,9 @@ def create_id_cards_and_plots(
             ax.plot(theta, TuneSum)
             ax.fill(theta, TuneSum, "b", alpha=0.1)
 
-            ax.text(np.pi / 2 * 6 / 8, 2.6, "IDX = " + str(np.round(IDX, 1)), size=fontsize)
+            ax.text(
+                np.pi / 2 * 6 / 8, 2.6, "IDX = " + str(np.round(IDX, 1)), size=fontsize
+            )
             ax.text(np.pi / 2 * 6 / 9, 2.2, "R = " + str(np.round(R, 1)), size=fontsize)
 
             ax.set_yticks([0, 0.5, 1, 1.5, 2])

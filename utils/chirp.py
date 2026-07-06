@@ -6,9 +6,10 @@ from math import *  # noqa: F401, F403
 from matplotlib.gridspec import GridSpec
 
 import utils
+import params
 
 # Chirp vec files (one sequence repeated many times). The "_std" versions carry the
-# per-repetition sequence keys added by ressources/add_standard_keys_to_chirp_vec.ipynb.
+# per-repetition sequence keys added by RessourcesAndTools/StimMaking/add_standard_keys_to_chirp_vec.ipynb.
 CHIRP_VEC_FILES = {
     False: "Euler_50Hz_20reps_1024x768pix_std.vec",  # new 50 Hz chirp
     True: "EulerStim180530_std.vec",  # old 2p-room chirp (needs its keyed vec generated)
@@ -65,7 +66,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
 
     # Load the chirp vec keys (last column) used to split spikes per repetition.
     vec_filename = CHIRP_VEC_FILES[old]
-    vec_path = os.path.join("./ressources", vec_filename)
+    vec_path = os.path.join(params.stim_directory, vec_filename)
     vec_keys = np.loadtxt(vec_path)[1:, -1]  # drop header row
     print(f"Chirp vec keys loaded : {vec_filename}")
 
@@ -204,17 +205,17 @@ def plot_chirp_rasters(
         os.makedirs(fig_directory)
 
     sta_results = np.load(
-        os.path.join(check_directory, "sta_data_3D_fitted.pkl"), allow_pickle=True
+        os.path.join(check_directory, "sta_data_analysed_extended.pkl"), allow_pickle=True
     )
 
     if old:
-        vec_path = os.path.join("./ressources", r"EulerStim180530.vec")
+        vec_path = os.path.join(params.stim_directory, r"EulerStim180530.vec")
         euler_vec = -np.genfromtxt(vec_path)
         rep_lenght = 25
         n_bins = 625
 
     else:
-        vec_path = os.path.join("./ressources", r"Euler_50Hz_20reps_1024x768pix.vec")
+        vec_path = os.path.join(params.stim_directory, r"Euler_50Hz_20reps_1024x768pix.vec")
         euler_vec = np.genfromtxt(vec_path)
         rep_lenght = 32
         n_bins = 800
@@ -293,7 +294,7 @@ def plot_chirp_rasters(
         # --- Spatial STA (right, full height) ---
         ax_sta = fig.add_subplot(gs[:, 17:])
         ax_sta.set_title("STA", fontsize=fontsize + 2)
-        spatial = sta_results[cell_nb]["center_analyse"]["Spatial"]
+        spatial = sta_results[cell_nb]["sta_analysis"]["Spatial"]
         spatial = spatial**2 * np.sign(spatial)
         image = ax_sta.imshow(spatial, cmap="RdBu_r", interpolation="gaussian")
         abs_max = 0.5 * max(np.max(spatial), abs(np.min(spatial)))

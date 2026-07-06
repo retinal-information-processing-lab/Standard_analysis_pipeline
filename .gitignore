@@ -165,3 +165,7 @@ ressources/baden_data.mat
 *.zip
 
 2-Analyse_Checkerboard-DEBUGGING.ipynb
+
+*.bin
+
+*.pkl

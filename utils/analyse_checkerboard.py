@@ -41,31 +41,42 @@ def prompt_user_for_checkerboard_params() -> tuple[int, int, int, int]:
 
 def get_all_inputs_for_checkerboard_analysis(
     params: ModuleType,
+    is_swn: bool = False,
 ) -> tuple[int, str, float, int, int, int, str]:
     """
-    Get all input parameters for checkerboard experiment analysis.
+    Get all input parameters for a checkerboard (or SWN) experiment analysis.
 
-    Interactively prompts user for recording selection, stimulus frequency,
-    and checkerboard dimensions. Creates analysis output directory.
+    Interactively prompts for the recording and stimulus frequency, and for the
+    checkerboard the number/size of checks too. Creates the analysis directory.
 
     Args:
-        params: Dictionary with experiment parameters including:
-            - recording_names: List of available recording names
-            - output_directory: Base directory for outputs
+        params: params module with recording_names and output_directory.
+        is_swn: if True, this is a Sparse-White-Noise recording — the check
+            count/size questions are skipped (they don't apply to SWN; its spatial
+            resolution comes from the .bin frames and the down-sampling shift).
 
     Returns:
         Tuple containing:
             - recording_number: Selected recording index
+            - recording_name: Selected recording name
             - stimulus_frequency: Stimulus frequency in Hz
-            - nb_checks_x: Number of checkerboard squares in x dimension
-            - nb_checks_y: Number of checkerboard squares in y dimension
-            - nb_pixels_per_check: Number of pixels per checkerboard square
+            - nb_checks_x: Number of checks in x (None for SWN)
+            - nb_checks_y: Number of checks in y (None for SWN)
+            - nb_pixels_per_check: Number of pixels per check (None for SWN)
             - check_directory: Path to analysis output directory
     """
+    stim_label = "SWN" if is_swn else "checkerboard"
     recording_number, recording_name = utils.prompt_user_for_recording(
-        params.recording_names, "checkerboard"
+        params.recording_names, stim_label
     )
-    stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = prompt_user_for_checkerboard_params()
+    if is_swn:
+        # SWN: only the stimulus frequency is needed (no checks).
+        stimulus_frequency = int(
+            input("Select stimulus frequency (Hz, usually in stimulus filename): ")
+        )
+        nb_checks_x = nb_checks_y = nb_pixels_per_check = None
+    else:
+        stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = prompt_user_for_checkerboard_params()
     check_directory = utils.create_analysis_directory(
         params.output_directory, recording_number, "Checkerboard"
     )
@@ -208,6 +219,131 @@ def load_checkerboard_data(
     print(f"\nTotal : {len(checkerboard_spikes.keys())} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n")
 
     return checkerboard_spikes, stim_onsets, nb_repeats, cells_id, checkerboard
+
+
+# ------------------------------------------------------------------------------------------------------------------- #
+# SWN (Sparse White Noise) — alternative stimulus. Reuses the whole checkerboard STA
+# pipeline; only the stimulus reconstruction and one decorrelation step differ.
+# ------------------------------------------------------------------------------------------------------------------- #
+
+def _check_swn_files_exist(bin_path: str, vec_path: str) -> None:
+    """Raise a clear, actionable error if the (large, non-versioned) SWN files are missing."""
+    for label, path in [
+        ("SWN .bin file (raw noise frames)", bin_path),
+        ("SWN .vec file (frame list)", vec_path),
+    ]:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f"\nCannot find the {label} at:\n    {path}\n\n"
+                "The SWN stimulus files are very large and are NOT stored in this repository.\n"
+                "To run the SWN analysis:\n"
+                "  1. Get the SWN .bin and .vec for this recording. Small debug copies are in\n"
+                "     'RessourcesAndTools/StimMaking/'; the full files are usually under\n"
+                "     'LabPipeline/SWN/'.\n"
+                "  2. Copy them somewhere on your machine.\n"
+                "  3. Set 'swn_bin_path' and 'swn_vec_path' in params.py to point at them.\n"
+            )
+
+
+def load_swn_stimulus(
+    bin_path: str,
+    vec_path: str,
+    rig_id: int,
+    shift_x: int,
+    shift_y: int,
+    sigma: float = 5.0,
+) -> tuple:
+    """
+    Reconstruct a Sparse-White-Noise (SWN) stimulus from its .bin (raw frames) and
+    .vec files, and compute the stimulus covariance used later to whiten the STA.
+
+    Unlike the checkerboard (drawn from a white binary source), SWN frames are
+    spatially correlated, so the spatial STA must be decorrelated by the inverse of
+    this covariance afterwards (see decorrelate_spatial_stas).
+
+    Args:
+        bin_path: path to the SWN .bin file (raw noise frames, read via utils.binfile.BinFile).
+        vec_path: path to the SWN .vec file (its header column 1 gives the total frame count).
+        rig_id: MEA / rig id (2 or 3) — selects the DMD optical transform.
+        shift_x: spatial down-sampling step in x (pixels).
+        shift_y: spatial down-sampling step in y (pixels).
+        sigma: value added to the covariance diagonal for numerical stability.
+
+    Returns:
+        stimulus: np.ndarray (n_frames, H, W) of the down-sampled, unrepeated SWN frames.
+        C_I: np.ndarray (H*W, H*W) regularised stimulus covariance matrix.
+    """
+    from .binfile import BinFile
+
+    _check_swn_files_exist(bin_path, vec_path)
+
+    vec_data = np.loadtxt(vec_path)
+    vec_trigs, vec_header = vec_data[1:], vec_data[0]
+    # Only the first half of the SWN frames are unrepeated (used to build the STA).
+    num_unrepeated_frames = int(vec_header[1] / 2)
+
+    bin_obj = BinFile(bin_path, 0, 0, rig_id, mode="r")  # frame size is read from the .bin header
+    frames = []
+    for vec in tqdm(vec_trigs, desc="Reconstructing SWN stimulus"):
+        frame_index = int(vec[1])
+        if frame_index < num_unrepeated_frames:
+            frame = bin_obj.read_frame(frame_index)
+            frames.append(frame[::shift_x, ::shift_y] / frame.max())
+    bin_obj.close()
+    stimulus = np.array(frames)
+    print(f"SWN stimulus reconstructed: {stimulus.shape[0]} frames of {stimulus.shape[1]}x{stimulus.shape[2]}")
+
+    # Stimulus covariance (for decorrelating the STA); regularised on the diagonal.
+    print("Computing SWN stimulus covariance matrix...")
+    stimulus_matrix = stimulus.reshape(len(stimulus), -1)
+    cov = np.cov(stimulus_matrix.T)
+    C_I = cov + np.eye(cov.shape[0]) * sigma
+    return stimulus, C_I
+
+
+def load_swn_data(
+    params: ModuleType,
+    swn_recording_name: str,
+    stimulus_frequency: float,
+) -> tuple:
+    """
+    Load everything needed for an SWN analysis: triggers, spikes, the reconstructed
+    SWN stimulus and its covariance matrix.
+
+    Triggers and spikes are loaded exactly like the checkerboard path; only the
+    stimulus comes from the SWN .bin/.vec (via load_swn_stimulus) and an extra
+    covariance matrix C_I is returned for the later STA decorrelation.
+
+    Args:
+        params: params module (uses triggers_directory, exp, fs, output_directory,
+            MEA, swn_bin_path, swn_vec_path, swn_shift_x, swn_shift_y, swn_cov_regularization).
+        swn_recording_name: the SWN recording name (to locate its triggers/spikes).
+        stimulus_frequency: stimulus frequency in Hz.
+
+    Returns:
+        swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
+    """
+    triggers_path = os.path.normpath(
+        os.path.join(params.triggers_directory, f"{params.exp}_{swn_recording_name}_triggers.pkl")
+    )
+    print(f"Loading triggers from:\t {triggers_path}")
+    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params.fs, verbose=True)
+    cells_id, swn_spikes = utils.load_spike_times(
+        swn_recording_name, params.output_directory, params.exp
+    )
+    nb_repeats, _ = calculate_checkerboard_experiment_stats(stim_onsets, params, stimulus_frequency)
+
+    stimulus, C_I = load_swn_stimulus(
+        params.swn_bin_path,
+        params.swn_vec_path,
+        params.MEA,
+        params.swn_shift_x,
+        params.swn_shift_y,
+        params.swn_cov_regularization,
+    )
+
+    print(f"\nTotal : {len(swn_spikes)} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n")
+    return swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
 
 
 # ------------------------------------------------------------------------------------------------------------------- #
@@ -557,6 +693,52 @@ def analyse_all_stas(
     fitted_file = os.path.normpath(os.path.join(directory, data_filename))
     utils.save_obj(sta_data, fitted_file)
     return sta_data
+
+
+def decorrelate_spatial_stas(sta_data: dict, C_I: np.ndarray) -> dict:
+    """
+    Whiten each cell's spatial STA by the inverse SWN stimulus covariance and re-fit
+    the RF ellipse. This is the ONLY analysis step specific to SWN — the checkerboard
+    stimulus is already white and skips it.
+
+    Run this AFTER analyse_all_stas and BEFORE extend_sta_analysis_to_physical_units.
+    The whitened RF overwrites ``sta_analysis["Spatial"]`` / ``["EllipseCoor"]`` (the
+    raw versions are kept under ``"Spatial_raw"`` / ``"EllipseCoor_raw"``), so every
+    downstream step (physical units, plots, cell typing) uses the decorrelated RF with
+    no further SWN-specific branching.
+
+    Args:
+        sta_data: dict from analyse_all_stas; each cell has a ``"sta_analysis"`` entry.
+        C_I: regularised stimulus covariance returned by load_swn_stimulus.
+
+    Returns:
+        sta_data, updated in place.
+    """
+    default_ellipse = [0, 0, 0, 0.001, 0.001, 0]
+    for cell_id in tqdm(sta_data.keys(), desc="Decorrelating SWN STAs"):
+        analysis = sta_data[cell_id]["sta_analysis"]
+        spatial = analysis["Spatial"]
+        if np.max(np.abs(spatial)) == 0:  # silent cell, nothing to whiten
+            continue
+
+        # Whiten: solve C_I x = sta  (multiply the flattened RF by the inverse covariance).
+        whitened = np.linalg.solve(C_I, spatial.flatten()).reshape(spatial.shape)
+        analysis["Spatial_raw"] = spatial
+        analysis["EllipseCoor_raw"] = analysis["EllipseCoor"]
+        analysis["Spatial"] = whitened
+
+        # Re-fit the ellipse on the whitened RF, reusing the standard fitting routine.
+        try:
+            fitting_data = utils.preprocess_fitting_standard(whitened)
+            ellipse_params, _ = utils.double_gaussian_fit(fitting_data)
+            analysis["EllipseCoor"] = ellipse_params
+            analysis["FittedEllipse"] = True
+        except Exception:
+            print(f"Could not re-fit the ellipse after decorrelation for cell {cell_id}")
+            analysis["EllipseCoor"] = default_ellipse
+            analysis["FittedEllipse"] = False
+    return sta_data
+
 
 def extend_sta_analysis_to_physical_units(
     sta_data_analysed: dict,
