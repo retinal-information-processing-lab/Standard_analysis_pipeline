@@ -8,7 +8,6 @@ from sklearn.cluster import AgglomerativeClustering
 import scipy as sc
 
 import utils
-import params
 
 #############################################
 ######            Clustering           ######

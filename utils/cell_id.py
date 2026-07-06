@@ -8,7 +8,6 @@ from math import *
 
 
 import utils
-import params
 
 
 def import_data_to_plot(params: dict):
