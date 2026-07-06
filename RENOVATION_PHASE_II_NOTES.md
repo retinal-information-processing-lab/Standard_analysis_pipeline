@@ -100,7 +100,7 @@ TODO (Chiara):
 
 2026-06-26 18:00 (Baptiste) standard vec analysis:
     1. Standardized the vec analysis and move all useful functions to utils
-    2. Corrected DG plot to use standard VEC analysis
+    2. Corrected DG plot to use standard VEC analysis + use any numebr of reps
     3. Corrected Chirp plot to use standard VEC analysis
     4. Upgraded the Typing notebook
         a. Added a function to select DS cell interactively before clustering
@@ -110,10 +110,15 @@ TODO (Chiara):
     5. Cleaning call to params to always vbe explicit, ex: params.x is passed to the functions, never params alone
     6. Moving all utils in a new util folder for clarity and better calls, changed the way functions are called in notebooks to accomodate for this
     7. Addind some unitest to the standard VEC analysis, the rest of the pipeline won't be tested since no one in the lab. is going to use testing correctly
+    8. VEC files should now be stored in a specific fodler to make searching for them easier
+    9. Added an example of how to extract RF coords in NB 2
+    10. New version of preprocessing (spiking circus part not tested)
+    11. Added SWAN integration
+    12. Added BackUp guide and reminder
 
 WHAT NEXT?
-- ADD OTHER STANDARD STIMULI ANALYSIS (SWaN (Top Priority), Multisize spots, Barcode, MSF)
-- REORGANIZE PREPROCESSING + CORRECT CALL TO PARAMS IN PREPROCESSING
+- ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)
+- REORGANIZE PREPROCESSING + CORRECT CALL TO PARAMS IN PREPROCESSING (ONGOING)
 - ADD REMI'S CHECK WITH REPEATED STIM (LIKE CHECKERBOARD) TO DO/NOT MERGES DURING SPIKE SORTING
 - CORRECT STIM-VIWER TO HELP WITH STIMULUS DESIGN
 - ADD THE ANALYSIS OF THE STA THAT TAKES ALSO THE SURROUND SLICE (starting from Olivier's codes?)
