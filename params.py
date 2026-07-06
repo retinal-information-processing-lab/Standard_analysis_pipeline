@@ -24,7 +24,7 @@ ressources = r"./ressources"
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "root": r"/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1_test_pipeline",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
     "exp": r"20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # name of your experiment for saving the triggers
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
