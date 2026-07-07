@@ -118,6 +118,8 @@ TODO (Chiara):
     13. Added bar for RF size everywhere needed
     14. Modularized few functions (DG metrics, STA metrics, clustering)
     15. Made clustering deterministic
+    16. Added some examples of how to handle reliability
+    17. Adding options to visualize standatd VEC as traces (either of frame number or color etc.)
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)

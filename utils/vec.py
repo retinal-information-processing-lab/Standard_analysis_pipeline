@@ -319,6 +319,101 @@ def plot_sequence(
         ax.tick_params(axis="both", which="major", labelsize=tick_fontsize)
 
 
+def get_sequence_stimulus(vec, sequence_key, n_digit_for_rep: int = 4):
+    """Return the vec rows of ONE repetition of a sequence type (its stimulus tracks).
+
+    The vec file describes the stimulus frame by frame; its columns carry things like the
+    image index, color, shutter, phase-mask... (the exact meaning is stimulus-specific).
+    This selects the rows whose key is ``sequence_key + "0000"`` — the first repetition of
+    that sequence type — so their columns give the stimulus over one sequence.
+
+    Args:
+        vec: the full vec array (header line already dropped), shape (n_triggers, n_columns).
+        sequence_key: the sequence type (the key with its repetition digits removed).
+        n_digit_for_rep: number of trailing digits of a key that encode the repetition.
+
+    Returns:
+        np.ndarray of shape (n_frames, n_columns) — the vec rows of the first repetition.
+    """
+    target_key = f"{sequence_key}{'0' * n_digit_for_rep}"
+    keys = vec[:, -1].astype(int).astype(str)
+    return vec[keys == target_key]
+
+
+def plot_stimulus_tracks(ax, stimulus, columns, time_range, fontsize: int = 14):
+    """Draw chosen vec columns as stacked stimulus tracks over the sequence time axis.
+
+    Each column is min-max normalised and drawn as a step trace, offset vertically, so you
+    can see WHEN each channel changes during the sequence (image index, color, shutter...).
+    Meant to be placed on an axis above the raster/PSTH.
+
+    Args:
+        ax: axis to draw on.
+        stimulus: (n_frames, n_columns) vec values for one repetition (get_sequence_stimulus).
+        columns: list of (column_index, label), e.g. ``[(1, "image idx"), (2, "color")]``.
+        time_range: (start, end) of the sequence in seconds.
+        fontsize: base font size.
+    """
+    t = np.linspace(time_range[0], time_range[1], len(stimulus))
+    for i, (col, label) in enumerate(columns):
+        values = stimulus[:, col].astype(float)
+        vmin, vmax = values.min(), values.max()
+        norm = (values - vmin) / (vmax - vmin) if vmax > vmin else np.zeros_like(values)
+        ax.step(t, norm * 0.8 + i, where="post", lw=1.5)
+        ax.text(
+            time_range[0], i + 0.9, f" {label}", ha="left", va="top",
+            fontsize=fontsize - 3, color="dimgray",
+        )
+    ax.set_xlim(time_range)
+    ax.set_ylim(-0.1, len(columns))
+    ax.set_yticks([])
+    ax.tick_params(labelbottom=False)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+
+
+def plot_sequence_with_stimulus(
+    sequence,
+    vec,
+    sequence_key,
+    columns,
+    color: str = "#B85A8F",
+    smoothing: float = 0.4,
+    fontsize: int = 18,
+    n_digit_for_rep: int = 4,
+):
+    """Raster + PSTH of one sequence, with the stimulus vec tracks drawn on top.
+
+    Like ``plot_sequence`` but adds a "Stimulus" panel above the raster showing the chosen
+    vec columns (image index, color, shutter...) aligned to the sequence time axis.
+
+    Args:
+        sequence: one ``spikes_per_sequence_dict[cell][sequence_key]`` entry.
+        vec: the full vec array (header dropped).
+        sequence_key: the sequence type key (used to pull its stimulus frames).
+        columns: list of (column_index, label) to show, e.g. ``[(1, "image idx")]``.
+        color, smoothing, fontsize: passed through to ``plot_sequence``.
+        n_digit_for_rep: repetition-digit count of the vec keys.
+
+    Returns:
+        The matplotlib Figure.
+    """
+    stimulus = get_sequence_stimulus(vec, sequence_key, n_digit_for_rep)
+
+    fig = plt.figure(figsize=(12, 10))
+    gs = fig.add_gridspec(
+        3, 1, height_ratios=[max(1.0, 0.7 * len(columns)), 3, 1.2], hspace=0.15
+    )
+    ax_stim = fig.add_subplot(gs[0])
+    ax_rast = fig.add_subplot(gs[1], sharex=ax_stim)
+    ax_psth = fig.add_subplot(gs[2], sharex=ax_stim)
+
+    plot_stimulus_tracks(ax_stim, stimulus, columns, sequence["triggers"]["rng"], fontsize=fontsize)
+    ax_stim.set_title("Stimulus", fontsize=fontsize)
+    plot_sequence(sequence, ax_rast, ax_psth, color=color, smoothing=smoothing, fontsize=fontsize)
+    return fig
+
+
 def save_sequence_figures(
     spikes_per_sequence_dict: dict,
     analysis_directory: str,
@@ -326,6 +421,8 @@ def save_sequence_figures(
     smoothing: float = 0.4,
     clusters_as_folder: bool = True,
     fontsize: int = 18,
+    vec=None,
+    stimulus_columns=None,
 ) -> None:
     """
     Plot and save a raster + PSTH figure for every cell x sequence-type pair.
@@ -340,7 +437,12 @@ def save_sequence_figures(
         clusters_as_folder: If True, make one folder per cell (a figure per sequence
             inside). If False, make one folder per sequence (a figure per cell inside).
         fontsize: Base font size, passed to plot_sequence (the figure title uses fontsize + 2).
+        vec: the full vec array (header dropped). If given together with stimulus_columns,
+            a "Stimulus" panel with the chosen vec columns is drawn above each raster.
+        stimulus_columns: list of (column_index, label) to show as stimulus tracks,
+            e.g. ``[(1, "image idx"), (2, "color")]``. Ignored if vec is None.
     """
+    show_stimulus = vec is not None and stimulus_columns
     if clusters_as_folder:
         dict_to_plot = spikes_per_sequence_dict
         element, scd_element = "Cell", "Sequence"
@@ -359,21 +461,34 @@ def save_sequence_figures(
             if os.path.isfile(figure_path):
                 continue  # already plotted, skip
 
-            fig, axs = plt.subplots(
-                nrows=2,
-                ncols=1,
-                sharex=True,
-                gridspec_kw={"height_ratios": [3, 1]},
-                figsize=(10, 10),
-            )
-            plot_sequence(
-                dict_to_plot[elt][scd_elt],
-                ax_rast=axs[0],
-                ax_psth=axs[1],
-                color=color,
-                smoothing=smoothing,
-                fontsize=fontsize,
-            )
+            if show_stimulus:
+                # scd_elt is the sequence when clusters_as_folder, otherwise elt is.
+                sequence_key = scd_elt if clusters_as_folder else elt
+                fig = plot_sequence_with_stimulus(
+                    dict_to_plot[elt][scd_elt],
+                    vec,
+                    sequence_key,
+                    stimulus_columns,
+                    color=color,
+                    smoothing=smoothing,
+                    fontsize=fontsize,
+                )
+            else:
+                fig, axs = plt.subplots(
+                    nrows=2,
+                    ncols=1,
+                    sharex=True,
+                    gridspec_kw={"height_ratios": [3, 1]},
+                    figsize=(10, 10),
+                )
+                plot_sequence(
+                    dict_to_plot[elt][scd_elt],
+                    ax_rast=axs[0],
+                    ax_psth=axs[1],
+                    color=color,
+                    smoothing=smoothing,
+                    fontsize=fontsize,
+                )
             plt.suptitle(f"{scd_element}_{scd_elt}", fontsize=fontsize + 2)
             plt.subplots_adjust(wspace=0, hspace=0)
             plt.savefig(figure_path)
