@@ -362,6 +362,20 @@ def get_temporal_spatial_sta(sta_3D):
     return sta_temporal, sta_spatial, (best_t, best_x, best_y)
 
 
+def _fit_rf_ellipse(fitting_data, error_msg, default_params):
+    """Fit the RF ellipse (2D gaussian) on preprocessed spatial data, with a fallback.
+
+    Returns ``(ellipse_params, fitted)``. On failure it prints ``error_msg`` and returns
+    ``default_params`` with ``fitted=False``.
+    """
+    try:
+        ellipse_params, _ = double_gaussian_fit(fitting_data)
+        return ellipse_params, True
+    except Exception:
+        print(error_msg)
+        return default_params, False
+
+
 ### (Wrap) sta analysis functions wrapped in one function to call easily
 def rf_analysis(
     sta_3d: np.ndarray, cell_id: int = None, method: str = "standard"
@@ -419,28 +433,14 @@ def rf_analysis(
             raise ValueError(
                 f"You should not arrive here, method should be either 'matias' or 'tom', not {method}"
             )
-        try:
-            ellipse_params, cov = double_gaussian_fit(fitting_data)
-            fitted = True
-        except:
-            print(error_msg)
-            # plt.imshow(fitting_data)
-            # plt.show(block=False)
-            ellipse_params = def_ellipse_params
+        ellipse_params, fitted = _fit_rf_ellipse(fitting_data, error_msg, def_ellipse_params)
 
     elif method == "standard":
         spatial_sta, temporal_sta, spatial_mask, cell_delay, cxy = get_sta_components(
             sta3d
         )
         smoothed_mask = preprocess_fitting_standard(spatial_mask)
-        try:
-            ellipse_params, cov = double_gaussian_fit(smoothed_mask)
-            fitted = True
-        except:
-            print(error_msg)
-            # plt.imshow(fitting_data)
-            # plt.show(block=False)
-            ellipse_params = def_ellipse_params
+        ellipse_params, fitted = _fit_rf_ellipse(smoothed_mask, error_msg, def_ellipse_params)
 
     # elif method == 'guilhem':
     #     time_window_peak_location = 15

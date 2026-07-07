@@ -327,6 +327,97 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
 # Compute Tuning
 # ==========================
 
+def _dg_bin_params(seq_sep):
+    """Time-binning constants shared by the DG PSTH and the per-direction responses."""
+    nbins = 8 * 10 * 20  # total nb of bins (1600)
+    binsize = seq_sep * 8 * 1000 // nbins  # bin size in ms
+    binsec = 1000 // binsize  # nb bins per second
+    bins = np.linspace(0, seq_sep * 8, nbins + 1)
+    return nbins, binsize, binsec, bins
+
+
+def compute_dg_psth(ch_raster, seq_sep, base_fire=0, n_repeats=4):
+    """PSTH of the drifting-gratings raster: the 8 directions binned side by side.
+
+    Returns the histogram ``counts`` (baseline subtracted), its peak ``maxcount`` and the
+    bin edges ``bins``.
+    """
+    merged = list(itertools.chain(*ch_raster))  # all directions' spikes on one axis
+    nbins, _, _, bins = _dg_bin_params(seq_sep)
+    base_fire = base_fire * (seq_sep * 8 / nbins) * n_repeats
+    counts, bins = np.histogram(merged, bins=bins)
+    counts = counts - base_fire
+    maxcount = np.amax(counts)
+    return counts, maxcount, bins
+
+
+def compute_direction_responses(counts, seq_len, seq_sep):
+    """Total response per grating direction (spikes in the response window of each angle).
+
+    Returns a length-9 vector (index 8 repeats index 0), un-normalised. For each angle the
+    response is summed from ``seq_len / 6`` after onset to the grating offset.
+    """
+    _, binsize, binsec, _ = _dg_bin_params(seq_sep)
+    tune = np.zeros(9)
+    for a in np.arange(8):
+        sel_bins = np.copy(
+            counts[
+                int(seq_len * 1000 / 6) // binsize
+                + int(seq_sep * binsec * a) : int(seq_len * binsec + seq_sep * binsec * a)
+            ]
+        )
+        tune[a] = np.sum(sel_bins)
+        if a == 0:
+            tune[a + 8] = np.sum(sel_bins)
+    return tune
+
+
+def compute_tuning_vector(tune):
+    """Preferred direction and vector strength from a per-direction response.
+
+    ``tune`` is the un-normalised length-9 response vector. Returns the normalised tuning
+    vector, the preferred-direction angle ``atune`` (radians) and the vector strength ``R``.
+    """
+    vxs = vys = 0
+    for a in np.arange(8):
+        vxs += np.cos(np.pi * a * 45 / 180) * tune[a]
+        vys += np.sin(np.pi * a * 45 / 180) * tune[a]
+    peak = np.amax(tune)
+    vxs = vxs / peak
+    vys = vys / peak
+    tune_norm = tune / peak
+    atune = np.arctan2(vys, vxs)
+    R = np.sqrt(vys**2 + vxs**2)
+    return tune_norm, atune, R
+
+
+def compute_dsi(tune_norm, atune):
+    """Direction-selectivity index from the normalised tuning and the preferred angle.
+
+    The arithmetic (including the retry logic when the index is very negative) is preserved
+    exactly from the original pipeline.
+    """
+    tune = tune_norm[:-1]
+
+    def dsi(angle):
+        opposite = int((angle + 4) % 8)
+        return (tune[angle] - tune[opposite]) / (tune[angle] + tune[opposite])
+
+    angle = int(np.round(atune / np.pi * 4))
+    idx = dsi(angle)
+    if idx < -0.2:
+        angle2 = angle + 1
+        idx = dsi(angle2)
+        angle = angle2
+    if idx < -0.2:
+        angle2 = angle - 2
+        idx = dsi(angle2)
+        if idx < -0.2:
+            angle = angle + 1
+        idx = dsi(angle)
+    return idx
+
+
 def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
     """Compute direction tuning of one cell from its drifting-gratings raster.
 
@@ -352,65 +443,15 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
         The arithmetic here is preserved exactly from the original pipeline (including
         its time-binning) so results stay reproducible; only documentation was added.
     """
-    ###########################################################
-    # computing tuning
-    merged = list(
-        itertools.chain(*ch_raster)
-    )  # all the spike times of all the 32 gratings. In this way when I bin I am
-    # binning per each of the 8 angles the responses to all the 4 repetitions of
-    # that angle
+    # Each metric is computed by its own small function (see above); this just chains
+    # them and bundles the result. The arithmetic is unchanged from the original pipeline.
+    counts, maxcount, bins = compute_dg_psth(ch_raster, seq_sep, base_fire, n_repeats)
+    tune = compute_direction_responses(counts, seq_len, seq_sep)
 
-    nbins = 8 * 10 * 20  # totoal nb of bins  (1600)
-    binsize = seq_sep * 8 * 1000 // nbins  # bin size in ms     (100)
-    binsec = 1000 // binsize  # nb bins per second  (10)
-    base_fire = base_fire * (seq_sep * 8 / nbins) * n_repeats
-
-    bins = np.linspace(0, seq_sep * 8, nbins + 1)
-    counts, bins = np.histogram(
-        merged, bins=bins
-    )  # binning the spike times of all the repetitions at once
-    counts = counts - base_fire
-    maxcount = np.amax(counts)
-
-    # for plotting purposes, counts has 1600 bins, 10 each second of the 160 seconds. But some of this bins are fake because
-    # the seq_sep (20 secs for the slow gratings) added in ch_raster is longer than the actual seq_len (12 secs for slow grating),
-    # in which the stimulus was presented. So the last 8 secs after each angle have to have 80 empty.
-
-    # --------------------------
-    TuneSum = np.zeros(9)
-    VxS = 0
-    VyS = 0
-
-    for a in np.arange(8):
-        #################################################
-        # per each angle I select the bins that go from 2 secs after the grating onset to the grating offset. Why?
-        sel_bins = np.copy(
-            counts[
-                int(seq_len * 1000 / 6) // binsize
-                + int(seq_sep * binsec * a) : int(
-                    seq_len * binsec + seq_sep * binsec * a
-                )
-            ]
-        )
-        #################################################
-
-        TuneSum[a] = np.sum(
-            sel_bins
-        )  # per each angle these are all the spikes that the cell fired during the 4 repetitions
-        # of that angle from 2 to 12 seconds
-        # print(TuneSum[a])
-        VxS += np.cos(np.pi * a * 45 / 180) * TuneSum[a]
-        VyS += np.sin(np.pi * a * 45 / 180) * TuneSum[a]
-        #             VxM+= np.cos(np.pi*a/180)*TuneMax[a]
-        #             VyM+= np.sin(np.pi*a/180)*TuneMax[a]
-        if a == 0:
-            TuneSum[a + 8] = np.sum(sel_bins)
-
-    ############################
-    if sum(TuneSum) == 0:
+    if sum(tune) == 0:  # cell with no response -> original placeholder output
         DG_data = {
             "IDX": 0,
-            "Tuning": TuneSum,
+            "Tuning": tune,
             "atune": 0,
             "Rtune": 0,
             "rasters": np.zeros((4, len(bins))),
@@ -419,39 +460,13 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
             "bins": bins,
         }
         return np.zeros(9), 0, 0, 0, counts, maxcount, bins, DG_data
-    ############################
-    VxS = VxS / np.amax(TuneSum)
-    VyS = VyS / np.amax(TuneSum)
 
-    TuneSum = TuneSum / np.amax(TuneSum)
-    atune = np.arctan2(VyS, VxS)
-    R = np.sqrt(VyS**2 + VxS**2)
-
-    angle = int(np.round(atune / np.pi * 4))
-
-    IDX = (TuneSum[:-1][angle] - TuneSum[:-1][int((angle + 4) % 8)]) / (
-        TuneSum[:-1][angle] + TuneSum[:-1][int((angle + 4) % 8)]
-    )
-    if IDX < -0.2:
-        angle2 = angle + 1
-        IDX = (TuneSum[:-1][angle2] - TuneSum[:-1][int((angle2 + 4) % 8)]) / (
-            TuneSum[:-1][angle2] + TuneSum[:-1][int((angle2 + 4) % 8)]
-        )
-        angle = angle2
-    if IDX < -0.2:
-        angle2 = angle - 2
-        IDX = (TuneSum[:-1][angle2] - TuneSum[:-1][int((angle2 + 4) % 8)]) / (
-            TuneSum[:-1][angle2] + TuneSum[:-1][int((angle2 + 4) % 8)]
-        )
-        if IDX < -0.2:
-            angle = angle + 1
-        IDX = (TuneSum[:-1][angle] - TuneSum[:-1][int((angle + 4) % 8)]) / (
-            TuneSum[:-1][angle] + TuneSum[:-1][int((angle + 4) % 8)]
-        )
+    tune_norm, atune, R = compute_tuning_vector(tune)
+    IDX = compute_dsi(tune_norm, atune)
 
     DG_data = {
         "IDX": IDX,
-        "Tuning": TuneSum,
+        "Tuning": tune_norm,
         "atune": atune,
         "Rtune": R,
         "rasters": ch_raster,
@@ -459,6 +474,4 @@ def compute_tuning(ch_raster, base_fire, seq_len, seq_sep, n_repeats=4):
         "maxcount": maxcount,
         "bins": bins,
     }
-
-    ###########################################################
-    return TuneSum, atune, R, IDX, counts, maxcount, bins, DG_data
+    return tune_norm, atune, R, IDX, counts, maxcount, bins, DG_data

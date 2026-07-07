@@ -381,6 +381,71 @@ def select_direction_selective_cells(
     return ds_cells, non_ds_cells
 
 
+def select_clusterable_cells(cell_data, sta_results, selected_cells):
+    """Drop cells that cannot be clustered.
+
+    A flat (silent) chirp PSTH or a flat/NaN STA temporal course both break the per-cell
+    z-scoring used for clustering (which PCA rejects). Returns the list of clusterable
+    cell ids and prints which ones were dropped.
+    """
+    valid_cells, dropped = [], []
+    for cell_id in selected_cells:
+        sta_tc = np.asarray(
+            sta_results[cell_id]["sta_analysis"]["Temporal"][-21:], dtype=float
+        )
+        psth_ok = np.std(cell_data[cell_id]["psth"]) > 0
+        sta_ok = np.all(np.isfinite(sta_tc)) and np.std(sta_tc) > 0
+        (valid_cells if psth_ok and sta_ok else dropped).append(cell_id)
+    if dropped:
+        print(
+            f"Dropping {len(dropped)} cell(s) with a flat/NaN PSTH or STA "
+            f"(cannot be clustered): {dropped}"
+        )
+    return valid_cells
+
+
+def compute_chirp_psth(cell_data, selected_cells):
+    """Mean chirp PSTH per cell (averaged over the 20 repetitions).
+
+    This is the chirp-response feature that goes into the clustering. Returns an array of
+    shape (n_cells, n_time_bins).
+    """
+    n_rep = 20  # nb of repeats
+    nt = 32  # total length (s)
+    dt = 0.04  # bin size (s)
+    time_bins = np.arange(0, nt + dt, dt)
+    spikes = np.zeros((len(selected_cells), int(nt / dt), n_rep))
+    for cell_index, cell_id in enumerate(selected_cells):
+        spike_cell = cell_data[cell_id]["spike_trains"]
+        for rep in range(n_rep):
+            spikes[cell_index, :, rep] = np.histogram(spike_cell[rep], bins=time_bins)[0]
+    return np.mean(spikes, 2)
+
+
+def compute_sta_time_course(sta_results, selected_cells):
+    """Last 21 points of each cell's temporal STA — the STA feature used for clustering.
+
+    Returns an array of shape (n_cells, 21).
+    """
+    sta_time_course = np.zeros((len(selected_cells), 21))
+    for cell_index, cell_id in enumerate(selected_cells):
+        sta_time_course[cell_index] = sta_results[cell_id]["sta_analysis"]["Temporal"][-21:]
+    return sta_time_course
+
+
+def compute_ellipse_sizes(sta_results, selected_cells):
+    """RF ellipse area (|pi * sigma_x * sigma_y|) per cell — the RF-size clustering feature.
+
+    Returns the un-normalised sizes (array of length n_cells).
+    """
+    ell_size = np.zeros(len(selected_cells))
+    for cell_index, cell_id in enumerate(selected_cells):
+        width = sta_results[cell_id]["sta_analysis"]["EllipseCoor"][3]
+        height = sta_results[cell_id]["sta_analysis"]["EllipseCoor"][4]
+        ell_size[cell_index] = np.abs(np.pi * width * height)
+    return ell_size
+
+
 def run_cell_typing_AC(
     dist_thres: float,
     n_components_psth: int,
@@ -427,71 +492,30 @@ def run_cell_typing_AC(
 
     # Processing-----------------------------------------------------------
 
-    # Drop cells whose features would be NaN: a flat (silent) chirp PSTH or a flat/NaN
-    # STA temporal course both break the per-cell z-scoring used below, which PCA rejects.
-    valid_cells, dropped = [], []
-    for cell_id in selected_cells:
-        sta_tc = np.asarray(
-            sta_results[cell_id]["sta_analysis"]["Temporal"][-21:], dtype=float
-        )
-        psth_ok = np.std(cell_data[cell_id]["psth"]) > 0
-        sta_ok = np.all(np.isfinite(sta_tc)) and np.std(sta_tc) > 0
-        (valid_cells if psth_ok and sta_ok else dropped).append(cell_id)
-    if dropped:
-        print(
-            f"Dropping {len(dropped)} cell(s) with a flat/NaN PSTH or STA "
-            f"(cannot be clustered): {dropped}"
-        )
-    selected_cells = valid_cells
-
+    # Keep only clusterable cells, then compute each per-cell clustering feature with its
+    # own small metric function (defined above) so what feeds the clustering is explicit.
+    selected_cells = select_clusterable_cells(cell_data, sta_results, selected_cells)
     n_cells = len(selected_cells)
-    # -----------------------------------
-    # -----------------------------------
-    # Get Euler PCA
-    n_rep = 20  # nb of repeats
-    nt = 32  # total length
-    dt = 0.04  # bin size in seconds
-    time_bins = np.arange(0, nt + dt, dt)
 
-    # Bining
-    spikes = np.zeros((n_cells, int(nt / dt), n_rep))
-    for cell_index in range(len(selected_cells)):
-        cell_id = selected_cells[cell_index]
-        spike_cell = cell_data[cell_id]["spike_trains"]
-        for rep in range(n_rep):
-            temp = np.histogram(spike_cell[rep], bins=time_bins)
-            spikes[cell_index, :, rep] = temp[0]
-
-    # -------------------------
-    # Pre process the PSTH
-    psth = np.mean(spikes, 2)
+    # Feature 1 -- chirp PSTH (z-scored) and its PCA.
+    psth = compute_chirp_psth(cell_data, selected_cells)
     psth_z = sc.stats.zscore(psth, 1)
-
     if sparse:
         pca_transformer = SparsePCA(n_components_psth, random_state=0).fit(psth_z)
     else:
-        pca_transformer = PCA(n_components_psth).fit(psth_z)
+        # svd_solver="full" -> exact, deterministic SVD (the default "auto" picks the
+        # randomized solver for this data shape, making the clustering vary run to run).
+        pca_transformer = PCA(n_components_psth, svd_solver="full").fit(psth_z)
     psth_pca = pca_transformer.transform(psth_z)
 
-    # -----------------------------------
-    # Get checkerboard STA PCA
-    STA_time_course = np.zeros((n_cells, 21))  # 21 data points for these STAs
-    for cell_index in range(len(selected_cells)):
-        cell_id = selected_cells[cell_index]
-        TempSTA_cell = sta_results[selected_cells[cell_index]]["sta_analysis"][
-            "Temporal"
-        ][-21:]
-        STA_time_course[cell_index] = TempSTA_cell
-
-    # ---------------------------
-    # Pre process the STA
+    # Feature 2 -- STA temporal course (z-scored) and its PCA.
+    STA_time_course = compute_sta_time_course(sta_results, selected_cells)
     sta_tc = sc.stats.zscore(STA_time_course[:, :], 1)
-
     if n_components_sta_tc > 0:
-        pca_transformer2 = PCA(n_components_sta_tc).fit(sta_tc)
+        pca_transformer2 = PCA(n_components_sta_tc, svd_solver="full").fit(sta_tc)
         sta_tc_pca = pca_transformer2.transform(sta_tc)
 
-    # -----------------------------------
+    # Assemble the clustering matrix: [PSTH PCs | STA PCs | normalised RF size].
     cluster_dataset = np.zeros((n_cells, n_components_psth + n_components_sta_tc + 1))
     cluster_dataset[:, :n_components_psth] = psth_pca
     if n_components_sta_tc > 0:
@@ -499,16 +523,8 @@ def run_cell_typing_AC(
             :, n_components_psth : n_components_psth + n_components_sta_tc
         ] = sta_tc_pca
 
-    ell_size = np.zeros(len(selected_cells))
-    for cell_index in range(len(selected_cells)):
-        cell_id = selected_cells[cell_index]
-        width, height = [
-            sta_results[selected_cells[cell_index]]["sta_analysis"]["EllipseCoor"][3],
-            sta_results[selected_cells[cell_index]]["sta_analysis"]["EllipseCoor"][4],
-        ]
-        #     width,height = cell_data[cell_id]["ellipseSigmaXY"]
-        ell_size[cell_index] = np.abs(np.pi * width * height)
-
+    # Feature 3 -- RF ellipse size, min-max normalised.
+    ell_size = compute_ellipse_sizes(sta_results, selected_cells)
     ell_size_temp = -np.ones(n_cells)
     temp = ell_size[:] - ell_size[:].min()
     ell_size_temp[:] = temp / temp.max()
