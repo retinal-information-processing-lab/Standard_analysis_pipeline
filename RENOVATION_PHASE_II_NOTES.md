@@ -116,6 +116,8 @@ TODO (Chiara):
     11. Added SWAN integration
     12. Added BackUp guide and reminder
     13. Added bar for RF size everywhere needed
+    14. Modularized few functions (DG metrics, STA metrics, clustering)
+    15. Made clustering deterministic
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)
