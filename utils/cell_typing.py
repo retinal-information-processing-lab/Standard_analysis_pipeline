@@ -805,3 +805,58 @@ def create_cluster_summary_figure(
 
         fig.savefig(os.path.join(fig_directory, f"Cluster_{icluster}.png"), dpi=200)
         plt.close(fig)
+
+
+def plot_handmade_cluster(
+    cluster_name,
+    cell_list,
+    cell_data,
+    selected_cells,
+    psth_z,
+    sta_results,
+    params,
+    CT_directory,
+    old: bool = False,
+    fontsize: int = 16,
+    rf_zoom: int = 10,
+):
+    """Build the cluster mosaic figure for a hand-picked group of cells.
+
+    Same layout as ``create_cluster_summary_figure`` but for a single, user-defined
+    cluster: give it a ``cluster_name`` and the ``cell_list`` you want to group, and the
+    figure is saved as ``Cluster_<cluster_name>.png`` in ``CT_directory/Cell_typing/``.
+
+    It works by re-labelling a temporary copy of ``cell_data`` (the originals are not
+    touched) so that only ``cell_list`` forms the cluster, then reusing the standard
+    figure builder.
+
+    Note:
+        The cells should be among the clustered cells (``selected_cells``); a cell not in
+        that list is skipped, since its mean-chirp-PSTH row cannot be located in psth_z.
+    """
+    missing = [c for c in cell_list if c not in selected_cells]
+    if missing:
+        print(
+            f"Note: {len(missing)} cell(s) are not in the clustered set and will be "
+            f"skipped: {missing}"
+        )
+
+    temp_cell_data = {
+        c: {**cell_data[c], "type": (cluster_name if c in cell_list else "Not assigned")}
+        for c in cell_data
+    }
+    create_cluster_summary_figure(
+        temp_cell_data,
+        selected_cells,
+        psth_z,
+        sta_results,
+        params,
+        CT_directory,
+        old,
+        fontsize,
+        rf_zoom,
+    )
+    print(
+        f"Saved 'Cluster_{cluster_name}.png' in "
+        f"{os.path.join(CT_directory, 'Cell_typing')}"
+    )
