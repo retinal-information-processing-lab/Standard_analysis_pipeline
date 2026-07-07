@@ -5,6 +5,8 @@ from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from collections import defaultdict
 
+from .reliability import even_odd_reliability
+
 
 
 ###########################################################
@@ -292,7 +294,12 @@ def plot_sequence(
 
     # Raster: one line of spikes per repetition.
     ax_rast.eventplot(sequence["raster"], color=color)
-    ax_rast.set_title("Raster plot", fontsize=fontsize)
+    # Even/odd reliability of the repeated responses, shown next to the raster title.
+    reliability = even_odd_reliability(
+        sequence["raster"], len(sequence["psth"]), sequence["triggers"]["rng"]
+    )
+    rel_txt = "n/a" if np.isnan(reliability) else f"{reliability:.2f}"
+    ax_rast.set_title(f"Raster plot  (reliability r = {rel_txt})", fontsize=fontsize)
     ax_rast.set_ylabel("N repetitions", fontsize=fontsize)
 
     # PSTH: turn the binned spike counts into a firing rate (spikes/s), then smooth it.

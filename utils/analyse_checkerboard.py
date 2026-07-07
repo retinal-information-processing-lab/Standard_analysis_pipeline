@@ -473,7 +473,10 @@ def plot_raster_and_psth(
     if fontsize_labels is None:
         fontsize_labels = fontsize - 2
     ax_rast.eventplot(spike_trains)
-    ax_rast.set_title(title, fontsize=fontsize)
+    # Even/odd reliability of the repeated responses, shown in the raster title.
+    reliability = utils.even_odd_reliability(spike_trains, len(psth), (t0, t0 + seq_length))
+    rel_txt = "n/a" if np.isnan(reliability) else f"{reliability:.2f}"
+    ax_rast.set_title(f"{title}  (reliability r = {rel_txt})", fontsize=fontsize)
     ax_rast.set_ylabel("n repetition", fontsize=fontsize)
 
     nbins = len(psth)

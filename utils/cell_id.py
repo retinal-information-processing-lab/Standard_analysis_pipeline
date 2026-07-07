@@ -271,12 +271,20 @@ def create_id_cards_and_plots(
             ax.eventplot(
                 check_rast[cell_nb]["spike_trains"], color="k", alpha=1, linelengths=1
             )
-            ax.set_title("Repeated white noise sequences", fontsize=fontsize)
-            ax.set_xlabel("Time (s)", fontsize=fontsize)
             seq_lenght = (
                 check_rast[cell_nb]["repeated_sequences_times"][0][1]
                 - check_rast[cell_nb]["repeated_sequences_times"][0][0]
             )
+            reliability = utils.even_odd_reliability(
+                check_rast[cell_nb]["spike_trains"],
+                len(check_rast[cell_nb]["psth"]),
+                (0, seq_lenght),
+            )
+            rel_txt = "n/a" if np.isnan(reliability) else f"{reliability:.2f}"
+            ax.set_title(
+                f"Repeated white noise sequences  (r = {rel_txt})", fontsize=fontsize
+            )
+            ax.set_xlabel("Time (s)", fontsize=fontsize)
             ax.set_xlim([0, seq_lenght])
             ax.set_ylim([0, None])
             ax.spines["top"].set_visible(False)

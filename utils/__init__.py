@@ -36,6 +36,7 @@ Per-notebook companion submodules (NOT re-exported; import explicitly, e.g.
 # holography depends on sta. Each submodule also imports its own dependencies,
 # so this order only avoids redundant work.
 from .backup import *
+from .reliability import *
 from .preprocessing import *
 from .loading import *
 from .checkerboard import *
