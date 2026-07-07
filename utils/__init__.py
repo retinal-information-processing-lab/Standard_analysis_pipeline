@@ -14,7 +14,7 @@ name is re-exported here, so existing code keeps working unchanged::
     from utils import load_obj   # still works
 
 Shared submodules (re-exported here):
-    general        generic raster/PSTH plotting helper
+    backup         backup-reminder pop-ups shown at pipeline stages
     loading        recording/trigger/spike loaders, directory & prompt helpers
     preprocessing  raw-data preprocessing (symlinks, filtering, spike sorting, pickle I/O)
     checkerboard   checkerboard stimulus reconstruction & raster building
@@ -35,7 +35,7 @@ Per-notebook companion submodules (NOT re-exported; import explicitly, e.g.
 # Order follows the dependency graph (deps first): loading depends on preprocessing,
 # holography depends on sta. Each submodule also imports its own dependencies,
 # so this order only avoids redundant work.
-from .general import *
+from .backup import *
 from .preprocessing import *
 from .loading import *
 from .checkerboard import *

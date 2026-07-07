@@ -68,9 +68,9 @@ def prompt_user_for_dg_speed():
     label : str
         Human-readable speed label.
     """
-    speed = int(input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow): "))
+    speed = int(input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow (default)): "))
     if speed not in DG_SPEED_SETTINGS:
-        raise ValueError("Grating speed must be 0 (fast), 1 (medium) or 2 (slow).")
+        raise ValueError("Grating speed must be 0 (fast), 1 (medium) or 2 (slow = default).")
     settings = DG_SPEED_SETTINGS[speed]
     return settings["seq_len"], settings["seq_sep"], settings["label"]
 
