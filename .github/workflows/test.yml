@@ -29,7 +29,7 @@ jobs:
         
     - name: Run ruff
       shell: bash -l {0}
-      run: ruff check . --ignore F403,F405,E501,E722
+      run: ruff check .  # rules configured in ruff.toml
     
     - name: Run tests
       shell: bash -l {0}

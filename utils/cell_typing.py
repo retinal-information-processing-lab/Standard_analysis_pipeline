@@ -142,11 +142,10 @@ def correlate_PersonPM(cell1, cell2, max_shift=25):
     return np.asarray(left + [center] + right)
 
 
-
-
 #############################################
 ######      Cell typing (from chirp)   ######
 #############################################
+
 
 def select_and_save_cells_for_clustering(
     cells,
@@ -257,9 +256,7 @@ def modify_cells_for_clustering(
         Function to review entirely completely
     """
 
-    exp = (
-        params.exp
-    )  # Otherwise it can think that exp means the built in function exp not the experiment from params.
+    exp = params.exp  # Otherwise it can think that exp means the built in function exp not the experiment from params.
 
     # 2026-01-22 Leaving for now but this looks like a typo.  First line seems like it should be selected_cells_chirp and second selected_cells_sta, not both _sta
     selected_cells_sta = list(
@@ -418,7 +415,9 @@ def compute_chirp_psth(cell_data, selected_cells):
     for cell_index, cell_id in enumerate(selected_cells):
         spike_cell = cell_data[cell_id]["spike_trains"]
         for rep in range(n_rep):
-            spikes[cell_index, :, rep] = np.histogram(spike_cell[rep], bins=time_bins)[0]
+            spikes[cell_index, :, rep] = np.histogram(spike_cell[rep], bins=time_bins)[
+                0
+            ]
     return np.mean(spikes, 2)
 
 
@@ -429,7 +428,9 @@ def compute_sta_time_course(sta_results, selected_cells):
     """
     sta_time_course = np.zeros((len(selected_cells), 21))
     for cell_index, cell_id in enumerate(selected_cells):
-        sta_time_course[cell_index] = sta_results[cell_id]["sta_analysis"]["Temporal"][-21:]
+        sta_time_course[cell_index] = sta_results[cell_id]["sta_analysis"]["Temporal"][
+            -21:
+        ]
     return sta_time_course
 
 
@@ -487,7 +488,8 @@ def run_cell_typing_AC(
     # Input---------------------------------------------------
 
     sta_results = np.load(
-        os.path.join(check_directory, "sta_data_analysed_extended.pkl"), allow_pickle=True
+        os.path.join(check_directory, "sta_data_analysed_extended.pkl"),
+        allow_pickle=True,
     )
 
     # Processing-----------------------------------------------------------
@@ -638,40 +640,59 @@ def create_cluster_summary_figure(
             )
         )
     except Exception as err:
-        print(f"Warning: could not load DG tuning data ({err}); orientation plots skipped.")
+        print(
+            f"Warning: could not load DG tuning data ({err}); orientation plots skipped."
+        )
 
     euler_vec = None
     try:
-        vec_name = "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix_std.vec"
+        vec_name = (
+            "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix_std.vec"
+        )
         euler_vec = np.genfromtxt(utils.find_vec_file(vec_name, params.stim_directory))
         if old:
             euler_vec = -euler_vec
     except Exception as err:
-        print(f"Warning: could not load chirp stimulus vec ({err}); stimulus trace skipped.")
+        print(
+            f"Warning: could not load chirp stimulus vec ({err}); stimulus trace skipped."
+        )
 
     def missing(ax, message):
         """Blank an axis and write a small 'missing' note in it."""
         ax.axis("off")
         ax.text(
-            0.5, 0.5, message, transform=ax.transAxes, ha="center", va="center",
-            fontsize=fontsize - 4, color="gray", style="italic",
+            0.5,
+            0.5,
+            message,
+            transform=ax.transAxes,
+            ha="center",
+            va="center",
+            fontsize=fontsize - 4,
+            color="gray",
+            style="italic",
         )
 
     cluster_ids = sorted(
-        {cell_data[c]["type"] for c in cell_data if cell_data[c]["type"] != "Not assigned"}
+        {
+            cell_data[c]["type"]
+            for c in cell_data
+            if cell_data[c]["type"] != "Not assigned"
+        }
     )
 
     for icluster in tqdm(cluster_ids, desc="Cluster summary figures"):
-        cluster_cells = [c for c in selected_cells if cell_data[c].get("type") == icluster]
+        cluster_cells = [
+            c for c in selected_cells if cell_data[c].get("type") == icluster
+        ]
         n_cells = len(cluster_cells)
         print(f"Cluster {icluster}: {n_cells} cells")
 
         fig = plt.figure(figsize=(16, (n_cells + 2) * 1.9), constrained_layout=True)
-        gs = fig.add_gridspec(
-            n_cells + 2, 8, width_ratios=[1, 1, 1, 0.6, 1, 1, 1, 1]
-        )
+        gs = fig.add_gridspec(n_cells + 2, 8, width_ratios=[1, 1, 1, 0.6, 1, 1, 1, 1])
         fig.suptitle(
-            f"Cell group {icluster} — {n_cells} cells", fontsize=fontsize + 4, fontweight="bold"
+            f"Cell group {icluster} — {n_cells} cells",
+            fontsize=fontsize + 4,
+            fontweight="bold",
         )
 
         ax_ellipses = fig.add_subplot(gs[0:2, 1:3])
@@ -680,7 +701,6 @@ def create_cluster_summary_figure(
         temporal_count = 0
 
         for row, cell_nb in enumerate(cluster_cells, start=2):
-
             # --- Orientation tuning (polar, from DG) ---
             ax = fig.add_subplot(gs[row, 0], polar=True)
             if cell_nb in DG_set:
@@ -714,7 +734,9 @@ def create_cluster_summary_figure(
                     utils.add_scalebar(
                         ax,
                         scalebar_size_um=100,
-                        pixel_size_um=sta_results[cell_nb]["sta_analysis"]["Spatial_unit_size_um"],
+                        pixel_size_um=sta_results[cell_nb]["sta_analysis"][
+                            "Spatial_unit_size_um"
+                        ],
                         scalebar_left_location=(0.95, 0.13),
                         scale_bar_color="black",
                         scale_bar_width=3,
@@ -723,8 +745,11 @@ def create_cluster_summary_figure(
                 gaussian = utils.gaussian2D(spatial.shape, *ellipse)
                 if ellipse[0] != 0:
                     ax_ellipses.contour(
-                        np.abs(gaussian), levels=[0.6 * np.max(np.abs(gaussian))],
-                        colors="k", linestyles="solid", alpha=0.8,
+                        np.abs(gaussian),
+                        levels=[0.6 * np.max(np.abs(gaussian))],
+                        colors="k",
+                        linestyles="solid",
+                        alpha=0.8,
                     )
             except Exception as err:
                 print(f"Warning: no spatial STA for cell {cell_nb} ({err}).")
@@ -770,7 +795,9 @@ def create_cluster_summary_figure(
         # mean temporal STA
         ax = fig.add_subplot(gs[0, 3])
         if temporal_count:
-            ax.plot(np.linspace(-21 / 30, 0, 21), temporal_sum / temporal_count, "k", lw=2)
+            ax.plot(
+                np.linspace(-21 / 30, 0, 21), temporal_sum / temporal_count, "k", lw=2
+            )
             ax.set_aspect(0.175)
         ax.set_title("Mean temporal STA", fontsize=fontsize)
         ax.axis("off")
@@ -785,7 +812,11 @@ def create_cluster_summary_figure(
         ax.set_title("Mean chirp PSTH", fontsize=fontsize)
         try:
             rows = [selected_cells.index(c) for c in cluster_cells]
-            ax.plot(np.linspace(0, 32, psth_z.shape[1]), np.mean(psth_z[rows, :], axis=0), "b")
+            ax.plot(
+                np.linspace(0, 32, psth_z.shape[1]),
+                np.mean(psth_z[rows, :], axis=0),
+                "b",
+            )
         except Exception as err:
             print(f"Warning: mean chirp PSTH failed for cluster {icluster} ({err}).")
         ax.axis("off")
@@ -842,7 +873,10 @@ def plot_handmade_cluster(
         )
 
     temp_cell_data = {
-        c: {**cell_data[c], "type": (cluster_name if c in cell_list else "Not assigned")}
+        c: {
+            **cell_data[c],
+            "type": (cluster_name if c in cell_list else "Not assigned"),
+        }
         for c in cell_data
     }
     create_cluster_summary_figure(

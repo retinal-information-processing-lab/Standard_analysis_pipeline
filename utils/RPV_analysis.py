@@ -2,7 +2,6 @@ import numpy as np
 import os
 
 
-
 #############################################
 ######          ID card                ######
 #############################################
@@ -66,5 +65,3 @@ def compute_refractory_period_violation(spike_times, duration=2.0, cell_nb=None)
     else:
         rpv = compute_number_of_rpv_spikes(spike_times, duration) / float(nb_isis) * 100
         return rpv
-
-

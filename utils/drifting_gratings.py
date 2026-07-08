@@ -68,9 +68,13 @@ def prompt_user_for_dg_speed():
     label : str
         Human-readable speed label.
     """
-    speed = int(input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow (default)): "))
+    speed = int(
+        input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow (default)): ")
+    )
     if speed not in DG_SPEED_SETTINGS:
-        raise ValueError("Grating speed must be 0 (fast), 1 (medium) or 2 (slow = default).")
+        raise ValueError(
+            "Grating speed must be 0 (fast), 1 (medium) or 2 (slow = default)."
+        )
     settings = DG_SPEED_SETTINGS[speed]
     return settings["seq_len"], settings["seq_sep"], settings["label"]
 
@@ -116,15 +120,21 @@ def get_all_inputs_for_dg_analysis(params):
     n_repetitions : int
         Number of repetitions per direction (read from the vec, confirmed by the user).
     """
-    rec_idx, rec = utils.prompt_user_for_recording(params.recording_names, "DG recording")
-    DG_directory = utils.create_analysis_directory(params.output_directory, rec_idx, "DG")
+    rec_idx, rec = utils.prompt_user_for_recording(
+        params.recording_names, "DG recording"
+    )
+    DG_directory = utils.create_analysis_directory(
+        params.output_directory, rec_idx, "DG"
+    )
 
     seq_len, seq_sep, _ = prompt_user_for_dg_speed()
 
     # Vec file (its last column gives the direction+repetition key of every trigger).
     # Looks for the standard DG vec in params.stim_directory; if your experiment used a
     # different version, it lists the .vec files there and asks you to pick the right one.
-    vec_path = utils.find_vec_file("DG_50hZ_8reps_8dir_2sT_std.vec", params.stim_directory)
+    vec_path = utils.find_vec_file(
+        "DG_50hZ_8reps_8dir_2sT_std.vec", params.stim_directory
+    )
     vec = np.loadtxt(vec_path)[1:, :]  # drop header line
     vec_keys = vec[:, -1]
 
@@ -143,7 +153,9 @@ def get_all_inputs_for_dg_analysis(params):
     stim_onsets = utils.load_stim_onset_from_triggers_path(
         triggers_path, params.fs, verbose=True
     )
-    cells, spike_times = utils.load_spike_times(rec, params.output_directory, params.exp)
+    cells, spike_times = utils.load_spike_times(
+        rec, params.output_directory, params.exp
+    )
 
     return (
         cells,
@@ -323,9 +335,11 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
     print("--- Done ---")
     return fig
 
+
 # ==========================
 # Compute Tuning
 # ==========================
+
 
 def _dg_bin_params(seq_sep):
     """Time-binning constants shared by the DG PSTH and the per-direction responses."""
@@ -362,8 +376,9 @@ def compute_direction_responses(counts, seq_len, seq_sep):
     for a in np.arange(8):
         sel_bins = np.copy(
             counts[
-                int(seq_len * 1000 / 6) // binsize
-                + int(seq_sep * binsec * a) : int(seq_len * binsec + seq_sep * binsec * a)
+                int(seq_len * 1000 / 6) // binsize + int(seq_sep * binsec * a) : int(
+                    seq_len * binsec + seq_sep * binsec * a
+                )
             ]
         )
         tune[a] = np.sum(sel_bins)

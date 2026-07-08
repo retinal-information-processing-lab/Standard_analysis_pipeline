@@ -545,5 +545,3 @@ def split_spikes_by_recording(all_spike_times, good_clusters, onsets, fs=params.
             recording_start_time = onset
             rec_name = rec
     return data
-
-

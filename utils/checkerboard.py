@@ -202,5 +202,3 @@ def extract_from_sequence(
         spikes_counts.sum(axis=0) / nb_repeats * stim_frequency
     )  # transform spikes_count in mean firing rates
     return analyse
-
-

@@ -1,0 +1,14 @@
+# Ruff configuration for the standard analysis pipeline.
+# Kept here (instead of on the command line) so `tasks.py` and CI stay in sync.
+
+[lint]
+# Project-wide relaxations:
+#   F403/F405 - the utils package intentionally re-exports via `from .x import *`.
+#   E501      - long lines are fine (scientific formulas, long strings).
+#   E722      - bare `except:` is tolerated in the notebooks/helpers.
+ignore = ["F403", "F405", "E501", "E722"]
+
+[lint.per-file-ignores]
+# Notebooks keep some imports only as commented "escape hatch" examples for users
+# (e.g. `# probe = pi.read_prb(...)`), so don't flag unused imports (F401) there.
+"*.ipynb" = ["F401"]

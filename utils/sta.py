@@ -5,7 +5,6 @@ from scipy.signal import convolve
 from skimage import measure
 
 
-
 # ------------------------------------------------------------- #
 # >> STA computation and analysis (OK)
 # ------------------------------------------------------------- #
@@ -207,9 +206,7 @@ def smooth_sta(sta, alpha, max_time_window=15):
                 1:-1,
                 x + pading_size - 1 : x + pading_size + 2,
                 y + pading_size - 1 : y + pading_size + 2,
-            ].sum(
-                axis=(1, 2)
-            )
+            ].sum(axis=(1, 2))
 
     best = np.unravel_index(
         np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
@@ -269,9 +266,9 @@ def preprocess_fitting_standard(
         np.abs(processed_spatial_sta) < peak * noise_threshold**exponent
     ] = 0
 
-    assert (
-        processed_spatial_sta.shape == spatial_sta.shape
-    ), f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
+    assert processed_spatial_sta.shape == spatial_sta.shape, (
+        f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
+    )
 
     return processed_spatial_sta
 
@@ -433,14 +430,18 @@ def rf_analysis(
             raise ValueError(
                 f"You should not arrive here, method should be either 'matias' or 'tom', not {method}"
             )
-        ellipse_params, fitted = _fit_rf_ellipse(fitting_data, error_msg, def_ellipse_params)
+        ellipse_params, fitted = _fit_rf_ellipse(
+            fitting_data, error_msg, def_ellipse_params
+        )
 
     elif method == "standard":
         spatial_sta, temporal_sta, spatial_mask, cell_delay, cxy = get_sta_components(
             sta3d
         )
         smoothed_mask = preprocess_fitting_standard(spatial_mask)
-        ellipse_params, fitted = _fit_rf_ellipse(smoothed_mask, error_msg, def_ellipse_params)
+        ellipse_params, fitted = _fit_rf_ellipse(
+            smoothed_mask, error_msg, def_ellipse_params
+        )
 
     # elif method == 'guilhem':
     #     time_window_peak_location = 15
@@ -485,22 +486,28 @@ def rf_analysis(
         "Cell_delay",
         "FittedEllipse",
     }
-    assert (
-        set(result.keys()) == expected_keys
-    ), f"Result keys {result.keys()} do not match expected keys {expected_keys}"
-    assert (
-        isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2
-    ), f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
+    assert set(result.keys()) == expected_keys, (
+        f"Result keys {result.keys()} do not match expected keys {expected_keys}"
+    )
+    assert isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2, (
+        f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
+    )
     assert (
         isinstance(result["Temporal"], np.ndarray) and result["Temporal"].ndim == 1
-    ), f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"
+    ), (
+        f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"
+    )
     assert (
         isinstance(result["EllipseCoor"], (list, np.ndarray))
         and len(result["EllipseCoor"]) == 6
-    ), f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
+    ), (
+        f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
+    )
     assert isinstance(result["Cell_delay"], (int, np.integer)) or np.isnan(
         result["Cell_delay"]
-    ), f"Cell_delay should be a number or NaN, got {type(result['Cell_delay'])} with value {result['Cell_delay']}"
+    ), (
+        f"Cell_delay should be a number or NaN, got {type(result['Cell_delay'])} with value {result['Cell_delay']}"
+    )
 
     return result
 
@@ -587,8 +594,12 @@ def add_scalebar(
     physical size. When ``label`` is True the size (e.g. "100 µm") is written just below
     the bar. ``nx``/``ny`` are kept for backward compatibility but are no longer used.
     """
-    view_px = abs(ax.get_xlim()[1] - ax.get_xlim()[0])  # current view width, in STA pixels
-    bar_frac = (scalebar_size_um / pixel_size_um) / view_px  # bar length as an axes fraction
+    view_px = abs(
+        ax.get_xlim()[1] - ax.get_xlim()[0]
+    )  # current view width, in STA pixels
+    bar_frac = (
+        scalebar_size_um / pixel_size_um
+    ) / view_px  # bar length as an axes fraction
     x_right, y = scalebar_left_location
     x_left = x_right - bar_frac
     ax.plot(
@@ -714,12 +725,12 @@ def ellipse_area(
     if method == "formula":
         return np.pi * sigma_x * sigma_y
     elif method == "polygon":
-        assert (
-            spatial_sta_shape is not None
-        ), "spatial_sta_shape must be provided for polygon method"
-        assert (
-            level_factor is not None and 0 < level_factor < 1
-        ), "level_factor must be provided for polygon method and must be between 0 and 1"
+        assert spatial_sta_shape is not None, (
+            "spatial_sta_shape must be provided for polygon method"
+        )
+        assert level_factor is not None and 0 < level_factor < 1, (
+            "level_factor must be provided for polygon method and must be between 0 and 1"
+        )
         gaussian = gaussian2D(spatial_sta_shape, *ellipse_params)
         abs_gaussian = np.abs(gaussian)
         contours = measure.find_contours(
@@ -911,5 +922,3 @@ def check_rf_fit(
         print(f" - SNR={valid_check['rf_snr']:.2f}")
 
     return valid_check
-
-

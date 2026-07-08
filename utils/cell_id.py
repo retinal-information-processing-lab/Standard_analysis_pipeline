@@ -68,7 +68,9 @@ def import_data_to_plot(params: dict):
         )
         check_rast = None
     else:
-        check_rast = utils.load_obj(os.path.join(check_directory, "Check_rasters_data.pkl"))
+        check_rast = utils.load_obj(
+            os.path.join(check_directory, "Check_rasters_data.pkl")
+        )
 
     # load the DG data
     DG_data = np.load(
@@ -293,7 +295,9 @@ def create_id_cards_and_plots(
             # --------------------------------------------------
             # Plot checkerboard repeated sequence psth (superimposed)
             ax = fig.add_subplot(gs[6:7, 3:5])
-            width = check_rast[cell_nb]["repeated_sequences_times"][0][0] / int(1200 / 2)
+            width = check_rast[cell_nb]["repeated_sequences_times"][0][0] / int(
+                1200 / 2
+            )
             seq_lenght = (
                 check_rast[cell_nb]["repeated_sequences_times"][0][1]
                 - check_rast[cell_nb]["repeated_sequences_times"][0][0]

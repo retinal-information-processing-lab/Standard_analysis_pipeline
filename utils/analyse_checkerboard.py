@@ -20,6 +20,7 @@ import utils
 # CHECKERBOARD DATA LOADING AND PREPARATION
 # ------------------------------------------------------------------------------------------------------------------- #
 
+
 def prompt_user_for_checkerboard_params() -> tuple[int, int, int, int]:
     """
     Prompt user for stimulus parameters.
@@ -27,14 +28,18 @@ def prompt_user_for_checkerboard_params() -> tuple[int, int, int, int]:
     Returns:
         Tuple of (stimulus_frequency, nb_checks_x, nb_checks_y)
     """
-    stimulus_frequency = int(input("Select stimulus frequency (Hz, usually in stimulus filename): "))
+    stimulus_frequency = int(
+        input("Select stimulus frequency (Hz, usually in stimulus filename): ")
+    )
     nb_checks_x = int(
         input("Select number of checks on x (sq, usually in stimulus filename): ")
     )
     nb_checks_y = int(
         input("Select number of checks on y (sq, usually in stimulus filename): ")
     )
-    nb_pixels_per_check = int(input("Select number of pixels per check (px, usually in stimulus filename): "))
+    nb_pixels_per_check = int(
+        input("Select number of pixels per check (px, usually in stimulus filename): ")
+    )
 
     return stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check
 
@@ -76,7 +81,9 @@ def get_all_inputs_for_checkerboard_analysis(
         )
         nb_checks_x = nb_checks_y = nb_pixels_per_check = None
     else:
-        stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = prompt_user_for_checkerboard_params()
+        stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = (
+            prompt_user_for_checkerboard_params()
+        )
     check_directory = utils.create_analysis_directory(
         params.output_directory, recording_number, "Checkerboard"
     )
@@ -93,9 +100,7 @@ def get_all_inputs_for_checkerboard_analysis(
 
 
 def calculate_checkerboard_experiment_stats(
-        triggers: np.ndarray,
-        params: ModuleType,
-        stimulus_frequency: float
+    triggers: np.ndarray, params: ModuleType, stimulus_frequency: float
 ) -> tuple[int, int]:
     """
     Calculate and display experiment statistics.
@@ -171,7 +176,7 @@ def load_checkerboard_data(
     checkerboard_name: str,
     nb_checks_x: int,
     nb_checks_y: int,
-    stimulus_frequency: float
+    stimulus_frequency: float,
 ) -> tuple:
     """
     Load and process all checkerboard experiment data.
@@ -216,7 +221,9 @@ def load_checkerboard_data(
     )
     print(f"Checkerboard stimulus shape: {checkerboard.shape}")
 
-    print(f"\nTotal : {len(checkerboard_spikes.keys())} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n")
+    print(
+        f"\nTotal : {len(checkerboard_spikes.keys())} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n"
+    )
 
     return checkerboard_spikes, stim_onsets, nb_repeats, cells_id, checkerboard
 
@@ -225,6 +232,7 @@ def load_checkerboard_data(
 # SWN (Sparse White Noise) — alternative stimulus. Reuses the whole checkerboard STA
 # pipeline; only the stimulus reconstruction and one decorrelation step differ.
 # ------------------------------------------------------------------------------------------------------------------- #
+
 
 def load_swn_stimulus(
     bin_path: str,
@@ -261,7 +269,9 @@ def load_swn_stimulus(
     # Only the first half of the SWN frames are unrepeated (used to build the STA).
     num_unrepeated_frames = int(vec_header[1] / 2)
 
-    bin_obj = BinFile(bin_path, 0, 0, rig_id, mode="r")  # frame size is read from the .bin header
+    bin_obj = BinFile(
+        bin_path, 0, 0, rig_id, mode="r"
+    )  # frame size is read from the .bin header
     frames = []
     for vec in tqdm(vec_trigs, desc="Reconstructing SWN stimulus"):
         frame_index = int(vec[1])
@@ -270,7 +280,9 @@ def load_swn_stimulus(
             frames.append(frame[::shift_x, ::shift_y] / frame.max())
     bin_obj.close()
     stimulus = np.array(frames)
-    print(f"SWN stimulus reconstructed: {stimulus.shape[0]} frames of {stimulus.shape[1]}x{stimulus.shape[2]}")
+    print(
+        f"SWN stimulus reconstructed: {stimulus.shape[0]} frames of {stimulus.shape[1]}x{stimulus.shape[2]}"
+    )
 
     # Stimulus covariance (for decorrelating the STA); regularised on the diagonal.
     print("Computing SWN stimulus covariance matrix...")
@@ -304,14 +316,20 @@ def load_swn_data(
         swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
     """
     triggers_path = os.path.normpath(
-        os.path.join(params.triggers_directory, f"{params.exp}_{swn_recording_name}_triggers.pkl")
+        os.path.join(
+            params.triggers_directory, f"{params.exp}_{swn_recording_name}_triggers.pkl"
+        )
     )
     print(f"Loading triggers from:\t {triggers_path}")
-    stim_onsets = utils.load_stim_onset_from_triggers_path(triggers_path, params.fs, verbose=True)
+    stim_onsets = utils.load_stim_onset_from_triggers_path(
+        triggers_path, params.fs, verbose=True
+    )
     cells_id, swn_spikes = utils.load_spike_times(
         swn_recording_name, params.output_directory, params.exp
     )
-    nb_repeats, _ = calculate_checkerboard_experiment_stats(stim_onsets, params, stimulus_frequency)
+    nb_repeats, _ = calculate_checkerboard_experiment_stats(
+        stim_onsets, params, stimulus_frequency
+    )
 
     # Resolve the SWN .bin/.vec from the stimulus folder (prompts if the exact file is
     # not there), the same way the other analyses find their .vec files.
@@ -326,7 +344,9 @@ def load_swn_data(
         params.swn_cov_regularization,
     )
 
-    print(f"\nTotal : {len(swn_spikes)} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n")
+    print(
+        f"\nTotal : {len(swn_spikes)} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n"
+    )
     return swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
 
 
@@ -334,16 +354,16 @@ def load_swn_data(
 # RESPONSE EXTRACTION
 # ------------------------------------------------------------------------------------------------------------------- #
 
+
 def extract_all_cell_responses_to_repeated_sequences(
-        checkerboard_spikes: dict, 
-        triggers: np.ndarray, 
-        nb_repeats: int, 
-        stimulus_frequency: float,
-        cells_id: list,
-        nb_frames_per_sequence: int,
-        sequence_portion: tuple = (0.5, 1)
-        ) -> dict:
-    
+    checkerboard_spikes: dict,
+    triggers: np.ndarray,
+    nb_repeats: int,
+    stimulus_frequency: float,
+    cells_id: list,
+    nb_frames_per_sequence: int,
+    sequence_portion: tuple = (0.5, 1),
+) -> dict:
     """
     Extract responses to repeated stimulus sequences for all cells.
 
@@ -353,7 +373,7 @@ def extract_all_cell_responses_to_repeated_sequences(
         nb_repeats: Number of complete stimulus sequences
         stimulus_frequency: Stimulus frequency in Hz
         cells_id: List of cell IDs to process
-        nb_frames_per_sequence: Number of frames in each stimulus sequence  
+        nb_frames_per_sequence: Number of frames in each stimulus sequence
         sequence_portion: Tuple specifying which portion of sequence to use (e.g., (0.5, 1) for second half)
 
     Returns:
@@ -370,41 +390,76 @@ def extract_all_cell_responses_to_repeated_sequences(
                     'psth': np.array of shape (n_bins,)
                 },
     """
-    
+
     # initialise output
     output_data = {}
 
     # loop over the spikes recorded during the checkerboard experiment
     # get the responses to the repeated sequence
-    for cell_id, spike_times in tqdm(checkerboard_spikes.items(), desc="Extracting responses to repeated sequence for each cell"):
+    for cell_id, spike_times in tqdm(
+        checkerboard_spikes.items(),
+        desc="Extracting responses to repeated sequence for each cell",
+    ):
         output_data[cell_id] = utils.extract_from_sequence(
-            spike_times, 
-            triggers, 
-            nb_repeats, 
+            spike_times,
+            triggers,
+            nb_repeats,
             stim_frequency=stimulus_frequency,
             sequence_portion=sequence_portion,
             nb_frames_per_sequence=nb_frames_per_sequence,
         )
 
     # check data
-    assert set(output_data.keys()) == set(cells_id), "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
+    assert set(output_data.keys()) == set(cells_id), (
+        "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
+    )
     for cell_id in cells_id:
-        assert 'spike_times' in output_data[cell_id] and output_data[cell_id]['spike_times'].ndim==1, f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
-        assert 'repeated_sequences_times' in output_data[cell_id] and isinstance(output_data[cell_id]['repeated_sequences_times'], list) and len(output_data[cell_id]['repeated_sequences_times']) == nb_repeats, f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
-        assert 'spike_trains' in output_data[cell_id] and isinstance(output_data[cell_id]['spike_trains'], list) and len(output_data[cell_id]['spike_trains']) == nb_repeats, f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
-        assert 'counted_spikes' in output_data[cell_id] and output_data[cell_id]['counted_spikes'].ndim==2 and output_data[cell_id]['counted_spikes'].shape[0] == nb_repeats, f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
-        nbins = output_data[cell_id]['counted_spikes'].shape[1]
-        assert 'psth' in output_data[cell_id] and output_data[cell_id]['psth'].ndim==1 and output_data[cell_id]['psth'].shape[0] == nbins, f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
+        assert (
+            "spike_times" in output_data[cell_id]
+            and output_data[cell_id]["spike_times"].ndim == 1
+        ), (
+            f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
+        )
+        assert (
+            "repeated_sequences_times" in output_data[cell_id]
+            and isinstance(output_data[cell_id]["repeated_sequences_times"], list)
+            and len(output_data[cell_id]["repeated_sequences_times"]) == nb_repeats
+        ), (
+            f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
+        )
+        assert (
+            "spike_trains" in output_data[cell_id]
+            and isinstance(output_data[cell_id]["spike_trains"], list)
+            and len(output_data[cell_id]["spike_trains"]) == nb_repeats
+        ), (
+            f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
+        )
+        assert (
+            "counted_spikes" in output_data[cell_id]
+            and output_data[cell_id]["counted_spikes"].ndim == 2
+            and output_data[cell_id]["counted_spikes"].shape[0] == nb_repeats
+        ), (
+            f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
+        )
+        nbins = output_data[cell_id]["counted_spikes"].shape[1]
+        assert (
+            "psth" in output_data[cell_id]
+            and output_data[cell_id]["psth"].ndim == 1
+            and output_data[cell_id]["psth"].shape[0] == nbins
+        ), (
+            f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
+        )
     return output_data
 
 
 def plot_all_rasters(
-        rep_seq_data: dict,
-        cells_id: list, 
-        fontsize: int = 35, 
-        show_labels: bool = False,
-        plotting: bool = True):
-    """ 
+    rep_seq_data: dict,
+    cells_id: list,
+    fontsize: int = 35,
+    show_labels: bool = False,
+    plotting: bool = True,
+):
+    """
     Plot rasters for all cells in a grid (might take a few seconds).
 
     Args:
@@ -427,9 +482,9 @@ def plot_all_rasters(
             if i < len(cells_id):
                 ax.eventplot(rep_seq_data[cells_id[i]]["spike_trains"])
                 ax.set_title(f"C{cells_id[i]}", fontsize=fontsize)
-                if show_labels: 
+                if show_labels:
                     ax.set_xlabel("Time (s)", fontsize=fontsize)
-                if show_labels: 
+                if show_labels:
                     ax.set_ylabel("n repetition", fontsize=fontsize)
             else:
                 ax.set_visible(False)
@@ -474,7 +529,9 @@ def plot_raster_and_psth(
         fontsize_labels = fontsize - 2
     ax_rast.eventplot(spike_trains)
     # Even/odd reliability of the repeated responses, shown in the raster title.
-    reliability = utils.even_odd_reliability(spike_trains, len(psth), (t0, t0 + seq_length))
+    reliability = utils.even_odd_reliability(
+        spike_trains, len(psth), (t0, t0 + seq_length)
+    )
     rel_txt = "n/a" if np.isnan(reliability) else f"{reliability:.2f}"
     ax_rast.set_title(f"{title}  (reliability r = {rel_txt})", fontsize=fontsize)
     ax_rast.set_ylabel("n repetition", fontsize=fontsize)
@@ -498,9 +555,9 @@ def plot_raster_and_psth(
 
 def plot_and_save_single_cell_rasters(
     rep_seq_data: dict,
-    check_directory: str, 
+    check_directory: str,
     folder_name: str = "Rasters_figs",
-    cell_ids: list = None, 
+    cell_ids: list = None,
     title: str = "Response to repeated sequence",
     fontsize: int = 14,
     save_figures: bool = True,
@@ -508,7 +565,7 @@ def plot_and_save_single_cell_rasters(
     save_format: str = "png",
 ):
     """
-    Generate single cell raster plots (one figure per cell showing raster+psth) 
+    Generate single cell raster plots (one figure per cell showing raster+psth)
     and save them in a new folder: "Rasters_figs" in the check_directory.
 
     Args:
@@ -521,7 +578,7 @@ def plot_and_save_single_cell_rasters(
         save_figures: Boolean indicating whether to save the figures as files
         show_figures: Boolean indicating whether to display the figures
         save_format: String indicating the format to save the figures in (e.g., "png", "jpg", "svg")
-        
+
     Returns:
         None
     """
@@ -529,10 +586,10 @@ def plot_and_save_single_cell_rasters(
     # figure path
     fig_directory = os.path.normpath(os.path.join(check_directory, folder_name))
     # ensure path figure exists
-    if not os.path.isdir(fig_directory): 
+    if not os.path.isdir(fig_directory):
         os.makedirs(fig_directory)
-    
-    if cell_ids is None: 
+
+    if cell_ids is None:
         cell_ids = list(rep_seq_data.keys())
 
     # loop over cells
@@ -556,7 +613,7 @@ def plot_and_save_single_cell_rasters(
             ax_rast=axs[0],
             ax_psth=axs[1],
             seq_length=rep_seq_data[cell_nb]["repeated_sequences_times"][0][1]
-                       - rep_seq_data[cell_nb]["repeated_sequences_times"][0][0],
+            - rep_seq_data[cell_nb]["repeated_sequences_times"][0][0],
             title=title,
             fontsize=fontsize,
         )
@@ -566,9 +623,9 @@ def plot_and_save_single_cell_rasters(
 
         # save figure
         fig_file = os.path.join(fig_directory, f"Cell_{cell_nb}.{save_format}")
-        if save_figures: 
+        if save_figures:
             plt.savefig(fig_file, dpi=fig.dpi)
-        if show_figures: 
+        if show_figures:
             plt.show(block=False)
             print(f"fig_file : {fig_file}")
 
@@ -583,6 +640,7 @@ def plot_and_save_single_cell_rasters(
 # SPIKE TRIGGERED AVERAGE
 # ------------------------------------------------------------------------------------------------------------------- #
 
+
 def compute_spike_triggered_average(
     checkerboard_spikes: dict,
     checkerboard: np.ndarray,
@@ -591,7 +649,7 @@ def compute_spike_triggered_average(
     stimulus_frequency: int,
     check_directory: str,
     nb_frames_per_sequence: int,
-    temporal_dimension: int, 
+    temporal_dimension: int,
     sequence_portion: tuple = (0, 0.5),
     sta_data_filename: str = "sta_data_3D.pkl",
 ) -> tuple:
@@ -634,11 +692,11 @@ def compute_spike_triggered_average(
 
         # Compute sta of the cell
         sta_3D = utils.compute_3D_sta(
-            sta_data[cell_id], 
-            checkerboard, 
+            sta_data[cell_id],
+            checkerboard,
             nb_frames_per_sequence=nb_frames_per_sequence,
             temporal_dimension=temporal_dimension,
-            cell_id=cell_id
+            cell_id=cell_id,
         )
 
         # Adding data to the notebook dictionary
@@ -651,7 +709,7 @@ def compute_spike_triggered_average(
 
 
 def plot_one_cell_3D_spike_triggered_average(
-    sta_data: dict, 
+    sta_data: dict,
     max_frames_to_show: int = 28,
     n_frames_per_line: int = 7,
     fontsize: int = 14,
@@ -665,7 +723,7 @@ def plot_one_cell_3D_spike_triggered_average(
     Args:
         sta_data: Dictionary with STA data
         max_frames_to_show: Maximum number of temporal frames to display
-        n_frames_per_line: Number of frames to show per line in the grid    
+        n_frames_per_line: Number of frames to show per line in the grid
         fontsize: Font size for titles
         cmap: Colormap for STA visualization
     """
@@ -676,13 +734,15 @@ def plot_one_cell_3D_spike_triggered_average(
     # ask user to input a cell
     cell_id = int(input("Select a cell id: "))
     if cell_id not in sta_data:
-        print(f"Error: Cell ID {cell_id} not found in STA data. Please select a valid cell ID.")
+        print(
+            f"Error: Cell ID {cell_id} not found in STA data. Please select a valid cell ID."
+        )
         return
 
     # plot
     sta = sta_data[cell_id]["sta_3D"]
     vrange = np.max(np.abs(sta))
-    vmin, vmax = -1*vrange, vrange
+    vmin, vmax = -1 * vrange, vrange
     n_frames_to_show = min(max_frames_to_show, sta.shape[0])
     ncols = n_frames_per_line
     nrows = int(np.ceil(n_frames_to_show / ncols))
@@ -693,16 +753,19 @@ def plot_one_cell_3D_spike_triggered_average(
         ax.imshow(sta[i], vmin=vmin, vmax=vmax, cmap=cmap)
         ax.set_title(f"f: {i}", fontsize=fontsize)
         ax.set_axis_off()
-    fig.suptitle(f"Cell {cell_id} - 3D Spike-Triggered Average (shape: {sta.shape})", fontsize=fontsize)
+    fig.suptitle(
+        f"Cell {cell_id} - 3D Spike-Triggered Average (shape: {sta.shape})",
+        fontsize=fontsize,
+    )
     plt.show(block=False)
     plt.close(fig)
 
 
 def analyse_all_stas(
-    sta_data: dict, 
+    sta_data: dict,
     directory: str,
     data_filename: str = "sta_data_analysed.pkl",
-    method: str = "tom"
+    method: str = "tom",
 ) -> dict:
     """
     Analyze STAs to extract receptive field properties, add it to the sta_data dictionary and save it.
@@ -714,19 +777,21 @@ def analyse_all_stas(
         method: Method to use for receptive field analysis, options are "guilhem" (default) or "gaussian_fit"
 
     Returns:
-        sta_data: Updated dictionary with added 'sta_analysis' key for each cell containing analysis results:    
+        sta_data: Updated dictionary with added 'sta_analysis' key for each cell containing analysis results:
                 - "Spatial": 2D numpy array representing the spatial STA.
                 - "Temporal": 1D numpy array representing the temporal STA.
                 - "EllipseCoor": List of parameters of the fitted ellipse (amp, x0, y0, sigma_x, sigma_y, rot_angle) in units.
-                - "Cell_delay": Time bin corresponding to the spatial STA. 
+                - "Cell_delay": Time bin corresponding to the spatial STA.
                 - "FittedEllipse": Boolean indicating whether the ellipse fitting was successful or if default parameters were returned due to an error.
-        
+
     """
 
     # loop over cells, get and store rf analysis in sta_data
     for cell_id in tqdm(sta_data.keys(), desc="Fitting ellipses on STAs"):
         sta_3D = sta_data[cell_id]["sta_3D"]
-        sta_data[cell_id]["sta_analysis"] = utils.rf_analysis(sta_3D, cell_id, method=method)
+        sta_data[cell_id]["sta_analysis"] = utils.rf_analysis(
+            sta_3D, cell_id, method=method
+        )
 
     # save file
     fitted_file = os.path.normpath(os.path.join(directory, data_filename))
@@ -773,7 +838,9 @@ def decorrelate_spatial_stas(sta_data: dict, C_I: np.ndarray) -> dict:
             analysis["EllipseCoor"] = ellipse_params
             analysis["FittedEllipse"] = True
         except Exception:
-            print(f"Could not re-fit the ellipse after decorrelation for cell {cell_id}")
+            print(
+                f"Could not re-fit the ellipse after decorrelation for cell {cell_id}"
+            )
             analysis["EllipseCoor"] = default_ellipse
             analysis["FittedEllipse"] = False
     return sta_data
@@ -787,9 +854,8 @@ def extend_sta_analysis_to_physical_units(
     directory: str,
     data_filename: str = "sta_data_analysed_extended.pkl",
 ) -> dict:
-    
     """
-    Extend STA analysis results to physical units (micrometers for spatial properties, seconds for temporal properties) 
+    Extend STA analysis results to physical units (micrometers for spatial properties, seconds for temporal properties)
     and save the updated data.
 
     Args:
@@ -807,24 +873,38 @@ def extend_sta_analysis_to_physical_units(
             - "TemporalFreq_s": Frequency corresponding to the temporal STA in Hz.
             - "Cell_delay_s": Time in seconds corresponding to the spatial STA.
     """
-    
+
     sta_pixel_size_um = pxl_size_dmd_um * pixels_per_check
     sta_time_bin_s = 1 / sta_frequency
-    
-    for cell_id in tqdm(sta_data_analysed.keys(), desc="Extending STA analysis to physical units"):
-        sta_data_analysed[cell_id]["sta_analysis"]["Spatial_unit_size_um"] = sta_pixel_size_um
+
+    for cell_id in tqdm(
+        sta_data_analysed.keys(), desc="Extending STA analysis to physical units"
+    ):
+        sta_data_analysed[cell_id]["sta_analysis"]["Spatial_unit_size_um"] = (
+            sta_pixel_size_um
+        )
 
         ellipse_params = sta_data_analysed[cell_id]["sta_analysis"]["EllipseCoor"]
-        ellipse_params_um = utils.convert_ellipse_params_to_physical_units(ellipse_params, sta_pixel_size_um)
+        ellipse_params_um = utils.convert_ellipse_params_to_physical_units(
+            ellipse_params, sta_pixel_size_um
+        )
         sta_data_analysed[cell_id]["sta_analysis"]["EllipseCoor_um"] = ellipse_params_um
 
         temporal_sta = sta_data_analysed[cell_id]["sta_analysis"]["Temporal"]
-        temporal_sta_time_vector = utils.get_temporal_sta_time_vector(temporal_sta, sta_time_bin_s)
-        sta_data_analysed[cell_id]["sta_analysis"]["TemporalTimeVector_s"] = temporal_sta_time_vector
-        sta_data_analysed[cell_id]["sta_analysis"]["TemporalFreq_s"] = 1 / sta_time_bin_s
+        temporal_sta_time_vector = utils.get_temporal_sta_time_vector(
+            temporal_sta, sta_time_bin_s
+        )
+        sta_data_analysed[cell_id]["sta_analysis"]["TemporalTimeVector_s"] = (
+            temporal_sta_time_vector
+        )
+        sta_data_analysed[cell_id]["sta_analysis"]["TemporalFreq_s"] = (
+            1 / sta_time_bin_s
+        )
 
         cell_delay = sta_data_analysed[cell_id]["sta_analysis"]["Cell_delay"]
-        cell_delay_s = utils.get_cell_delay_time(cell_delay, temporal_sta, sta_time_bin_s)
+        cell_delay_s = utils.get_cell_delay_time(
+            cell_delay, temporal_sta, sta_time_bin_s
+        )
         sta_data_analysed[cell_id]["sta_analysis"]["Cell_delay_s"] = cell_delay_s
 
     # save file
@@ -832,16 +912,18 @@ def extend_sta_analysis_to_physical_units(
     utils.save_obj(sta_data_analysed, fitted_file)
     return sta_data_analysed
 
-def plot_all_stas(sta_data: dict, 
-                  cell_ids: list = None,
-                  fontsize: int = 35,
-                  show_labels: bool = False,
-                  add_fitted_indicator: bool = True,
-                  border_width: int = 2,
-                  n_sigma: float = 2.0,
-                  order_by_property: str = None,
-                  set_axis_off: bool = True,
-                  ):
+
+def plot_all_stas(
+    sta_data: dict,
+    cell_ids: list = None,
+    fontsize: int = 35,
+    show_labels: bool = False,
+    add_fitted_indicator: bool = True,
+    border_width: int = 2,
+    n_sigma: float = 2.0,
+    order_by_property: str = None,
+    set_axis_off: bool = True,
+):
     """
     Plot all STAs in a grid and save the figure.
 
@@ -868,7 +950,7 @@ def plot_all_stas(sta_data: dict,
     good_color = "green"
     not_good_color = "orange"
     not_fitted_color = "red"
-    good_count = 0    
+    good_count = 0
     not_good_count = 0
 
     if add_fitted_indicator or order_by_property is not None:
@@ -880,9 +962,9 @@ def plot_all_stas(sta_data: dict,
             invalid_coords = [(0, 0)]  # unit
             min_sigma = 0.01  # unit
             min_rf_area = 0.01  # unit^2
-            min_rf_diameter = 0.1  #unit
-        
-            sta_data[cid]["sta_analysis"]['checkRF'] = utils.check_rf_fit(
+            min_rf_diameter = 0.1  # unit
+
+            sta_data[cid]["sta_analysis"]["checkRF"] = utils.check_rf_fit(
                 spatial_sta,
                 ellipse_params,
                 min_amp,
@@ -892,11 +974,16 @@ def plot_all_stas(sta_data: dict,
                 min_rf_diameter,
                 min_rf_snr,
                 level_factor=level_factor,
-                )
+            )
 
     if order_by_property is not None:
-        assert order_by_property in sta_data[cell_ids[0]]["sta_analysis"]['checkRF'], f"Error: invalid order_by_property '{order_by_property}', must be one of {list(sta_data[cell_ids[0]]['sta_analysis']['checkRF'].keys())}"
-        cell_ids.sort(key=lambda cid: sta_data[cid]["sta_analysis"]['checkRF'][order_by_property], reverse=True)  # sort in descending order of the chosen property
+        assert order_by_property in sta_data[cell_ids[0]]["sta_analysis"]["checkRF"], (
+            f"Error: invalid order_by_property '{order_by_property}', must be one of {list(sta_data[cell_ids[0]]['sta_analysis']['checkRF'].keys())}"
+        )
+        cell_ids.sort(
+            key=lambda cid: sta_data[cid]["sta_analysis"]["checkRF"][order_by_property],
+            reverse=True,
+        )  # sort in descending order of the chosen property
 
     fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
     for i in tqdm(range(size**2), desc="Plotting STAs for all cells"):
@@ -905,22 +992,27 @@ def plot_all_stas(sta_data: dict,
             spatial_sta = sta_data[cell_ids[i]]["sta_analysis"]["Spatial"]
             ny, nx = spatial_sta.shape
             vrange = np.max(np.abs(spatial_sta))
-            ax.imshow(spatial_sta, vmin=-1*vrange, vmax=vrange, cmap="RdBu_r")
+            ax.imshow(spatial_sta, vmin=-1 * vrange, vmax=vrange, cmap="RdBu_r")
             ax.set_title(f"C{cell_ids[i]}", fontsize=fontsize)
-            if "Spatial_unit_size_um" in sta_data[cell_ids[i]]["sta_analysis"]: 
-                utils.add_scalebar(ax,
-                                   scalebar_size_um=100, 
-                                   pixel_size_um=sta_data[cell_ids[i]]["sta_analysis"]["Spatial_unit_size_um"], 
-                                   scalebar_left_location=(.9, .9), 
-                                   nx=nx, ny=ny, 
-                                   scale_bar_color='black', 
-                                   scale_bar_width=4)
-            
+            if "Spatial_unit_size_um" in sta_data[cell_ids[i]]["sta_analysis"]:
+                utils.add_scalebar(
+                    ax,
+                    scalebar_size_um=100,
+                    pixel_size_um=sta_data[cell_ids[i]]["sta_analysis"][
+                        "Spatial_unit_size_um"
+                    ],
+                    scalebar_left_location=(0.9, 0.9),
+                    nx=nx,
+                    ny=ny,
+                    scale_bar_color="black",
+                    scale_bar_width=4,
+                )
+
             if set_axis_off:
                 ax.set_xticks([])
                 ax.set_yticks([])
 
-            if show_labels: 
+            if show_labels:
                 ax.set_xlabel(f"{nx} unit", fontsize=fontsize)
                 ax.set_ylabel(f"{ny} unit", fontsize=fontsize)
 
@@ -930,10 +1022,10 @@ def plot_all_stas(sta_data: dict,
                 if good:
                     border_color = good_color
                     good_count += 1
-                elif not good and fitted:  
+                elif not good and fitted:
                     border_color = not_good_color
                     not_good_count += 1
-                else: 
+                else:
                     border_color = not_fitted_color
 
                 for spine in ax.spines.values():
@@ -942,12 +1034,20 @@ def plot_all_stas(sta_data: dict,
         else:
             ax.set_visible(False)
 
-    fitted_count = sum(1 for cell_id in cell_ids if sta_data[cell_id]["sta_analysis"]["FittedEllipse"])
-    unfitted_count = sum(1 for cell_id in cell_ids if not sta_data[cell_id]["sta_analysis"]["FittedEllipse"])
-    
-    title = (f"Spatial STAs for {len(cell_ids)} cells\n"
-             f"{fitted_count} fitted ellipse (of which: {good_count} good ({good_color}), {not_good_count} not good ({not_good_color}))\n"
-             f"{unfitted_count} failed ellipse fitting ({not_fitted_color})\n")
+    fitted_count = sum(
+        1 for cell_id in cell_ids if sta_data[cell_id]["sta_analysis"]["FittedEllipse"]
+    )
+    unfitted_count = sum(
+        1
+        for cell_id in cell_ids
+        if not sta_data[cell_id]["sta_analysis"]["FittedEllipse"]
+    )
+
+    title = (
+        f"Spatial STAs for {len(cell_ids)} cells\n"
+        f"{fitted_count} fitted ellipse (of which: {good_count} good ({good_color}), {not_good_count} not good ({not_good_color}))\n"
+        f"{unfitted_count} failed ellipse fitting ({not_fitted_color})\n"
+    )
 
     # format and close
     plt.tight_layout()
@@ -957,24 +1057,25 @@ def plot_all_stas(sta_data: dict,
     plt.close("all")
     return None
 
+
 def plot_sta_fitted_with_ellipse(
-        sta_data: dict, 
-        check_directory: str,
-        folder_name: str = "Stas_figs",
-        cell_ids: list = None,
-        fontsize: int = 14,
-        show_figures: bool = False,
-        add_raster_plot: bool = False,
-        add_spatial_mask: bool = False,
-        rep_seq_data: dict = None,
-        n_sigma: float = 2.0,
-        xdim: float = 8,
-        ydim: float = 5,
-        save_format: str = "png",
-        scale_bar_color: str = "black",
-        scale_bar_width: int = 4,
-        scalebar_left_location: tuple = (.95, .95),
-        scalebar_size_um: int = 100
+    sta_data: dict,
+    check_directory: str,
+    folder_name: str = "Stas_figs",
+    cell_ids: list = None,
+    fontsize: int = 14,
+    show_figures: bool = False,
+    add_raster_plot: bool = False,
+    add_spatial_mask: bool = False,
+    rep_seq_data: dict = None,
+    n_sigma: float = 2.0,
+    xdim: float = 8,
+    ydim: float = 5,
+    save_format: str = "png",
+    scale_bar_color: str = "black",
+    scale_bar_width: int = 4,
+    scalebar_left_location: tuple = (0.95, 0.95),
+    scalebar_size_um: int = 100,
 ):
     """
     Generate single-cell figures showing the STA and ellipse fitting for all cells.
@@ -1022,12 +1123,16 @@ def plot_sta_fitted_with_ellipse(
     components_coords_color = "cyan"
 
     # loop over all cells
-    for cell_id in tqdm(cell_ids, desc="Generating STA and ellipse fitting figures for each cell"):
+    for cell_id in tqdm(
+        cell_ids, desc="Generating STA and ellipse fitting figures for each cell"
+    ):
         # get cell sta data
         sta_analysis = sta_data[cell_id]["sta_analysis"]
 
         # setup figure
-        fig, axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(xdim * ncols, ydim * nrows))
+        fig, axs = plt.subplots(
+            nrows=nrows, ncols=ncols, figsize=(xdim * ncols, ydim * nrows)
+        )
         plt.suptitle(f"Cell {cell_id}", fontsize=fontsize, fontweight="bold")
         next_ax = 0
 
@@ -1035,89 +1140,166 @@ def plot_sta_fitted_with_ellipse(
         ax = axs[next_ax]
         spatial_sta = sta_analysis["Spatial"]
         ny, nx = spatial_sta.shape
-        title = f"Spatial STA ({'x' if not sta_analysis['FittedEllipse'] else '✓'} fitted)"
+        title = (
+            f"Spatial STA ({'x' if not sta_analysis['FittedEllipse'] else '✓'} fitted)"
+        )
         ellipse_params_unit = sta_analysis["EllipseCoor"]
-        amp, x0_unit, y0_unit, sigma_x_unit, sigma_y_unit, rot_angle = ellipse_params_unit
+        amp, x0_unit, y0_unit, sigma_x_unit, sigma_y_unit, rot_angle = (
+            ellipse_params_unit
+        )
         rf_diameter_unit = np.nan
         rf_area_unit2 = np.nan
         # rf_poly_area_unit2 = np.nan
-        x0_um, y0_um, sigma_x_um, sigma_y_um = [np.nan]*4
+        x0_um, y0_um, sigma_x_um, sigma_y_um = [np.nan] * 4
         rf_diameter_um = np.nan
         rf_area_um2 = np.nan
-        snr1, snr2, snr3 = [np.nan]*3
+        snr1, snr2, snr3 = [np.nan] * 3
         add_physical_units = False
-        if sta_analysis['FittedEllipse']:
-            rf_diameter_unit = utils.ellipse_diameter(ellipse_params_unit, method="circle_approx")
+        if sta_analysis["FittedEllipse"]:
+            rf_diameter_unit = utils.ellipse_diameter(
+                ellipse_params_unit, method="circle_approx"
+            )
             rf_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="formula")
             # rf_poly_area_unit2 = utils.ellipse_area(ellipse_params_unit, method="polygon", level_factor=level_factor, spatial_sta_shape=spatial_sta.shape)
-            snr1 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='peak_std', level_factor=level_factor)
-            snr2 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='weighted', level_factor=level_factor)
-            snr3 = utils.rf_snr(spatial_sta, ellipse_params_unit, method='binary_mask', level_factor=level_factor)
+            snr1 = utils.rf_snr(
+                spatial_sta,
+                ellipse_params_unit,
+                method="peak_std",
+                level_factor=level_factor,
+            )
+            snr2 = utils.rf_snr(
+                spatial_sta,
+                ellipse_params_unit,
+                method="weighted",
+                level_factor=level_factor,
+            )
+            snr3 = utils.rf_snr(
+                spatial_sta,
+                ellipse_params_unit,
+                method="binary_mask",
+                level_factor=level_factor,
+            )
             if "EllipseCoor_um" in sta_analysis:
                 ellipse_params_um = sta_analysis["EllipseCoor_um"]
                 _, x0_um, y0_um, sigma_x_um, sigma_y_um, _ = ellipse_params_um
-                rf_diameter_um = utils.ellipse_diameter(ellipse_params_um, method="circle_approx")
+                rf_diameter_um = utils.ellipse_diameter(
+                    ellipse_params_um, method="circle_approx"
+                )
                 rf_area_um2 = utils.ellipse_area(ellipse_params_um, method="formula")
                 add_physical_units = True
         text = ""
         text += f"Ellipse plotted at {n_sigma:g}σ\n\n"
         text += f"Amplitude {amp:.3f} a.u.\n"
         if add_physical_units:
-            text += (f"Center xy ({x0_um:.0f}, {y0_um:.0f}) µm [({x0_unit:.1f}, {y0_unit:.1f}) unit]\n"
-                    f"Sigma xy ({sigma_x_um:.0f}, {sigma_y_um:.0f}) µm [({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit]\n"
-                    f"Rotation {rot_angle:.1f}°\n\n"
-                    f"RF diameter {rf_diameter_um:.0f} µm [{rf_diameter_unit:.1f} unit]\n"
-                    f"RF area {rf_area_um2:.0f} µm² [{rf_area_unit2:.1f} unit²]\n"
-                    )
+            text += (
+                f"Center xy ({x0_um:.0f}, {y0_um:.0f}) µm [({x0_unit:.1f}, {y0_unit:.1f}) unit]\n"
+                f"Sigma xy ({sigma_x_um:.0f}, {sigma_y_um:.0f}) µm [({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit]\n"
+                f"Rotation {rot_angle:.1f}°\n\n"
+                f"RF diameter {rf_diameter_um:.0f} µm [{rf_diameter_unit:.1f} unit]\n"
+                f"RF area {rf_area_um2:.0f} µm² [{rf_area_unit2:.1f} unit²]\n"
+            )
         else:
-            text += (f"Center xy ({x0_unit:.1f}, {y0_unit:.1f}) unit\n"
-                    f"Sigma xy ({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit\n"
-                    f"Rotation {rot_angle:.1f}°\n\n"
-                    f"RF diameter {rf_diameter_unit:.1f} unit\n"
-                    f"RF area {rf_area_unit2:.1f} unit²\n"
-                    )
+            text += (
+                f"Center xy ({x0_unit:.1f}, {y0_unit:.1f}) unit\n"
+                f"Sigma xy ({sigma_x_unit:.1f}, {sigma_y_unit:.1f}) unit\n"
+                f"Rotation {rot_angle:.1f}°\n\n"
+                f"RF diameter {rf_diameter_unit:.1f} unit\n"
+                f"RF area {rf_area_unit2:.1f} unit²\n"
+            )
         # text += f"RF poly area {rf_poly_area_unit2:.1f} unit²\n"
         text += "\n"
         text += f"SNR (peak/std): {snr1:.2f}\n"
         text += f"SNR (gauss prj/resid): {snr2:.2f}\n"
         text += f"SNR (in/out): {snr3:.2f}\n"
-        ax, im = utils.plot_sta(ax, spatial_sta, sta_analysis["EllipseCoor"],
-                                level_factor=level_factor, color="yellow",
-                                alpha=1, lw=line_width, linestyles="solid")
+        ax, im = utils.plot_sta(
+            ax,
+            spatial_sta,
+            sta_analysis["EllipseCoor"],
+            level_factor=level_factor,
+            color="yellow",
+            alpha=1,
+            lw=line_width,
+            linestyles="solid",
+        )
         cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
         cax.ax.tick_params(labelsize=fontsize_labels)
-        ax.scatter(sta_analysis['Temporal_STA_coords'][0], sta_analysis['Temporal_STA_coords'][1], color=components_coords_color, marker="+", s=50, label="Temporal STA coords")
-        ax.legend(loc="lower right", fontsize=fontsize_labels, bbox_to_anchor=(-.2, 0), frameon=False)
+        ax.scatter(
+            sta_analysis["Temporal_STA_coords"][0],
+            sta_analysis["Temporal_STA_coords"][1],
+            color=components_coords_color,
+            marker="+",
+            s=50,
+            label="Temporal STA coords",
+        )
+        ax.legend(
+            loc="lower right",
+            fontsize=fontsize_labels,
+            bbox_to_anchor=(-0.2, 0),
+            frameon=False,
+        )
 
         ax.set_title(title, fontsize=fontsize)
         if "Spatial_unit_size_um" in sta_analysis:
             pixel_size_um = sta_analysis["Spatial_unit_size_um"]
-            xlabel = f"{nx} unit ({nx*pixel_size_um:.0f} µm)"
-            ylabel = f"{ny} unit ({ny*pixel_size_um:.0f} µm)"
-            utils.add_scalebar(ax, scalebar_size_um, pixel_size_um, scalebar_left_location, nx, ny, scale_bar_color, scale_bar_width)
+            xlabel = f"{nx} unit ({nx * pixel_size_um:.0f} µm)"
+            ylabel = f"{ny} unit ({ny * pixel_size_um:.0f} µm)"
+            utils.add_scalebar(
+                ax,
+                scalebar_size_um,
+                pixel_size_um,
+                scalebar_left_location,
+                nx,
+                ny,
+                scale_bar_color,
+                scale_bar_width,
+            )
             text += f"\nScale bar: {scalebar_size_um} µm"
         else:
             xlabel = f"{nx} unit"
             ylabel = f"{ny} unit"
         ax.set_xlabel(xlabel, fontsize=fontsize)
         ax.set_ylabel(ylabel, fontsize=fontsize)
-        ax.text(-0.25, 1, text, transform=ax.transAxes, fontsize=fontsize_labels, va='top', ha='right')
+        ax.text(
+            -0.25,
+            1,
+            text,
+            transform=ax.transAxes,
+            fontsize=fontsize_labels,
+            va="top",
+            ha="right",
+        )
         next_ax += 1
 
         if add_spatial_mask:
             ax = axs[next_ax]
-            if 'Spatial_mask' in sta_analysis:
-                spatial_mask = sta_analysis['Spatial_mask']
-                ax, im = utils.plot_sta(ax, spatial_mask, sta_analysis["EllipseCoor"],
-                                        level_factor=level_factor, color="yellow",
-                                        alpha=1, lw=line_width, linestyles="solid")
+            if "Spatial_mask" in sta_analysis:
+                spatial_mask = sta_analysis["Spatial_mask"]
+                ax, im = utils.plot_sta(
+                    ax,
+                    spatial_mask,
+                    sta_analysis["EllipseCoor"],
+                    level_factor=level_factor,
+                    color="yellow",
+                    alpha=1,
+                    lw=line_width,
+                    linestyles="solid",
+                )
                 cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
                 cax.ax.tick_params(labelsize=fontsize_labels)
                 if "Spatial_unit_size_um" in sta_analysis:
                     pixel_size_um = sta_analysis["Spatial_unit_size_um"]
-                    xlabel = f"{nx} unit ({nx*pixel_size_um:.0f} µm)"
-                    ylabel = f"{ny} unit ({ny*pixel_size_um:.0f} µm)"
-                    utils.add_scalebar(ax, scalebar_size_um, pixel_size_um, scalebar_left_location, nx, ny, scale_bar_color, scale_bar_width)
+                    xlabel = f"{nx} unit ({nx * pixel_size_um:.0f} µm)"
+                    ylabel = f"{ny} unit ({ny * pixel_size_um:.0f} µm)"
+                    utils.add_scalebar(
+                        ax,
+                        scalebar_size_um,
+                        pixel_size_um,
+                        scalebar_left_location,
+                        nx,
+                        ny,
+                        scale_bar_color,
+                        scale_bar_width,
+                    )
                     text += f"\nScale bar: {scalebar_size_um} µm"
                 else:
                     xlabel = f"{nx} unit"
@@ -1131,8 +1313,17 @@ def plot_sta_fitted_with_ellipse(
         ax = axs[next_ax]
         ax.set_title("Temporal STA", fontsize=fontsize)
         tsta_y = sta_analysis["Temporal"]
-        peak_value = tsta_y[sta_analysis["Cell_delay"]] if sta_analysis["Cell_delay"] is not None and not np.isnan(sta_analysis["Cell_delay"]) else None
-        if "TemporalTimeVector_s" in sta_analysis and "TemporalFreq_s" in sta_analysis and "Cell_delay_s" in sta_analysis:
+        peak_value = (
+            tsta_y[sta_analysis["Cell_delay"]]
+            if sta_analysis["Cell_delay"] is not None
+            and not np.isnan(sta_analysis["Cell_delay"])
+            else None
+        )
+        if (
+            "TemporalTimeVector_s" in sta_analysis
+            and "TemporalFreq_s" in sta_analysis
+            and "Cell_delay_s" in sta_analysis
+        ):
             tsta_x = sta_analysis["TemporalTimeVector_s"]
             cell_delay = sta_analysis["Cell_delay_s"]
             xlabel = "Time (s)"
@@ -1143,14 +1334,41 @@ def plot_sta_fitted_with_ellipse(
             xlabel = "Time bins"
             text = f"Frequency: N/A\nCell delay: {cell_delay} bins"
         if peak_value is None or peak_value >= 0:
-            ax.text(0.05, 0.95, text, transform=ax.transAxes, fontsize=fontsize_labels, va='top', ha='left')
+            ax.text(
+                0.05,
+                0.95,
+                text,
+                transform=ax.transAxes,
+                fontsize=fontsize_labels,
+                va="top",
+                ha="left",
+            )
         else:
-            ax.text(0.05, 0.05, text, transform=ax.transAxes, fontsize=fontsize_labels, va='bottom', ha='left')
+            ax.text(
+                0.05,
+                0.05,
+                text,
+                transform=ax.transAxes,
+                fontsize=fontsize_labels,
+                va="bottom",
+                ha="left",
+            )
 
         ax.plot(tsta_x, tsta_y, lw=line_width)
         if cell_delay is not None and not np.isnan(cell_delay):
-            ax.axvline(cell_delay, color=components_coords_color, lw=line_width, ls="--", label="Spatial STA delay")
-            ax.legend(loc="lower left", fontsize=fontsize_labels, frameon=False, bbox_to_anchor=(1, 0))
+            ax.axvline(
+                cell_delay,
+                color=components_coords_color,
+                lw=line_width,
+                ls="--",
+                label="Spatial STA delay",
+            )
+            ax.legend(
+                loc="lower left",
+                fontsize=fontsize_labels,
+                frameon=False,
+                bbox_to_anchor=(1, 0),
+            )
         ax.axhline(0, color="gray", lw=0.5, ls="--")
         ax.set_xlabel(xlabel, fontsize=fontsize)
         ax.set_ylabel("STA amplitude", fontsize=fontsize)
@@ -1163,11 +1381,14 @@ def plot_sta_fitted_with_ellipse(
             ax.eventplot(rep_seq_data[cell_id]["spike_trains"])
             ax.set_title("Raster plot", fontsize=fontsize)
             ax.set_xlabel("Time (s)", fontsize=fontsize)
-            ax.set_ylabel(f"{len(rep_seq_data[cell_id]['spike_trains'])} repetitions", fontsize=fontsize)
-            ax.set_aspect('auto')
+            ax.set_ylabel(
+                f"{len(rep_seq_data[cell_id]['spike_trains'])} repetitions",
+                fontsize=fontsize,
+            )
+            ax.set_aspect("auto")
             ax.set_ylim(0, len(rep_seq_data[cell_id]["spike_trains"]))
 
-        for ax in axs: 
+        for ax in axs:
             ax.tick_params(axis="both", which="major", labelsize=fontsize_labels)
 
         fig.tight_layout()

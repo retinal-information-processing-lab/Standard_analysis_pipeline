@@ -147,10 +147,8 @@ def find_analysis_directory(output_directory, dir_type="Checkerboard"):
         ]
         print(f"\n Selected folder : {analysis_directory} \n")
     else:
-        assert (
-            len(dirs) >= 1
-        ), f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        assert len(dirs) >= 1, (
+            f"No Directory of type {dir_type} could be found at : \n\t'{output_directory}'\n\nMake sure that you have done the {dir_type} analysis first !"
+        )
 
     return os.path.normpath(os.path.join(output_directory, analysis_directory))
-
-

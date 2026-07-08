@@ -47,8 +47,8 @@ class TestSplitSpikesByTriggers(unittest.TestCase):
         spikes = np.array([1.0])
         triggers = [0.0, 1.0, 2.0]
         bins = utils.split_spikes_by_triggers(spikes, triggers)
-        np.testing.assert_array_equal(bins[0], [])       # [0,1) excludes 1.0
-        np.testing.assert_array_equal(bins[1], [1.0])    # [1,2) includes 1.0
+        np.testing.assert_array_equal(bins[0], [])  # [0,1) excludes 1.0
+        np.testing.assert_array_equal(bins[1], [1.0])  # [1,2) includes 1.0
 
 
 class TestVecSequenceMachinery(unittest.TestCase):

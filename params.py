@@ -54,7 +54,9 @@ basic_params = {
 #     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
 #   - If you sorted on another machine / in another folder, set the path(s) explicitly.
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
-phy_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting/recording_0/recording_0.GUI"
+phy_directory_override = (
+    None  # e.g. r"/media/other_pc/exp/Sorting/recording_0/recording_0.GUI"
+)
 
 # ---------------------------------------------------------------------------
 # Stimulus (.vec) files
@@ -92,6 +94,7 @@ advanced_params = {
 # Setup most advanced parameters (Only if you know what you are doing!).
 # Those parameters are following the setups specs of january 2023
 
+
 def setup_threshold_pxl_size_size_dmd(params: dict):
     """setup the optimal threshold for detecting stimuli,
     the size of one pixel of the DMD in µm?
@@ -121,6 +124,7 @@ def setup_threshold_pxl_size_size_dmd(params: dict):
         raise ValueError("MEA is not defined in params")
     return threshold, pxl_size_dmd, size_dmd
 
+
 most_advanced_params = {
     "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[0],
     "pxl_size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[1],
@@ -133,7 +137,6 @@ most_advanced_params = {
     "time_before": 10,  # Time (ms) after a trigger to remove  from the spyking circus analysis due to photo induced current on mea
     "offset_time": 0.5,  # Delay (sec) after a trigger to add a fake trigger in the data adding one more dead period
 }
-
 
 
 ########################################################
@@ -243,14 +246,20 @@ def create_path_automatically(params: dict):
     #      recordings folder (spyking-circus often writes it next to the raw file)
     if phy_directory_override:
         phy_directory = os.path.normpath(phy_directory_override)
-        ok = "" if os.path.isdir(phy_directory) else "   /!\\ (this path does not exist!)"
+        ok = (
+            ""
+            if os.path.isdir(phy_directory)
+            else "   /!\\ (this path does not exist!)"
+        )
         print(f"- phy (.GUI): using your override{ok}\n    {phy_directory}")
     else:
         phy_directory = find_phy_directory([sorting_directory, recording_directory])
         if phy_directory is not None:
             print(f"- phy (.GUI): found automatically\n    {phy_directory}")
         else:
-            phy_directory = os.path.join(sorting_directory, "recording_00", "recording_00.GUI")
+            phy_directory = os.path.join(
+                sorting_directory, "recording_00", "recording_00.GUI"
+            )
             print(
                 "- phy (.GUI): NOT found yet — no '.GUI' folder under the Sorting or the\n"
                 "    raw-recordings folder. This is fine if you have not sorted yet.\n"
@@ -354,4 +363,6 @@ swn_bin_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
 swn_vec_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
 swn_shift_x = 6  # spatial down-sampling step in x (pixels) — matches "6pixShift" in the stim design
 swn_shift_y = 6  # spatial down-sampling step in y (pixels)
-swn_cov_regularization = 5.0  # sigma added to the stimulus-covariance diagonal (stabilises STA whitening)
+swn_cov_regularization = (
+    5.0  # sigma added to the stimulus-covariance diagonal (stabilises STA whitening)
+)

@@ -61,7 +61,9 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
     )
 
     # Load spike trains
-    cells, spike_times = utils.load_spike_times(rec, params.output_directory, params.exp)
+    cells, spike_times = utils.load_spike_times(
+        rec, params.output_directory, params.exp
+    )
     print(f"Total : {len(spike_times)} neurons loaded \n\nClusters id :\n{cells}\n")
 
     # Load the chirp vec keys (last column) used to split spikes per repetition.
@@ -205,7 +207,8 @@ def plot_chirp_rasters(
         os.makedirs(fig_directory)
 
     sta_results = np.load(
-        os.path.join(check_directory, "sta_data_analysed_extended.pkl"), allow_pickle=True
+        os.path.join(check_directory, "sta_data_analysed_extended.pkl"),
+        allow_pickle=True,
     )
 
     if old:
@@ -215,7 +218,9 @@ def plot_chirp_rasters(
         n_bins = 625
 
     else:
-        vec_path = utils.find_vec_file("Euler_50Hz_20reps_1024x768pix.vec", params.stim_directory)
+        vec_path = utils.find_vec_file(
+            "Euler_50Hz_20reps_1024x768pix.vec", params.stim_directory
+        )
         euler_vec = np.genfromtxt(vec_path)
         rep_lenght = 32
         n_bins = 800

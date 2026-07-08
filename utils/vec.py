@@ -8,7 +8,6 @@ from collections import defaultdict
 from .reliability import even_odd_reliability
 
 
-
 ###########################################################
 ###########          Analysis from vec          ###########
 ###########################################################
@@ -235,7 +234,9 @@ def build_spikes_per_sequence_dict(
 
         # Stack repetitions of the same sequence type: {"<seq>": [spikes per repetition]}.
         raster = spike_sequences_to_raster(
-            cell_spikes_per_rep, triggers_per_repetition, n_digit_for_rep=n_digit_for_rep
+            cell_spikes_per_rep,
+            triggers_per_repetition,
+            n_digit_for_rep=n_digit_for_rep,
         )
         # Mean firing over repetitions, binned: {"<seq>": np.ndarray of spike counts}.
         psth = spike_sequences_to_psth(
@@ -361,8 +362,13 @@ def plot_stimulus_tracks(ax, stimulus, columns, time_range, fontsize: int = 14):
         norm = (values - vmin) / (vmax - vmin) if vmax > vmin else np.zeros_like(values)
         ax.step(t, norm * 0.8 + i, where="post", lw=1.5)
         ax.text(
-            time_range[0], i + 0.9, f" {label}", ha="left", va="top",
-            fontsize=fontsize - 3, color="dimgray",
+            time_range[0],
+            i + 0.9,
+            f" {label}",
+            ha="left",
+            va="top",
+            fontsize=fontsize - 3,
+            color="dimgray",
         )
     ax.set_xlim(time_range)
     ax.set_ylim(-0.1, len(columns))
@@ -408,9 +414,13 @@ def plot_sequence_with_stimulus(
     ax_rast = fig.add_subplot(gs[1], sharex=ax_stim)
     ax_psth = fig.add_subplot(gs[2], sharex=ax_stim)
 
-    plot_stimulus_tracks(ax_stim, stimulus, columns, sequence["triggers"]["rng"], fontsize=fontsize)
+    plot_stimulus_tracks(
+        ax_stim, stimulus, columns, sequence["triggers"]["rng"], fontsize=fontsize
+    )
     ax_stim.set_title("Stimulus", fontsize=fontsize)
-    plot_sequence(sequence, ax_rast, ax_psth, color=color, smoothing=smoothing, fontsize=fontsize)
+    plot_sequence(
+        sequence, ax_rast, ax_psth, color=color, smoothing=smoothing, fontsize=fontsize
+    )
     return fig
 
 
@@ -447,7 +457,9 @@ def save_sequence_figures(
         dict_to_plot = spikes_per_sequence_dict
         element, scd_element = "Cell", "Sequence"
     else:
-        dict_to_plot = reshape_dict(spikes_per_sequence_dict)  # swap cell/sequence nesting
+        dict_to_plot = reshape_dict(
+            spikes_per_sequence_dict
+        )  # swap cell/sequence nesting
         element, scd_element = "Sequence", "Cell"
 
     for elt in tqdm(dict_to_plot.keys()):
@@ -527,5 +539,3 @@ def reshape_dict(original_dict):
             reshaped_dict[seq_number][cell_number] = data_dict
 
     return reshaped_dict
-
-
