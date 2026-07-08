@@ -120,6 +120,8 @@ TODO (Chiara):
     15. Made clustering deterministic
     16. Added some examples of how to handle reliability
     17. Adding options to visualize standatd VEC as traces (either of frame number or color etc.)
+    18. Fixing StimDisplayer (to continue)
+
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)
