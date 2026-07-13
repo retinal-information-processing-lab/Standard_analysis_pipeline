@@ -16,6 +16,7 @@ Returns:
 
 import os
 import glob
+import warnings
 
 # setup pipeline parameters
 # relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
@@ -92,34 +93,131 @@ advanced_params = {
 # Those parameters are following the setups specs of january 2023
 
 
-def setup_threshold_pxl_size_size_dmd(params: dict):
-    """setup the optimal threshold for detecting stimuli,
-    the size of one pixel of the DMD in µm?
-    on the camera or in reality? ("pixel size DMD") and
-    the dimension of the DMD ("size dmd")
-    note: the threshhold onsets varies with the rig
-    """
-    if params["MEA"] == 1:
-        threshold = 270e3
-        size_dmd = None
-        pxl_size_dmd = None
-    elif params["MEA"] == 2:
-        threshold = 150e3
-        size_dmd = [864, 864]  # dimensions of the DMD, in pixels
-        pxl_size_dmd = (
-            3.5  # The size of one pixel of the DMD in µm? on the camera or in reality?
+# ---------------------------------------------------------------------------
+# Rig (MEA) hardware settings — the SINGLE SOURCE OF TRUTH for everything rig-dependent.
+# The code reads these values instead of hard-coding them, so adding or fixing a rig is
+# done HERE and nowhere else.
+#
+# Per rig:
+#   threshold          trigger-detection threshold (varies with the rig)
+#   size_dmd           dimensions of the DMD, in pixels [x, y]
+#   pxl_size_dmd       size of one DMD pixel, in µm
+#   max_frame_size     largest stimulus image the rig can display [x, y], in pixels
+#                      (used to sanity-check a .bin before reading/writing it)
+#   invert_polarity    True if the rig displays inverted, so frames are stored inverted
+#                      and must be flipped back (value -> 1 - value) when read
+#   optical_transform  geometric correction compensating this rig's optical path, applied
+#                      when reading/writing a stimulus .bin. One of:
+#                        "rot90_flipud", "fliplr", or None (no correction)
+#
+# Only MEA 2 and 3 are implemented AND tested for stimulus display. Using another rig is
+# allowed but is WORK IN PROGRESS: you get a loud warning, and anything left as None falls
+# back to a neutral default (no optical correction, no polarity inversion, no size check),
+# so frames may come out mirrored / rotated / inverted. To properly support a rig, fill in
+# its values below and list it in DISPLAY_READY_RIGS.
+# ---------------------------------------------------------------------------
+rig_params = {
+    1: {
+        "threshold": 270e3,
+        "size_dmd": None,
+        "pxl_size_dmd": None,
+        "max_frame_size": None,
+        "invert_polarity": None,
+        "optical_transform": None,
+    },
+    2: {
+        "threshold": 150e3,
+        "size_dmd": [864, 864],
+        "pxl_size_dmd": 3.5,
+        "max_frame_size": [1920, 1080],
+        "invert_polarity": False,
+        "optical_transform": "rot90_flipud",
+    },
+    3: {
+        "threshold": 170e3,
+        "size_dmd": [760, 1020],
+        "pxl_size_dmd": 2.5,
+        "max_frame_size": [1024, 768],
+        "invert_polarity": True,
+        "optical_transform": "fliplr",
+    },
+    4: {
+        "threshold": -3.14470e5,
+        "size_dmd": None,
+        "pxl_size_dmd": None,
+        "max_frame_size": None,
+        "invert_polarity": None,
+        "optical_transform": None,
+    },
+    5: {
+        "threshold": -7e3,
+        "size_dmd": [760, 1020],
+        "pxl_size_dmd": 3.5,
+        # Display settings unknown so far -> stimulus .bin reading/writing warns (see below).
+        "max_frame_size": None,
+        "invert_polarity": None,
+        "optical_transform": None,
+    },
+}
+
+# Rigs whose stimulus-display settings (DMD geometry + optics) are implemented and tested.
+DISPLAY_READY_RIGS = (2, 3)
+
+
+def get_rig_params(mea: int) -> dict:
+    """All hardware settings of one rig (see rig_params above)."""
+    if mea not in rig_params:
+        raise ValueError(
+            f"MEA {mea} is not defined in params.rig_params "
+            f"(known rigs: {sorted(rig_params)}). Add its settings there."
         )
-    elif params["MEA"] == 3:
-        threshold = 170e3
-        size_dmd = [760, 1020]
-        pxl_size_dmd = 2.5
-    elif params["MEA"] == 4:
-        threshold = -3.14470e5
-        size_dmd = None
-        pxl_size_dmd = None
-    else:
-        raise ValueError("MEA is not defined in params")
-    return threshold, pxl_size_dmd, size_dmd
+    return rig_params[mea]
+
+
+def get_display_rig_params(mea: int) -> dict:
+    """Rig settings needed to read/write a stimulus .bin (DMD geometry + optics).
+
+    Rigs outside DISPLAY_READY_RIGS are WORK IN PROGRESS: they have not been implemented
+    or tested. Rather than blocking you, this warns loudly and falls back to whatever is
+    filled in for that rig, with neutral defaults for what is missing (no optical
+    correction, no polarity inversion, no frame-size limit). The frames you get may then
+    be mirrored, rotated or inverted — only rely on this if you know what you are doing.
+    """
+    settings = get_rig_params(mea)
+    if mea not in DISPLAY_READY_RIGS:
+        missing = [
+            k
+            for k in ("max_frame_size", "invert_polarity", "optical_transform")
+            if settings[k] is None
+        ]
+        warnings.warn(
+            f"MEA {mea}: reading/writing stimulus .bin files is WORK IN PROGRESS — this rig "
+            f"has not been implemented or tested (tested rigs: {list(DISPLAY_READY_RIGS)}).\n"
+            f"  Settings not defined for it in params.rig_params: {missing or 'none'}.\n"
+            "  Falling back to neutral defaults for those: no optical correction, no polarity "
+            "inversion, no frame-size check.\n"
+            "  The frames you read/write may therefore be mirrored, rotated or inverted. Only "
+            "rely on this if you know what you are doing — and once you know this rig's real "
+            "values, fill them in in params.rig_params and add it to params.DISPLAY_READY_RIGS.",
+            stacklevel=2,
+        )
+        settings = {
+            **settings,
+            # neutral defaults for anything this rig does not define
+            "invert_polarity": bool(settings["invert_polarity"]),  # None -> False
+            "optical_transform": settings["optical_transform"],  # None -> identity
+            "max_frame_size": settings["max_frame_size"],  # None -> no size check
+        }
+    return settings
+
+
+def setup_threshold_pxl_size_size_dmd(params: dict):
+    """Trigger-detection threshold, DMD pixel size (µm) and DMD dimensions of this rig.
+
+    All values come from the rig_params table above (the threshold varies with the rig).
+    """
+    settings = get_rig_params(params["MEA"])
+    return settings["threshold"], settings["pxl_size_dmd"], settings["size_dmd"]
 
 
 most_advanced_params = {

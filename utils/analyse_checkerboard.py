@@ -253,7 +253,9 @@ def load_swn_stimulus(
     Args:
         bin_path: path to the SWN .bin file (raw noise frames, read via utils.binfile.BinFile).
         vec_path: path to the SWN .vec file (its header column 1 gives the total frame count).
-        rig_id: MEA / rig id (2 or 3) — selects the DMD optical transform.
+        rig_id: MEA / rig id (params.MEA). Its DMD geometry, polarity and optical
+            transform are read from params.rig_params; rigs that are not implemented
+            /tested raise a clear error.
         shift_x: spatial down-sampling step in x (pixels).
         shift_y: spatial down-sampling step in y (pixels).
         sigma: value added to the covariance diagonal for numerical stability.

@@ -1,5 +1,52 @@
+"""Read/write the stimulus ".bin" files (the raw frames shown on the DMD).
+
+Everything rig-dependent (DMD geometry, display polarity, optical correction) is defined
+ONCE in params.py (``params.rig_params``) and read from there — nothing is hard-coded here.
+Rigs that have not been implemented/tested raise a clear error (see
+``params.get_display_rig_params``).
+"""
+
+from typing import Optional
+
 import numpy as np
 import os
+
+import params
+
+
+def apply_optical_transform(frame: np.ndarray, transform: Optional[str]) -> np.ndarray:
+    """Correct a frame READ from a .bin for the optical path of the rig.
+
+    ``transform`` is the rig's "optical_transform" in params.rig_params.
+    """
+    if transform is None:
+        return frame
+    if transform == "rot90_flipud":
+        return np.flipud(np.rot90(frame))
+    if transform == "fliplr":
+        return np.fliplr(frame)
+    raise ValueError(
+        f"Unknown optical_transform {transform!r} in params.rig_params. "
+        "Known values: 'rot90_flipud', 'fliplr', None."
+    )
+
+
+def undo_optical_transform(frame: np.ndarray, transform: Optional[str]) -> np.ndarray:
+    """Pre-compensate a frame about to be WRITTEN to a .bin.
+
+    This is the inverse of apply_optical_transform, so that reading back a frame you
+    wrote gives you the frame you started from.
+    """
+    if transform is None:
+        return frame
+    if transform == "rot90_flipud":
+        return np.rot90(np.flipud(frame), k=3)
+    if transform == "fliplr":
+        return np.fliplr(frame)
+    raise ValueError(
+        f"Unknown optical_transform {transform!r} in params.rig_params. "
+        "Known values: 'rot90_flipud', 'fliplr', None."
+    )
 
 
 class BinFile:
@@ -41,40 +88,30 @@ class BinFile:
         self._path = path
         self._reverse = reverse
         self._mode = mode
-
-        assert rig_id == 2 or rig_id == 3, f"unknown rig_id: {rig_id}"
         self._rig_id = rig_id
 
-        if self._rig_id == 2:
-            self._max_dimension_x = 1920
-            self._max_dimension_y = 1080
-        elif self._rig_id == 3:
-            self._max_dimension_x = 1024
-            self._max_dimension_y = 768
+        # Every rig-dependent setting comes from params.py. Rigs that are not implemented
+        # /tested warn there (work in progress) and fall back to neutral defaults.
+        rig = params.get_display_rig_params(rig_id)
+        max_frame_size = rig["max_frame_size"]
+        # A rig with no known max frame size (work-in-progress) simply gets no size check.
+        self._max_dimension_x, self._max_dimension_y = max_frame_size or (None, None)
+        self._invert_polarity = rig["invert_polarity"]
+        self._optical_transform = rig["optical_transform"]
 
         if self._mode == "r":
             header = self.read_header(self._path)
             self._nb_images = header["nb_images"]
-            assert header["xsize"] <= self._max_dimension_x, (
-                f"image is too big on x axis for RIG {self._rig_id} ({header['xsize']} > {self._max_dimension_x}. "
-            )
+            self._check_frame_size(header["xsize"], header["ysize"])
             self._frame_xsize = header["xsize"]
-            assert header["ysize"] <= self._max_dimension_y, (
-                f"image is too big on y axis for RIG {self._rig_id} ({header['ysize']} > {self._max_dimension_y}. "
-            )
             self._frame_ysize = header["ysize"]
             self._nb_bits = header["nb_bits"]
             self._file = open(self._path, mode="rb")
             self._frame_nb = self._nb_images - 1
         elif self._mode == "w":
             self._nb_images = nb_images
-            assert frame_xsize <= self._max_dimension_x, (
-                f"image is too big on x axis for RIG {self._rig_id}: {frame_xsize} > {self._max_dimension_x}. "
-            )
+            self._check_frame_size(frame_xsize, frame_ysize)
             self._frame_xsize = frame_xsize
-            assert frame_ysize <= self._max_dimension_y, (
-                f"image is too big on y axis for RIG {self._rig_id}: {frame_ysize} > {self._max_dimension_y}. "
-            )
             self._frame_ysize = frame_ysize
             self._nb_bits = 8
             # self._file = open(self._path, mode='w+b')
@@ -85,6 +122,17 @@ class BinFile:
             raise ValueError("unknown mode value: {}".format(self._mode))
 
         self._counter = 0
+
+    def _check_frame_size(self, xsize, ysize):
+        """Check a frame fits this rig's DMD. Skipped when the rig's max size is unknown."""
+        if self._max_dimension_x is not None:
+            assert xsize <= self._max_dimension_x, (
+                f"image is too big on x axis for RIG {self._rig_id} ({xsize} > {self._max_dimension_x})."
+            )
+        if self._max_dimension_y is not None:
+            assert ysize <= self._max_dimension_y, (
+                f"image is too big on y axis for RIG {self._rig_id} ({ysize} > {self._max_dimension_y})."
+            )
 
     def __len__(self):
         return self._nb_images
@@ -179,15 +227,12 @@ class BinFile:
         shape = (self._frame_xsize, self._frame_ysize)
         frame_data = np.reshape(frame_data, shape)
 
-        # Reverse data
-        if self._rig_id == 3:
+        # Undo the display polarity of this rig (frames are stored inverted on such rigs)
+        if self._invert_polarity:
             frame_data = 1 - frame_data
 
-        # transform to compensate optical transformation on the setup
-        if self._rig_id == 2:
-            frame_data = np.flipud(np.rot90(frame_data))
-        elif self._rig_id == 3:
-            frame_data = np.fliplr(frame_data)
+        # Compensate the optical transformation of this rig's setup
+        frame_data = apply_optical_transform(frame_data, self._optical_transform)
 
         return frame_data
 
@@ -212,20 +257,12 @@ class BinFile:
             self._file.write(frame)
 
         else:
-            #             assert frame.dtype == np.uint8, "frame.dtype: {}".format(frame.dtype)
-
             # reverse polarity if necessary (to compensate polarity reversal on display)
-            if self._rig_id == 3:
-                #                 frame = np.iinfo(np.uint8).max - frame
+            if self._invert_polarity:
                 frame = 1 - frame
-            elif self._rig_id == 2:
-                pass
 
             # transform to compensate optical transformation on the setup
-            if self._rig_id == 2:
-                frame = np.rot90(np.flipud(frame), k=3)
-            elif self._rig_id == 3:
-                frame = np.fliplr(frame)
+            frame = undo_optical_transform(frame, self._optical_transform)
 
             # Scale data between 0 and 255
             frame = frame * 255
