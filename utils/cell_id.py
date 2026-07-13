@@ -56,7 +56,7 @@ def import_data_to_plot(params: dict):
     # Load data
     # load chirp stimulus for plotting the profile
     vec_path = utils.find_vec_file(
-        "Euler_50Hz_20reps_1024x768pix.vec", params.stim_directory
+        "Euler_50Hz_20reps_1024x768pix_std.vec", params.stim_directory
     )
     euler_vec = np.genfromtxt(vec_path)
 
