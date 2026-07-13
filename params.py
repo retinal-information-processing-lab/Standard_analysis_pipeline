@@ -24,22 +24,21 @@ ressources = r"./ressources"
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1_test_pipeline",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # name of your experiment for saving the triggers
+    "root": r"/media/idv-s8/SSD Storage/20260506_RMO_on_videos_2",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20260506_RMO_on_videos_2",  # name of your experiment for saving the triggers
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20260702_00_SWN_30Hz",
-        "20260702_01_SWN_30Hz",
-        "20260702_02_chirp_50Hz",
-        "20260702_03_DG_2sT_10rep_8dir_50Hz",
-        "20260702_04_barcode_3dir_50Hz",
-        "20260702_05_black_eagle_CTL_40Hz",
-        "20260702_05_black_eagle_CTL_40Hz_part2",
-        "20260702_06_SWN_drug_being_added_30Hz",
-        "20260702_07_black_eagle_strychnine_40Hz",
-        "20260702_08_SWN_drug_being_removed_30Hz",
-        "20260702_09_black_eagle_post_strychnine_CTL_40Hz",
+        "20260512_rec_00_SWN_30Hz",
+        "20260512_rec_01_chirp_50Hz",
+        "20260512_rec_02_DG_50Hz",
+        "20260512_rec_03_RMO_40Hz",
+        "20260512_rec_04_RMO_Pert_Videos_40Hz",
+        "20260512_rec_05_SWN_30Hz",
+        "20260512_rec_06_chirp_50Hz",
+        "20260512_rec_07_DG_50Hz",
+        "20260512_rec_08_barcode_50Hz",
+        "20260512_rec_09_spots_30Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
@@ -54,9 +53,7 @@ basic_params = {
 #     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
 #   - If you sorted on another machine / in another folder, set the path(s) explicitly.
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
-phy_directory_override = (
-    None  # e.g. r"/media/other_pc/exp/Sorting/recording_0/recording_0.GUI"
-)
+phy_directory_override = "/media/idv-s8/SSD Storage/20260506_RMO_on_videos_2/RAW_Files/20260512_rec_00_SWN_30Hz/20260512_rec_00_SWN_30Hz.GUI"
 
 # ---------------------------------------------------------------------------
 # Stimulus (.vec) files
@@ -349,15 +346,19 @@ make_dict_keys_global_variables(most_advanced_params)
 
 
 # ---------------------------------------------------------------------------
-# SWN (Sparse White Noise) stimulus — an alternative to the checkerboard.
+# SWN (Shifting White Noise) stimulus — an alternative to the checkerboard.
 # Used by 2-Analyse_Checkerboard.ipynb when is_swn = True.
-# Give just the file NAMES: they are looked up in 'stim_directory' (StandardVec),
-# exactly like the other stimulus files — and if a name is not found there, the folder
-# is listed and you are asked to pick the matching file. The real SWN .bin can be very
-# large; if you keep it outside the repo, put its full absolute path here instead of a
-# bare file name (that works too). The MEA/rig id and DMD pixel size come from the MEA
-# settings above. The name usually encodes the settings, e.g.
+# Each of the two settings below accepts EITHER of:
+#   * a bare file NAME  -> looked up in 'stim_directory' (StandardVec), like the other
+#     stimulus files; the folder is listed and you are asked to confirm which file to use.
+#   * a full PATH       -> used as-is, with no prompt. The SWN .bin is very large, so keep
+#     it wherever it already lives (e.g. an external drive) instead of duplicating it into
+#     StandardVec. A path starting with "~" works too.
+# The MEA/rig id and DMD pixel size come from the MEA settings above. The name usually
+# encodes the settings, e.g.
 #   20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2  ->  48 px/check, 6 px shift, 30 Hz, MEA 2
+# Example of a heavy .bin kept outside the repo:
+#   swn_bin_file = r"/media/my_drive/Stimuli/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
 # ---------------------------------------------------------------------------
 swn_bin_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
 swn_vec_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
