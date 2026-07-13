@@ -122,6 +122,11 @@ TODO (Chiara):
     17. Adding options to visualize standatd VEC as traces (either of frame number or color etc.)
     18. Fixing StimDisplayer (to continue)
 
+2026-13-26 (Awen + Baptiste) first beta test :
+    1. Corrected some hardcoded paths and some broken access on other computers
+    2. Added repeated seq analysis for swan
+    3. Smoothed the handling for MEA other than 2 and 3
+    4. Added a description of spatial mask in NB 2
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)

@@ -183,11 +183,16 @@ def plot_chirp_rasters(
     check_directory: str,
     old: bool = False,
     fontsize: int = 16,
+    redo: bool = None,
 ):
     """Generate and save chirp raster plots for all cells.
 
     Each figure stacks the chirp stimulus, the spike raster and the PSTH on the left,
     with the cell's spatial STA shown large on the right (full height).
+
+    Figures that are already on disk are NOT redone silently: if some are found you are
+    asked whether to replot them (plotting them all again is slow). Answer "Yes" to redo
+    everything, anything else to keep them and only plot the cells that are still missing.
 
     Args:
         cells (list): List of cell/cluster IDs to plot
@@ -196,6 +201,8 @@ def plot_chirp_rasters(
         check_directory (str): Path to checkerboard analysis directory containing STA results
         old (bool): If True, use old chirp parameters. Default False.
         fontsize (int): Base font size for titles and labels (ticks use fontsize - 2).
+        redo (bool): True = always replot, False = never replot the figures already there,
+            None (default) = ask.
 
     Returns:
         None. Saves PNG files to CT_directory/Chirp_rasters+STA/
@@ -205,6 +212,29 @@ def plot_chirp_rasters(
     fig_directory = os.path.normpath(os.path.join(CT_directory, r"Chirp_rasters+STA"))
     if not os.path.isdir(fig_directory):
         os.makedirs(fig_directory)
+
+    # Don't silently redo figures that are already there (this is the slow part). Ask first.
+    # Done before loading the STA / vec below, so answering "no" skips that work too.
+    def figure_path(cell_nb):
+        return os.path.join(fig_directory, f"{cell_nb}_Chirp_raster+STA.png")
+
+    already_plotted = [
+        cell_nb for cell_nb in cells if os.path.isfile(figure_path(cell_nb))
+    ]
+    if already_plotted:
+        if redo is None:
+            redo = input(
+                f"{len(already_plotted)}/{len(cells)} chirp raster figures already exist in "
+                f"{fig_directory}.\nRedo them? Type Yes to replot them all, anything else to "
+                "keep them and only plot the missing cells : "
+            ) in ["Y", "Yes", "y", "yes"]
+        if not redo:
+            cells = [cell_nb for cell_nb in cells if cell_nb not in already_plotted]
+            print(f"Keeping the {len(already_plotted)} existing figures.")
+            if not cells:
+                print("All cells are already plotted, nothing to do.")
+                return
+            print(f"Plotting the {len(cells)} missing cell(s)...")
 
     sta_results = np.load(
         os.path.join(check_directory, "sta_data_analysed_extended.pkl"),
