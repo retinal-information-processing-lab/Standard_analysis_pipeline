@@ -446,6 +446,11 @@ make_dict_keys_global_variables(most_advanced_params)
 # ---------------------------------------------------------------------------
 # SWN (Shifting White Noise) stimulus — an alternative to the checkerboard.
 # Used by 2-Analyse_Checkerboard.ipynb when is_swn = True.
+# Like the checkerboard, each SWN sequence is a novel (never-repeated) first half followed
+# by a repeated half: 1200 frames = 600 novel + 600 repeated (20 s at 30 Hz), x 45 reps.
+# The novel half gives the STA, the repeated half gives the rasters / reliability.
+# The raw .vec has no sequence keys; RessourcesAndTools/StimMaking/add_standard_keys_to_swn_vec.ipynb
+# writes a "*_std.vec" with them, usable by 6_Standard_Vec_Analysis.ipynb.
 # Each of the two settings below accepts EITHER of:
 #   * a bare file NAME  -> looked up in 'stim_directory' (StandardVec), like the other
 #     stimulus files; the folder is listed and you are asked to confirm which file to use.
