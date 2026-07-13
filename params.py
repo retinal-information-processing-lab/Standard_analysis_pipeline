@@ -319,6 +319,30 @@ def find_phy_directory(search_dirs):
 def create_path_automatically(params: dict):
     print("\n-------- Creating all paths ---------\n")
 
+    # Every path below is always DEFINED, but folders are only CREATED when the experiment
+    # root actually exists. Without the data (a fresh clone, another machine, the automated
+    # tests) "import params" must still work — the steps that really need the data then fail
+    # later with a clear message. It also means a typo in 'root' no longer silently creates
+    # a whole bogus folder tree somewhere.
+    root_exists = os.path.isdir(params["root"])
+    if not root_exists:
+        print(
+            f"- /!\\ Experiment root folder NOT found:\n    {params['root']}\n"
+            "    Paths are still defined, but no folder was created and no recording listed.\n"
+            "    Set 'root' in params.py to your experiment folder before running an analysis.\n"
+        )
+
+    def make_dir(path, label):
+        """Create 'path' (only if the experiment root exists) and report what happened."""
+        if not root_exists:
+            return path
+        if not os.path.exists(path):
+            os.makedirs(path)
+            print(f'- Created "{label}" path: {path}')
+        else:
+            print(f'- "{label}" path already exists')
+        return path
+
     # Link to the actual raw files frome the recording
     # listed in the input_file
     recording_directory = os.path.join(params["root"], params["raw_files_folder"])
@@ -363,21 +387,13 @@ def create_path_automatically(params: dict):
             )
 
     # Link to the directory where output data should be saved
-    output_directory = os.path.join(params["root"], r"Analysis")
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
-        print(f'- Created "output" path: {output_directory}')
-    else:
-        print('- "output" path already exists')
+    output_directory = make_dir(os.path.join(params["root"], r"Analysis"), "output")
 
     # Link to the folder in which triggers will be saved.
     # If doesn't exist, will be created.
-    triggers_directory = os.path.join(output_directory, "triggers")
-    if not os.path.exists(triggers_directory):
-        os.makedirs(triggers_directory)
-        print(f'- Created "triggers" path: {triggers_directory}')
-    else:
-        print('- "triggers" path already exists')
+    triggers_directory = make_dir(
+        os.path.join(output_directory, "triggers"), "triggers"
+    )
 
     # Path to the checkerboard binary file used to generate stimuli
     binary_source_path = os.path.join(ressources, "binarysource1000Mbits")
@@ -393,12 +409,15 @@ def create_path_automatically(params: dict):
     )
 
     # Do not use this unless you know how !!!
-    if not os.path.exists(recording_directory):
+    if root_exists and not os.path.exists(recording_directory):
         print(f'Creating "recording_directory" path: {recording_directory}')
         print("Please make sure to fill it with your raw files!")
         os.makedirs(recording_directory)
 
-    recording_names = find_files(recording_directory)
+    # No raw-files folder (no data on this machine) -> no recordings to list.
+    recording_names = (
+        find_files(recording_directory) if os.path.isdir(recording_directory) else []
+    )
     return (
         recording_directory,
         symbolic_link_directory,
