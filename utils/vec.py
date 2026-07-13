@@ -137,22 +137,39 @@ def prompt_user_for_vec_file(vec_directory: str) -> tuple[int, str]:
 
 
 def find_vec_file(vec_filename: str, stim_directory: str) -> str:
-    """Ask the user which stimulus file to use, from ``stim_directory``.
+    """Find the stimulus file to use, given either a file NAME or a full PATH.
 
-    ALWAYS prompts: it lists the files of the same type as ``vec_filename`` (e.g. all
-    ``.vec`` files, or all ``.bin`` files) in ``stim_directory`` and asks which one to
-    use. When ``vec_filename`` itself is present it is offered as the default, so you can
-    just press Enter to accept it — but you can always pick a different one (e.g. your own
-    version of the stimulus, with different parameters), which is why it never picks
-    automatically.
+    Two ways to use it:
+
+    * ``vec_filename`` is a **full path** (absolute, or containing a folder): it is used
+      as-is, with no prompt. This is how you keep heavy files (typically the SWN ``.bin``)
+      outside the repo, without duplicating them into ``stim_directory``.
+    * ``vec_filename`` is a **bare file name**: it is looked up in ``stim_directory`` and
+      you are ALWAYS prompted. The files of the same type (e.g. all ``.vec`` files, or all
+      ``.bin`` files) are listed, and ``vec_filename`` is offered as the default so you can
+      just press Enter — but you can always pick a different one (e.g. your own version of
+      the stimulus, with different parameters), which is why it never picks automatically.
 
     Args:
-        vec_filename: the expected / default stimulus file name.
+        vec_filename: the expected / default stimulus file name, OR a full path to it.
         stim_directory: folder holding the stimulus files (``params.stim_directory``).
+            Only used when ``vec_filename`` is a bare file name.
 
     Returns:
         Full path to the chosen stimulus file.
     """
+    vec_filename = os.path.expanduser(vec_filename)  # allow paths like "~/data/swn.bin"
+
+    # A full path is honoured as-is: no lookup in stim_directory, no prompt.
+    if os.path.dirname(vec_filename):
+        if not os.path.isfile(vec_filename):
+            raise FileNotFoundError(
+                f"The stimulus file set in params.py does not exist:\n    {vec_filename}\n"
+                "Fix that path, or give just the file name to pick it from 'stim_directory'."
+            )
+        print(f"Using stimulus file: {vec_filename}\n")
+        return vec_filename
+
     if not os.path.isdir(stim_directory):
         raise FileNotFoundError(
             f"The stimulus folder does not exist:\n    {stim_directory}\n"

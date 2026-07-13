@@ -56,7 +56,7 @@ def get_all_inputs_for_checkerboard_analysis(
 
     Args:
         params: params module with recording_names and output_directory.
-        is_swn: if True, this is a Sparse-White-Noise recording — the check
+        is_swn: if True, this is a Shifting-White-Noise recording — the check
             count/size questions are skipped (they don't apply to SWN; its spatial
             resolution comes from the .bin frames and the down-sampling shift).
 
@@ -229,7 +229,7 @@ def load_checkerboard_data(
 
 
 # ------------------------------------------------------------------------------------------------------------------- #
-# SWN (Sparse White Noise) — alternative stimulus. Reuses the whole checkerboard STA
+# SWN (Shifting White Noise) — alternative stimulus. Reuses the whole checkerboard STA
 # pipeline; only the stimulus reconstruction and one decorrelation step differ.
 # ------------------------------------------------------------------------------------------------------------------- #
 
@@ -243,7 +243,7 @@ def load_swn_stimulus(
     sigma: float = 5.0,
 ) -> tuple:
     """
-    Reconstruct a Sparse-White-Noise (SWN) stimulus from its .bin (raw frames) and
+    Reconstruct a Shifting-White-Noise (SWN) stimulus from its .bin (raw frames) and
     .vec files, and compute the stimulus covariance used later to whiten the STA.
 
     Unlike the checkerboard (drawn from a white binary source), SWN frames are
