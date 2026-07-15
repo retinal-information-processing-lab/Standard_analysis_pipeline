@@ -30,16 +30,17 @@ basic_params = {
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20260512_rec_00_SWN_30Hz",
-        "20260512_rec_01_chirp_50Hz",
-        "20260512_rec_02_DG_50Hz",
-        "20260512_rec_03_RMO_40Hz",
-        "20260512_rec_04_RMO_Pert_Videos_40Hz",
-        "20260512_rec_05_SWN_30Hz",
-        "20260512_rec_06_chirp_50Hz",
-        "20260512_rec_07_DG_50Hz",
-        "20260512_rec_08_barcode_50Hz",
-        "20260512_rec_09_spots_30Hz",
+        "20260702_00_SWN_30Hz",
+        "20260702_01_SWN_30Hz",
+        "20260702_02_chirp_50Hz",
+        "20260702_03_DG_2sT_10rep_8dir_50Hz",
+        "20260702_04_barcode_3dir_50Hz",
+        "20260702_05_black_eagle_CTL_40Hz",
+        "20260702_05_black_eagle_CTL_40Hz_part2",
+        "20260702_06_SWN_drug_being_added_30Hz",
+        "20260702_07_black_eagle_strychnine_40Hz",
+        "20260702_08_SWN_drug_being_removed_30Hz",
+        "20260702_09_black_eagle_post_strychnine_CTL_40Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
@@ -54,7 +55,7 @@ basic_params = {
 #     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
 #   - If you sorted on another machine / in another folder, set the path(s) explicitly.
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
-phy_directory_override = "/media/idv-s8/SSD Storage/20260506_RMO_on_videos_2/RAW_Files/20260512_rec_00_SWN_30Hz/20260512_rec_00_SWN_30Hz.GUI"
+phy_directory_override = "/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1/RAW_Files/20260702_00_SWN_30Hz/20260702_00_SWN_30Hz.GUI"
 
 # ---------------------------------------------------------------------------
 # Stimulus (.vec) files
@@ -78,7 +79,8 @@ mea_params = {
 # Default values used in utils functions. If a function has a wrong behaviour, you may want to look in here.
 advanced_params = {
     "dtype": "uint16",  # Datatype used to open rawfiles recordings
-    "voltage_resolution": 0.1042,  # µV / DC level, Resolution of one step of mea signal amplitude in micro volts
+    # voltage_resolution moved to most_advanced_params: it is now DERIVED per-rig from the
+    # amplifier gain + input range in rig_params (see voltage_resolution_uV), not a constant.
     "nb_bytes_by_datapoint": 2,  # Size of a sample in bytes
     "time": 10,  # Time in s at the begining of the recording used to check recording type
     "maximal_jitter": 0.25e-3,  # Maximal error admissible in sec for time gap between triggers
@@ -99,7 +101,15 @@ advanced_params = {
 # done HERE and nowhere else.
 #
 # Per rig:
-#   threshold          trigger-detection threshold (varies with the rig)
+#   amplifier_gain     recording amplifier gain (dimensionless)
+#   input_range_mV     ADC input range, ± full-scale referred to the input, in mV
+#                      -> the voltage resolution (µV per ADC level) is DERIVED from these
+#                         two plus ADC_N_BITS, so it is not stored separately (see
+#                         voltage_resolution_uV). This is what makes recorded amplitudes
+#                         physical, and lets the same physical trigger threshold be compared
+#                         across rigs.
+#   threshold_uV       trigger-detection threshold, in physical µV. Its SIGN is the trigger
+#                      pulse polarity (positive-going vs negative-going on that rig).
 #   size_dmd           dimensions of the DMD, in pixels [x, y]
 #   pxl_size_dmd       size of one DMD pixel, in µm
 #   max_frame_size     largest stimulus image the rig can display [x, y], in pixels
@@ -116,9 +126,14 @@ advanced_params = {
 # so frames may come out mirrored / rotated / inverted. To properly support a rig, fill in
 # its values below and list it in DISPLAY_READY_RIGS.
 # ---------------------------------------------------------------------------
+# Number of bits the ADC uses to encode the amplified signal (why the raw dtype is uint16).
+ADC_N_BITS = 16
+
 rig_params = {
     1: {
-        "threshold": 270e3,
+        "amplifier_gain": 1200,
+        "input_range_mV": 4096,
+        "threshold_uV": 2930.625,  # = legacy 270000 scaled units
         "size_dmd": None,
         "pxl_size_dmd": None,
         "max_frame_size": None,
@@ -126,7 +141,9 @@ rig_params = {
         "optical_transform": None,
     },
     2: {
-        "threshold": 150e3,
+        "amplifier_gain": 1200,
+        "input_range_mV": 4096,
+        "threshold_uV": 1628.125,  # = legacy 150000 scaled units
         "size_dmd": [864, 864],
         "pxl_size_dmd": 3.5,
         "max_frame_size": [1920, 1080],
@@ -134,7 +151,9 @@ rig_params = {
         "optical_transform": "rot90_flipud",
     },
     3: {
-        "threshold": 170e3,
+        "amplifier_gain": 1200,
+        "input_range_mV": 4096,
+        "threshold_uV": 1845.208,  # = legacy 170000 scaled units
         "size_dmd": [760, 1020],
         "pxl_size_dmd": 2.5,
         "max_frame_size": [1024, 768],
@@ -142,7 +161,10 @@ rig_params = {
         "optical_transform": "fliplr",
     },
     4: {
-        "threshold": -3.14470e5,
+        # Electrical meta unknown so far -> voltage resolution falls back to legacy (warns).
+        "amplifier_gain": None,
+        "input_range_mV": None,
+        "threshold_uV": -3414.402,  # = legacy -314470 scaled units
         "size_dmd": None,
         "pxl_size_dmd": None,
         "max_frame_size": None,
@@ -150,7 +172,10 @@ rig_params = {
         "optical_transform": None,
     },
     5: {
-        "threshold": -7e3,
+        # Electrical meta unknown so far -> voltage resolution falls back to legacy (warns).
+        "amplifier_gain": None,
+        "input_range_mV": None,
+        "threshold_uV": -76.004,  # = legacy -7000 scaled units
         "size_dmd": [760, 1020],
         "pxl_size_dmd": 3.5,
         # Display settings unknown so far -> stimulus .bin reading/writing warns (see below).
@@ -211,17 +236,54 @@ def get_display_rig_params(mea: int) -> dict:
     return settings
 
 
-def setup_threshold_pxl_size_size_dmd(params: dict):
-    """Trigger-detection threshold, DMD pixel size (µm) and DMD dimensions of this rig.
+# Voltage resolution the pipeline used before it was derived per-rig (µV per ADC level).
+# Kept only as the fallback for rigs whose electrical meta is not filled in yet.
+LEGACY_VOLTAGE_RESOLUTION_UV = 0.1042
 
-    All values come from the rig_params table above (the threshold varies with the rig).
+
+def voltage_resolution_uV(mea: int) -> float:
+    """µV per ADC level for a rig, DERIVED from its amplifier gain and input range.
+
+        resolution = full input span referred to the electrode / number of ADC levels
+                   = (2 * input_range_mV / gain) * 1000 / 2**ADC_N_BITS      [µV / level]
+
+    (``input_range_mV`` is the ± full-scale, so the full span is ``2 * input_range_mV``.)
+    For rigs 1/2/3 (gain 1200, ±4096 mV, 16 bits) this gives ≈ 0.1042 µV/level.
+
+    Rigs whose electrical meta is not filled in yet fall back to the legacy value with a
+    warning, so the pipeline still runs but the amplitudes are not physically calibrated.
+    """
+    settings = get_rig_params(mea)
+    gain, input_range_mV = settings["amplifier_gain"], settings["input_range_mV"]
+    if gain is None or input_range_mV is None:
+        warnings.warn(
+            f"MEA {mea}: 'amplifier_gain' / 'input_range_mV' not set in params.rig_params, so "
+            f"the voltage resolution cannot be derived. Falling back to the legacy "
+            f"{LEGACY_VOLTAGE_RESOLUTION_UV} µV/level. Fill in this rig's electrical meta to make "
+            "the recorded amplitudes (and the trigger threshold) physically correct.",
+            stacklevel=2,
+        )
+        return LEGACY_VOLTAGE_RESOLUTION_UV
+    full_span_uV = (2 * input_range_mV / gain) * 1000
+    return full_span_uV / (2**ADC_N_BITS)
+
+
+def setup_threshold_pxl_size_size_dmd(params: dict):
+    """Trigger-detection threshold (µV), DMD pixel size (µm) and DMD dimensions of this rig.
+
+    All values come from the rig_params table above (they vary with the rig).
     """
     settings = get_rig_params(params["MEA"])
-    return settings["threshold"], settings["pxl_size_dmd"], settings["size_dmd"]
+    return settings["threshold_uV"], settings["pxl_size_dmd"], settings["size_dmd"]
 
 
 most_advanced_params = {
-    "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[0],
+    "threshold": setup_threshold_pxl_size_size_dmd(basic_params)[
+        0
+    ],  # trigger threshold, µV
+    "voltage_resolution": voltage_resolution_uV(
+        basic_params["MEA"]
+    ),  # µV per ADC level
     "pxl_size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[1],
     "size_dmd": setup_threshold_pxl_size_size_dmd(basic_params)[2],
     "nb_channels": 256,  # 256 for standard MEA, 17 for MEA1 Polychrome

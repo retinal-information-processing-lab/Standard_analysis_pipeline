@@ -102,11 +102,12 @@ def load_data(
         - nb_channels (int) : total number of channels on the mea
         - channel_id (int) : channel number to be read
         - probe_size (int) : if not None, read only part of the recording (used to check a channel did record some signal)
-        - voltage_resolution (float) : voltage step per binary value recorded
+        - voltage_resolution (float) : µV per ADC level for this rig (derived in params from
+            the amplifier gain and input range; see params.voltage_resolution_uV)
         - disable (bool) : True to disable tqdm loading bar
 
     Output :
-        - data (1D numpy array) : raw signal of the read channel
+        - data (1D numpy array) : signal of the read channel, in physical microvolts (µV)
         - nb_samples (int) : number of time points in the recording
 
     Possible mistakes :
@@ -131,8 +132,8 @@ def load_data(
     for k in tqdm(range(nb_samples), disable=disable):
         data[k] = m[nb_channels * k + channel_id]
     data = data.astype(float)
-    data = data + np.iinfo("int16").min
-    data = data / voltage_resolution
+    data = data + np.iinfo("int16").min  # uint16 offset-binary -> signed ADC level
+    data = data * voltage_resolution  # ADC level -> physical microvolts (µV)
 
     return data, nb_samples
 
