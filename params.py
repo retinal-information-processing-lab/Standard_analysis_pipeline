@@ -131,9 +131,9 @@ ADC_N_BITS = 16
 
 rig_params = {
     1: {
-        "amplifier_gain": 1200,
+        "amplifier_gain": 1,
         "input_range_mV": 4096,
-        "threshold_uV": 2930.625,  # = legacy 270000 scaled units
+        "threshold_uV": 3530000,  # = legacy 270000 scaled units
         "size_dmd": None,
         "pxl_size_dmd": None,
         "max_frame_size": None,
@@ -141,9 +141,9 @@ rig_params = {
         "optical_transform": None,
     },
     2: {
-        "amplifier_gain": 1200,
+        "amplifier_gain": 1,
         "input_range_mV": 4096,
-        "threshold_uV": 1628.125,  # = legacy 150000 scaled units
+        "threshold_uV": 1920000,  # = legacy 150000 scaled units
         "size_dmd": [864, 864],
         "pxl_size_dmd": 3.5,
         "max_frame_size": [1920, 1080],
@@ -151,9 +151,9 @@ rig_params = {
         "optical_transform": "rot90_flipud",
     },
     3: {
-        "amplifier_gain": 1200,
+        "amplifier_gain": 1,
         "input_range_mV": 4096,
-        "threshold_uV": 1845.208,  # = legacy 170000 scaled units
+        "threshold_uV": 2222000,  # = legacy 170000 scaled units
         "size_dmd": [760, 1020],
         "pxl_size_dmd": 2.5,
         "max_frame_size": [1024, 768],
@@ -164,7 +164,7 @@ rig_params = {
         # Electrical meta unknown so far -> voltage resolution falls back to legacy (warns).
         "amplifier_gain": None,
         "input_range_mV": None,
-        "threshold_uV": -3414.402,  # = legacy -314470 scaled units
+        "threshold_uV": -3414.402,  # = legacy -314470 scaled units #WRONG
         "size_dmd": None,
         "pxl_size_dmd": None,
         "max_frame_size": None,
@@ -175,7 +175,7 @@ rig_params = {
         # Electrical meta unknown so far -> voltage resolution falls back to legacy (warns).
         "amplifier_gain": None,
         "input_range_mV": None,
-        "threshold_uV": -76.004,  # = legacy -7000 scaled units
+        "threshold_uV": -76.004,  # = legacy -7000 scaled units #WRONG
         "size_dmd": [760, 1020],
         "pxl_size_dmd": 3.5,
         # Display settings unknown so far -> stimulus .bin reading/writing warns (see below).
