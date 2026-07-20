@@ -2,16 +2,20 @@
 
 Everything rig-dependent (DMD geometry, display polarity, optical correction) is defined
 ONCE in params.py (``params.rig_params``) and read from there — nothing is hard-coded here.
-Rigs that have not been implemented/tested raise a clear error (see
+Rigs that have not been implemented/tested warn and fall back to neutral defaults (see
 ``params.get_display_rig_params``).
+
+This module is deliberately kept free of any import-time dependency on ``params``: the
+settings can also be passed explicitly via ``BinFile(..., rig_settings={...})``, and
+``params`` is only imported when they are not. That way the exact same file can be used by
+the standalone StimulusDisplayer tool, which has no experiment configuration to load.
+Keep the two copies identical (tests/test_binfile_sync.py checks it).
 """
 
 from typing import Optional
 
 import numpy as np
 import os
-
-import params
 
 
 def apply_optical_transform(frame: np.ndarray, transform: Optional[str]) -> np.ndarray:
@@ -84,15 +88,31 @@ class BinFile:
         nb_images=0,
         reverse=False,
         mode="r",
+        rig_settings=None,
     ):
+        """Open a stimulus .bin for reading or writing.
+
+        Args:
+            rig_settings: dict with this rig's display settings, i.e. "max_frame_size"
+                ([x, y] or None for no size check), "invert_polarity" (bool) and
+                "optical_transform" ("rot90_flipud", "fliplr" or None). Leave it None in
+                the analysis pipeline: the settings are then read from params.rig_params
+                for ``rig_id``. Pass it explicitly to use this class without params (e.g.
+                the standalone StimulusDisplayer).
+        """
         self._path = path
         self._reverse = reverse
         self._mode = mode
         self._rig_id = rig_id
 
-        # Every rig-dependent setting comes from params.py. Rigs that are not implemented
-        # /tested warn there (work in progress) and fall back to neutral defaults.
-        rig = params.get_display_rig_params(rig_id)
+        # Every rig-dependent setting comes from params.py unless given explicitly. Rigs
+        # that are not implemented/tested warn there (work in progress) and fall back to
+        # neutral defaults. params is imported lazily so this module works without it.
+        if rig_settings is None:
+            import params
+
+            rig_settings = params.get_display_rig_params(rig_id)
+        rig = rig_settings
         max_frame_size = rig["max_frame_size"]
         # A rig with no known max frame size (work-in-progress) simply gets no size check.
         self._max_dimension_x, self._max_dimension_y = max_frame_size or (None, None)
