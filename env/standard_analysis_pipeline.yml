@@ -32,5 +32,6 @@ dependencies:
     - scikit-learn=1.6.1           # machine learning
     - scikit-image=0.25.0          # image processing
     - ruff
+    - pygame                       # for stim viewer
     - pip:
         - spikeinterface==0.103.2       # for spike sorting
