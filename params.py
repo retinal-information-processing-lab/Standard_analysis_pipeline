@@ -525,6 +525,28 @@ make_dict_keys_global_variables(most_advanced_params)
 
 
 # ---------------------------------------------------------------------------
+# Trigger / auxiliary channels.
+# A few of the MEA's channels do not record neural signal but experiment metadata: the
+# stimulus-onset trigger and a few auxiliary channels (holographic trigger, laser-shutter
+# state, colour code...). Preprocessing now ALWAYS saves the raw trace of every channel
+# listed here, per recording (as float32 µV), so their information is available for sanity
+# checks without having to re-extract it — and so the extraction no longer needs to know
+# the recording type.
+# Give {name: channel_id}; the names become the keys of the saved data. The onset detection
+# still runs on params.visual_channel_id (the "trigger_channel" below).
+trigger_channel_ids = {
+    "trigger_channel": most_advanced_params[
+        "visual_channel_id"
+    ],  # 126 — stimulus-onset trigger
+    "aux_channel_1": most_advanced_params[
+        "holo_channel_id"
+    ],  # 127 — (was the holographic trigger)
+    "aux_channel_2": 254,
+    "aux_channel_3": 255,
+}
+
+
+# ---------------------------------------------------------------------------
 # SWN (Shifting White Noise) stimulus — an alternative to the checkerboard.
 # Used by 2-Analyse_Checkerboard.ipynb when is_swn = True.
 # Like the checkerboard, each SWN sequence is a novel (never-repeated) first half followed

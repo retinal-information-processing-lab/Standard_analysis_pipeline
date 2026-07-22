@@ -28,6 +28,7 @@ dependencies:
     - pylint=3.3.5                  # code linting
     - black=24.10.0                 # improve readability
     - tqdm=4.67.1
+    - colorama                     # coloured warning text in preprocessing
     - pytest=8.4.2                 # unit-testing
     - scikit-learn=1.6.1           # machine learning
     - scikit-image=0.25.0          # image processing

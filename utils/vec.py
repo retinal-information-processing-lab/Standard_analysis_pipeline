@@ -441,6 +441,106 @@ def plot_sequence_with_stimulus(
     return fig
 
 
+def _min_max_normalise(values):
+    """Scale a 1-D array to [0, 1]; a flat array becomes all-zeros."""
+    values = np.asarray(values, dtype=float)
+    low, high = values.min(), values.max()
+    if high == low:
+        return np.zeros_like(values)
+    return (values - low) / (high - low)
+
+
+def plot_sequence_quality_control(
+    sequence,
+    vec,
+    sequence_key,
+    recorded_channels,
+    fs,
+    columns=None,
+    n_digit_for_rep: int = 4,
+    fontsize: int = 14,
+):
+    """Quality-control plot for one sequence: every vec column vs every recorded channel.
+
+    For the first repetition of ``sequence_key`` it draws, on a shared time axis and each
+    min-max normalised:
+      * every column of the vec file (what the stimulus was *meant* to be), and
+      * every recorded trigger / auxiliary electrode channel over the same time window
+        (what the rig *actually* did).
+    Recorded channels are drawn at the bottom, vec columns on top, separated by a line, so
+    you can check they correspond — e.g. that the aux channel wired to the colour signal
+    switches at the same times as the vec column that encodes colour. The pairing is yours:
+    the labels are just the vec column index and the recorded-channel name.
+
+    Args:
+        sequence: one ``spikes_per_sequence_dict[cell][sequence_key]`` entry (any cell — the
+            recorded channels do not depend on the cell, only on the sequence's time window).
+        vec: the full vec array (header dropped).
+        sequence_key: the sequence type key to inspect.
+        recorded_channels: ``{name: full-recording trace}`` for this recording, as saved by
+            preprocessing (``<exp>_<recording>_trigger_channels.pkl``).
+        fs: sampling rate (Hz), to map the sequence time window onto the recorded traces.
+        columns: list of (column_index, label) vec columns to show. Defaults to every vec
+            column except the last (the sequence-key column this pipeline writes).
+        n_digit_for_rep: repetition-digit count of the vec keys.
+        fontsize: base font size.
+
+    Returns:
+        The matplotlib Figure.
+    """
+    start = sequence["triggers"]["start"]
+    duration = sequence["triggers"]["rng"][1]
+
+    # vec columns for this sequence (one repetition); default = all but the key column.
+    stimulus = get_sequence_stimulus(vec, sequence_key, n_digit_for_rep)
+    if columns is None:
+        columns = [(c, f"vec col {c}") for c in range(stimulus.shape[1] - 1)]
+
+    # Recorded channels over the SAME window [start, start + duration] as the raster/PSTH.
+    i0, i1 = int(start * fs), int((start + duration) * fs)
+    recorded = {name: trace[i0:i1] for name, trace in recorded_channels.items()}
+
+    n_tracks = len(recorded) + len(columns)
+    fig, ax = plt.subplots(figsize=(13, 0.6 * n_tracks + 1.5))
+
+    yticks, ylabels = [], []
+    level = 0
+    # Recorded channels at the bottom (grey lines).
+    for name, trace in recorded.items():
+        t = np.linspace(0, duration, len(trace))
+        ax.plot(t, _min_max_normalise(trace) * 0.8 + level, lw=0.8, color="#555555")
+        yticks.append(level + 0.4)
+        ylabels.append(f"{name}  (recorded)")
+        level += 1
+    if recorded and columns:
+        ax.axhline(level - 0.1, color="lightgray", lw=1)  # separate the two groups
+    # Vec columns on top (step traces, coloured).
+    for col, label in columns:
+        t = np.linspace(0, duration, len(stimulus))
+        ax.step(
+            t,
+            _min_max_normalise(stimulus[:, col]) * 0.8 + level,
+            where="post",
+            lw=1.6,
+            color="#B85A8F",
+        )
+        yticks.append(level + 0.4)
+        ylabels.append(label)
+        level += 1
+
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=fontsize - 1)
+    ax.set_ylim(-0.1, level)
+    ax.set_xlim(0, duration)
+    ax.set_xlabel("Time (s)", fontsize=fontsize)
+    ax.set_title(
+        f"Sequence {sequence_key} — vec columns vs recorded channels (each normalised)",
+        fontsize=fontsize,
+    )
+    ax.tick_params(axis="x", labelsize=fontsize - 2)
+    return fig
+
+
 def save_sequence_figures(
     spikes_per_sequence_dict: dict,
     analysis_directory: str,

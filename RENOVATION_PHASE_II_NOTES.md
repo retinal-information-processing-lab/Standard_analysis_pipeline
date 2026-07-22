@@ -122,11 +122,19 @@ TODO (Chiara):
     17. Adding options to visualize standatd VEC as traces (either of frame number or color etc.)
     18. Fixing StimDisplayer (to continue)
 
-2026-13-26 (Awen + Baptiste) first beta test :
+2026-07-13 (Awen + Baptiste) first beta test :
     1. Corrected some hardcoded paths and some broken access on other computers
     2. Added repeated seq analysis for swan
     3. Smoothed the handling for MEA other than 2 and 3
     4. Added a description of spatial mask in NB 2
+    5. Corrected the thershold comptutation in preprocessing to be more sensible physically
+    6. Moves all params to params (even those that were in BinFiles)
+
+2026-07-26 (Guilhem + Baptiste) :
+    1. Adding info on how to build stim, ex : the F frame
+    2. Now reading all 4 auxiliary trigger channels and use them for sanity checks in standard vec analysis
+
+
 
 WHAT NEXT?
 - ADD OTHER STANDARD STIMULI ANALYSIS (Multisize spots, Barcode, MSF)
