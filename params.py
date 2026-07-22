@@ -134,11 +134,11 @@ rig_params = {
         "amplifier_gain": 1,
         "input_range_mV": 4096,
         "threshold_uV": 3530000,  # = legacy 270000 scaled units
-        "size_dmd": None,
-        "pxl_size_dmd": None,
-        "max_frame_size": None,
-        "invert_polarity": None,
-        "optical_transform": None,
+        "size_dmd": [760, 1020],
+        "pxl_size_dmd": 3.5,
+        "max_frame_size": [1024, 768],
+        "invert_polarity": False,
+        "optical_transform": "rot90_flipud",
     },
     2: {
         "amplifier_gain": 1,
@@ -186,7 +186,7 @@ rig_params = {
 }
 
 # Rigs whose stimulus-display settings (DMD geometry + optics) are implemented and tested.
-DISPLAY_READY_RIGS = (2, 3)
+DISPLAY_READY_RIGS = (1, 2, 3)
 
 
 def get_rig_params(mea: int) -> dict:
