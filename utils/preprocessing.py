@@ -138,6 +138,62 @@ def load_data(
     return data, nb_samples
 
 
+def load_trigger_channels(
+    input_path,
+    channel_ids=None,
+    dtype=params.dtype,
+    nb_channels=params.nb_channels,
+    voltage_resolution=params.voltage_resolution,
+):
+    """
+    Read the trigger / auxiliary channels of a raw recording, in physical microvolts.
+
+    A few MEA channels carry experiment metadata rather than neural signal (the stimulus
+    trigger and auxiliary channels: holographic trigger, shutter state, colour code...).
+    This reads the ones listed in ``channel_ids`` and returns their raw traces, so they can
+    be saved for later sanity checks — always, without needing to know the recording type.
+
+    Unlike load_data (which reads a single channel with a per-sample loop), this reads every
+    requested channel in one vectorised pass, so reading several channels is cheap. The
+    traces are returned as float32 to keep the saved file half the size of float64.
+
+    Input :
+        - input_path (str) : path to the raw binary recording
+        - channel_ids (dict) : {name: channel_id} of the channels to read; defaults to
+            params.trigger_channel_ids. Entries whose id is None are skipped.
+        - dtype (str) : raw data type
+        - nb_channels (int) : total number of channels on the mea
+        - voltage_resolution (float) : µV per ADC level for this rig (see load_data)
+
+    Output :
+        - channels (dict) : {name: 1D float32 numpy array of µV} for every channel whose id
+            is not None. Empty dict if nothing to read.
+
+    Possible mistakes :
+        - Wrong channel indices in params.trigger_channel_ids
+        - nb_channels inconsistent with the file (raises)
+    """
+    if channel_ids is None:
+        channel_ids = params.trigger_channel_ids
+    wanted = {name: ch for name, ch in channel_ids.items() if ch is not None}
+    if not wanted:
+        return {}
+
+    m = np.memmap(os.path.normpath(input_path), dtype=dtype)
+    if m.size % nb_channels != 0:
+        raise Exception("number of channels is inconsistent with the data size.")
+    samples = m.reshape(-1, nb_channels)  # (nb_samples, nb_channels) view
+
+    offset = np.iinfo("int16").min
+    channels = {}
+    for name, channel_id in wanted.items():
+        # Same conversion as load_data: uint16 offset-binary -> signed level -> µV.
+        # Computed in float64 for accuracy, stored as float32 to halve the file size.
+        trace = samples[:, channel_id].astype(float)
+        channels[name] = ((trace + offset) * voltage_resolution).astype(np.float32)
+    return channels
+
+
 def is_holographic_rec(
     input_path, probe_size=params.fs * params.time, mea=params.MEA, dtype=params.dtype
 ):
