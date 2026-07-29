@@ -807,10 +807,15 @@ def decorrelate_spatial_stas(sta_data: dict, C_I: np.ndarray) -> dict:
     stimulus is already white and skips it.
 
     Run this AFTER analyse_all_stas and BEFORE extend_sta_analysis_to_physical_units.
-    The whitened RF overwrites ``sta_analysis["Spatial"]`` / ``["EllipseCoor"]`` (the
-    raw versions are kept under ``"Spatial_raw"`` / ``"EllipseCoor_raw"``), so every
-    downstream step (physical units, plots, cell typing) uses the decorrelated RF with
-    no further SWN-specific branching.
+    The whitened RF overwrites ``sta_analysis["Spatial"]`` (the raw STA is kept under
+    ``"Spatial_raw"``), so the spatial STA plot shows the decorrelated RF.
+
+    ``EllipseCoor`` is deliberately LEFT UNCHANGED: it stays the ellipse fitted on the
+    mask, exactly like the checkerboard pipeline, so SWN and checkerboard save the same
+    ellipse (and everything downstream — physical units, plots, cell typing — uses it).
+    The ellipse re-fitted on the whitened STA is kept separately as ``EllipseCoor_whitened``
+    for reference; it is NOT used as the RF, because whitening amplifies noise and can move
+    the fit off weak cells' true RF.
 
     Args:
         sta_data: dict from analyse_all_stas; each cell has a ``"sta_analysis"`` entry.
@@ -829,21 +834,17 @@ def decorrelate_spatial_stas(sta_data: dict, C_I: np.ndarray) -> dict:
         # Whiten: solve C_I x = sta  (multiply the flattened RF by the inverse covariance).
         whitened = np.linalg.solve(C_I, spatial.flatten()).reshape(spatial.shape)
         analysis["Spatial_raw"] = spatial
-        analysis["EllipseCoor_raw"] = analysis["EllipseCoor"]
         analysis["Spatial"] = whitened
 
-        # Re-fit the ellipse on the whitened RF, reusing the standard fitting routine.
+        # Re-fit on the whitened RF and keep it as EllipseCoor_whitened, but do NOT overwrite
+        # EllipseCoor (the mask fit) — SWN keeps the same ellipse as the checkerboard.
         try:
             fitting_data = utils.preprocess_fitting_standard(whitened)
             ellipse_params, _ = utils.double_gaussian_fit(fitting_data)
-            analysis["EllipseCoor"] = ellipse_params
-            analysis["FittedEllipse"] = True
+            analysis["EllipseCoor_whitened"] = ellipse_params
         except Exception:
-            print(
-                f"Could not re-fit the ellipse after decorrelation for cell {cell_id}"
-            )
-            analysis["EllipseCoor"] = default_ellipse
-            analysis["FittedEllipse"] = False
+            print(f"Could not re-fit the whitened ellipse for cell {cell_id}")
+            analysis["EllipseCoor_whitened"] = default_ellipse
     return sta_data
 
 
@@ -1281,10 +1282,17 @@ def plot_sta_fitted_with_ellipse(
                 # Normalize the spatial mask to [0, 1] for visualization
                 spatial_mask += np.abs(np.min(spatial_mask))
                 spatial_mask /= np.max(spatial_mask)
+                # Draw the ellipse fitted on the MASK. EllipseCoor is that mask fit for both
+                # checkerboard and SWN now. (Older SWN results overwrote EllipseCoor with the
+                # whitened-STA fit and kept the mask fit under EllipseCoor_raw — fall back to
+                # it so those still display correctly.)
+                mask_ellipse = sta_analysis.get(
+                    "EllipseCoor_raw", sta_analysis["EllipseCoor"]
+                )
                 ax, im = utils.plot_sta(
                     ax,
                     spatial_mask,
-                    sta_analysis["EllipseCoor"],
+                    mask_ellipse,
                     level_factor=level_factor,
                     color="yellow",
                     alpha=1,
