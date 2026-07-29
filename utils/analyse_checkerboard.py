@@ -1073,7 +1073,7 @@ def plot_sta_fitted_with_ellipse(
     xdim: float = 8,
     ydim: float = 5,
     save_format: str = "png",
-    scale_bar_color: str = "black",
+    scale_bar_color: str = "black",  # STA scale bar (light background); the mask uses chartreuse
     scale_bar_width: int = 4,
     scalebar_left_location: tuple = (0.95, 0.95),
     scalebar_size_um: int = 100,
@@ -1309,7 +1309,7 @@ def plot_sta_fitted_with_ellipse(
                         scalebar_left_location,
                         nx,
                         ny,
-                        scale_bar_color,
+                        "chartreuse",  # mask is grey -> chartreuse; the STA uses scale_bar_color (black)
                         scale_bar_width,
                     )
                     text += f"\nScale bar: {scalebar_size_um} µm"
