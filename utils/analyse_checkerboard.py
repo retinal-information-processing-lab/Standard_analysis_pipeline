@@ -411,35 +411,45 @@ def extract_all_cell_responses_to_repeated_sequences(
         )
 
     # check data
-    assert set(output_data.keys()) == set(
-        cells_id
-    ), "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
+    assert set(output_data.keys()) == set(cells_id), (
+        "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
+    )
     for cell_id in cells_id:
         assert (
             "spike_times" in output_data[cell_id]
             and output_data[cell_id]["spike_times"].ndim == 1
-        ), f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
+        ), (
+            f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
+        )
         assert (
             "repeated_sequences_times" in output_data[cell_id]
             and isinstance(output_data[cell_id]["repeated_sequences_times"], list)
             and len(output_data[cell_id]["repeated_sequences_times"]) == nb_repeats
-        ), f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
+        ), (
+            f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
+        )
         assert (
             "spike_trains" in output_data[cell_id]
             and isinstance(output_data[cell_id]["spike_trains"], list)
             and len(output_data[cell_id]["spike_trains"]) == nb_repeats
-        ), f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
+        ), (
+            f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
+        )
         assert (
             "counted_spikes" in output_data[cell_id]
             and output_data[cell_id]["counted_spikes"].ndim == 2
             and output_data[cell_id]["counted_spikes"].shape[0] == nb_repeats
-        ), f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
+        ), (
+            f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
+        )
         nbins = output_data[cell_id]["counted_spikes"].shape[1]
         assert (
             "psth" in output_data[cell_id]
             and output_data[cell_id]["psth"].ndim == 1
             and output_data[cell_id]["psth"].shape[0] == nbins
-        ), f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
+        ), (
+            f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
+        )
     return output_data
 
 
@@ -871,9 +881,9 @@ def extend_sta_analysis_to_physical_units(
     for cell_id in tqdm(
         sta_data_analysed.keys(), desc="Extending STA analysis to physical units"
     ):
-        sta_data_analysed[cell_id]["sta_analysis"][
-            "Spatial_unit_size_um"
-        ] = sta_pixel_size_um
+        sta_data_analysed[cell_id]["sta_analysis"]["Spatial_unit_size_um"] = (
+            sta_pixel_size_um
+        )
 
         ellipse_params = sta_data_analysed[cell_id]["sta_analysis"]["EllipseCoor"]
         ellipse_params_um = utils.convert_ellipse_params_to_physical_units(
@@ -885,9 +895,9 @@ def extend_sta_analysis_to_physical_units(
         temporal_sta_time_vector = utils.get_temporal_sta_time_vector(
             temporal_sta, sta_time_bin_s
         )
-        sta_data_analysed[cell_id]["sta_analysis"][
-            "TemporalTimeVector_s"
-        ] = temporal_sta_time_vector
+        sta_data_analysed[cell_id]["sta_analysis"]["TemporalTimeVector_s"] = (
+            temporal_sta_time_vector
+        )
         sta_data_analysed[cell_id]["sta_analysis"]["TemporalFreq_s"] = (
             1 / sta_time_bin_s
         )
@@ -968,9 +978,9 @@ def plot_all_stas(
             )
 
     if order_by_property is not None:
-        assert (
-            order_by_property in sta_data[cell_ids[0]]["sta_analysis"]["checkRF"]
-        ), f"Error: invalid order_by_property '{order_by_property}', must be one of {list(sta_data[cell_ids[0]]['sta_analysis']['checkRF'].keys())}"
+        assert order_by_property in sta_data[cell_ids[0]]["sta_analysis"]["checkRF"], (
+            f"Error: invalid order_by_property '{order_by_property}', must be one of {list(sta_data[cell_ids[0]]['sta_analysis']['checkRF'].keys())}"
+        )
         cell_ids.sort(
             key=lambda cid: sta_data[cid]["sta_analysis"]["checkRF"][order_by_property],
             reverse=True,
@@ -1213,6 +1223,9 @@ def plot_sta_fitted_with_ellipse(
             linestyles="solid",
         )
         cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        # Signed STA: sign is the cell's polarity (bright = ON, dark = OFF), magnitude the
+        # strength; normalised to +-1.
+        cax.set_label("Spatial STA (norm.): +ON / -OFF", fontsize=fontsize_labels)
         cax.ax.tick_params(labelsize=fontsize_labels)
         ax.scatter(
             sta_analysis["Temporal_STA_coords"][0],
@@ -1277,10 +1290,13 @@ def plot_sta_fitted_with_ellipse(
                     alpha=1,
                     lw=line_width,
                     linestyles="solid",
-                    cmap='grey',
+                    cmap="grey",
                     symmetric_colorbar=False,
                 )
                 cax = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+                # Mask = how much each pixel varies over time (unsigned), normalised to [0, 1];
+                # it locates the RF but carries no ON/OFF information.
+                cax.set_label("Temporal variation (norm.)", fontsize=fontsize_labels)
                 cax.ax.tick_params(labelsize=fontsize_labels)
                 if "Spatial_unit_size_um" in sta_analysis:
                     pixel_size_um = sta_analysis["Spatial_unit_size_um"]
