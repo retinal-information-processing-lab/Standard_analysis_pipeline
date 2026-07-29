@@ -555,7 +555,6 @@ def plot_sta(
         im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     else:
         im = ax.imshow(spatial_sta, cmap=cmap)
-    im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     if ellipse_params[0] != 0:
         ax.contour(
             np.abs(gaussian),
