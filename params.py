@@ -567,7 +567,7 @@ trigger_channel_ids = {
 #   swn_bin_file = r"/media/my_drive/Stimuli/20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
 # ---------------------------------------------------------------------------
 swn_bin_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.bin"
-swn_vec_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2.vec"
+swn_vec_file = "20250512_4_SWN_48pixCh_6pixShift_30Hz_MEA2_std.vec"
 swn_shift_x = 6  # spatial down-sampling step in x (pixels) — matches "6pixShift" in the stim design
 swn_shift_y = 6  # spatial down-sampling step in y (pixels)
 swn_cov_regularization = (

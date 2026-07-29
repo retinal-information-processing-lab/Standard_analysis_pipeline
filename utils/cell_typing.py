@@ -647,7 +647,9 @@ def create_cluster_summary_figure(
     euler_vec = None
     try:
         vec_name = (
-            "EulerStim180530.vec" if old else "Euler_50Hz_20reps_1024x768pix_std.vec"
+            "EulerStim180530_std.vec"
+            if old
+            else "Euler_50Hz_20reps_1024x768pix_std.vec"
         )
         euler_vec = np.genfromtxt(utils.find_vec_file(vec_name, params.stim_directory))
         if old:

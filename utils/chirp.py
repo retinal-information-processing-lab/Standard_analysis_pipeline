@@ -241,16 +241,14 @@ def plot_chirp_rasters(
         allow_pickle=True,
     )
 
+    # Same chirp vec (the "_std" keyed version) as the rest of the analysis, from one place.
+    vec_path = utils.find_vec_file(CHIRP_VEC_FILES[old], params.stim_directory)
     if old:
-        vec_path = utils.find_vec_file("EulerStim180530.vec", params.stim_directory)
         euler_vec = -np.genfromtxt(vec_path)
         rep_lenght = 25
         n_bins = 625
 
     else:
-        vec_path = utils.find_vec_file(
-            "Euler_50Hz_20reps_1024x768pix.vec", params.stim_directory
-        )
         euler_vec = np.genfromtxt(vec_path)
         rep_lenght = 32
         n_bins = 800
