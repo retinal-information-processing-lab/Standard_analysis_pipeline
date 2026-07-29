@@ -4,7 +4,6 @@ from scipy.optimize import curve_fit
 from scipy.signal import convolve
 from skimage import measure
 
-
 # ------------------------------------------------------------- #
 # >> STA computation and analysis (OK)
 # ------------------------------------------------------------- #
@@ -206,7 +205,9 @@ def smooth_sta(sta, alpha, max_time_window=15):
                 1:-1,
                 x + pading_size - 1 : x + pading_size + 2,
                 y + pading_size - 1 : y + pading_size + 2,
-            ].sum(axis=(1, 2))
+            ].sum(
+                axis=(1, 2)
+            )
 
     best = np.unravel_index(
         np.argmax(np.abs(receptive_field[-max_time_window:, :, :])),
@@ -266,9 +267,9 @@ def preprocess_fitting_standard(
         np.abs(processed_spatial_sta) < peak * noise_threshold**exponent
     ] = 0
 
-    assert processed_spatial_sta.shape == spatial_sta.shape, (
-        f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
-    )
+    assert (
+        processed_spatial_sta.shape == spatial_sta.shape
+    ), f"Output shape {processed_spatial_sta.shape} does not match input shape {spatial_sta.shape}"
 
     return processed_spatial_sta
 
@@ -486,28 +487,22 @@ def rf_analysis(
         "Cell_delay",
         "FittedEllipse",
     }
-    assert set(result.keys()) == expected_keys, (
-        f"Result keys {result.keys()} do not match expected keys {expected_keys}"
-    )
-    assert isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2, (
-        f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
-    )
+    assert (
+        set(result.keys()) == expected_keys
+    ), f"Result keys {result.keys()} do not match expected keys {expected_keys}"
+    assert (
+        isinstance(result["Spatial"], np.ndarray) and result["Spatial"].ndim == 2
+    ), f"Spatial STA should be a 2D numpy array, got {type(result['Spatial'])} with ndim {result['Spatial'].ndim}"
     assert (
         isinstance(result["Temporal"], np.ndarray) and result["Temporal"].ndim == 1
-    ), (
-        f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"
-    )
+    ), f"Temporal STA should be a 1D numpy array, got {type(result['Temporal'])} with ndim {result['Temporal'].ndim}"
     assert (
         isinstance(result["EllipseCoor"], (list, np.ndarray))
         and len(result["EllipseCoor"]) == 6
-    ), (
-        f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
-    )
+    ), f"EllipseCoor should be a list or array of 6 parameters, got {type(result['EllipseCoor'])} with length {len(result['EllipseCoor'])}"
     assert isinstance(result["Cell_delay"], (int, np.integer)) or np.isnan(
         result["Cell_delay"]
-    ), (
-        f"Cell_delay should be a number or NaN, got {type(result['Cell_delay'])} with value {result['Cell_delay']}"
-    )
+    ), f"Cell_delay should be a number or NaN, got {type(result['Cell_delay'])} with value {result['Cell_delay']}"
 
     return result
 
@@ -525,6 +520,7 @@ def plot_sta(
     add_center_cross=True,
     marker_size=50,
     marker_symbol="+",
+    symmetric_colorbar=True,
 ):
     """
     Plot the spatial STA and the fitted ellipse on a given axis,  with colormap centered on 0.
@@ -545,12 +541,16 @@ def plot_sta(
         add_center_cross (bool, optional): Whether to add a marker at the center of the fitted ellipse.
         marker_size (float, optional): Size of the center marker if `add_center_cross` is True.
         marker_symbol (str, optional): Marker symbol for the center marker if `add_center_cross` is True.
-
+        symmetric_colorbar (bool, optional): Whether to center the colorbar on 0.
     """
     # magnified_ellipse_params=(np.array(ellipse_params)*[gaussian_factor, 1,1,gaussian_factor,gaussian_factor,1])
     gaussian = gaussian2D(spatial_sta.shape, *ellipse_params)
     amp, x0, y0, sigma_x, sigma_y, rot_angle = ellipse_params
     vrange = np.max(np.abs(spatial_sta))
+    if symmetric_colorbar:
+        im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
+    else:
+        im = ax.imshow(spatial_sta, cmap=cmap)
     im = ax.imshow(spatial_sta, vmin=-vrange, vmax=vrange, cmap=cmap)
     if ellipse_params[0] != 0:
         ax.contour(
@@ -725,12 +725,12 @@ def ellipse_area(
     if method == "formula":
         return np.pi * sigma_x * sigma_y
     elif method == "polygon":
-        assert spatial_sta_shape is not None, (
-            "spatial_sta_shape must be provided for polygon method"
-        )
-        assert level_factor is not None and 0 < level_factor < 1, (
-            "level_factor must be provided for polygon method and must be between 0 and 1"
-        )
+        assert (
+            spatial_sta_shape is not None
+        ), "spatial_sta_shape must be provided for polygon method"
+        assert (
+            level_factor is not None and 0 < level_factor < 1
+        ), "level_factor must be provided for polygon method and must be between 0 and 1"
         gaussian = gaussian2D(spatial_sta_shape, *ellipse_params)
         abs_gaussian = np.abs(gaussian)
         contours = measure.find_contours(
