@@ -16,6 +16,7 @@ from typing import Optional
 
 import numpy as np
 import os
+import warnings
 
 
 def apply_optical_transform(frame: np.ndarray, transform: Optional[str]) -> np.ndarray:
@@ -121,11 +122,27 @@ class BinFile:
 
         if self._mode == "r":
             header = self.read_header(self._path)
-            self._nb_images = header["nb_images"]
             self._check_frame_size(header["xsize"], header["ysize"])
             self._frame_xsize = header["xsize"]
             self._frame_ysize = header["ysize"]
             self._nb_bits = header["nb_bits"]
+            # The header's frame-count field is only 2 bytes (purely informative). Derive the
+            # true number of frames from the file size, so a bin with more than int16-max
+            # frames still reads correctly instead of relying on the (wrappable) header value.
+            frame_byte_size = self._frame_xsize * self._frame_ysize
+            n_from_size = (
+                (os.path.getsize(self._path) - 2 * 4) // frame_byte_size
+                if frame_byte_size
+                else header["nb_images"]
+            )
+            if n_from_size != header["nb_images"]:
+                warnings.warn(
+                    f"BinFile: the header frame count ({header['nb_images']}) differs from the "
+                    f"count from the file size ({n_from_size}) — the 2-byte header field likely "
+                    "overflowed (more than 65535 frames). Using the file-size count.",
+                    stacklevel=2,
+                )
+            self._nb_images = n_from_size
             self._file = open(self._path, mode="rb")
             self._frame_nb = self._nb_images - 1
         elif self._mode == "w":
@@ -264,8 +281,22 @@ class BinFile:
             self._nb_bits,
         ]
         print("header_list: {}".format(header_list))
-        header_array = np.array(header_list, dtype=np.int16)
-        header_bytes = header_array.tobytes()
+        int16_max = np.iinfo(np.int16).max  # 32767
+        if self._nb_images > int16_max:
+            warnings.warn(
+                f"BinFile: number of frames ({self._nb_images}) exceeds the int16 maximum "
+                f"({int16_max}). The header's frame-count field is only 2 bytes and is purely "
+                "informative (this class reads the real count from the file size), so the frame "
+                "data is fine — but BE CAREFUL: other tools that read this field as a signed "
+                "int16 may see a wrong or negative value. Above 65535 the field also wraps.",
+                stacklevel=2,
+            )
+        # Write each field as a 2-byte little-endian value (matching read_header's unsigned
+        # read). Using to_bytes with a modulo means a frame count beyond the 2-byte range wraps
+        # instead of raising an overflow error (as np.int16 would).
+        header_bytes = b"".join(
+            int(value % 65536).to_bytes(2, "little") for value in header_list
+        )
         self._file.write(header_bytes)
 
         return

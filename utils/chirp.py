@@ -9,7 +9,7 @@ import utils
 import params
 
 # Chirp vec files (one sequence repeated many times). The "_std" versions carry the
-# per-repetition sequence keys added by RessourcesAndTools/StimMaking/add_standard_keys_to_chirp_vec.ipynb.
+# per-repetition sequence keys added by ResourcesAndTools/StimMaking/add_standard_keys_to_chirp_vec.ipynb.
 CHIRP_VEC_FILES = {
     False: "Euler_50Hz_20reps_1024x768pix_std.vec",  # new 50 Hz chirp
     True: "EulerStim180530_std.vec",  # old 2p-room chirp (needs its keyed vec generated)
@@ -223,11 +223,13 @@ def plot_chirp_rasters(
     ]
     if already_plotted:
         if redo is None:
-            redo = input(
-                f"{len(already_plotted)}/{len(cells)} chirp raster figures already exist in "
-                f"{fig_directory}.\nRedo them? Type Yes to replot them all, anything else to "
-                "keep them and only plot the missing cells : "
-            ) in ["Y", "Yes", "y", "yes"]
+            redo = utils.is_yes(
+                input(
+                    f"{len(already_plotted)}/{len(cells)} chirp raster figures already exist in "
+                    f"{fig_directory}.\nRedo them?  [y = replot ALL,  "
+                    "Enter/Esc/n = keep existing & only plot the missing cells] : "
+                )
+            )
         if not redo:
             cells = [cell_nb for cell_nb in cells if cell_nb not in already_plotted]
             print(f"Keeping the {len(already_plotted)} existing figures.")

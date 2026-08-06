@@ -88,6 +88,18 @@ def prompt_user_for_recording(recording_names, stim_name: str) -> tuple[int, str
     return recording_number, recording_name
 
 
+def is_yes(answer: str) -> bool:
+    """Interpret an answer to a yes/no prompt used across the pipeline.
+
+    YES  -> "y" / "yes" (any case).
+    NO   -> anything else, INCLUDING an empty answer (pressing Enter or Escape).
+
+    So NO is the default: you must type 'y' to confirm. A notebook ``input()`` cannot tell
+    Enter from Escape apart (both submit an empty string), so an empty answer counts as NO.
+    """
+    return answer.strip().lower() in ("y", "yes")
+
+
 def create_analysis_directory(
     output_directory: str, recording_number: int, analysis_name: str
 ) -> str:

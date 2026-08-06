@@ -14,90 +14,196 @@ import utils
 #############################################
 
 
-def cell_selection_for_clustering(
-    cells,
-    CT_directory_path,
-    sta_figures_path,
-    selected_cells_sta=[],
-    selected_cells_chirp=[],
-    save_format: str = "png",
-):
-    """Interactively pick cells for clustering: by STA quality, then by chirp response.
+def _review_cells(cells, figure_path_for, prompt, crop=None):
+    """Interactive quality review: show each cell's figure and keep it (y) or skip it (Enter/n).
 
     Args:
         cells: cell IDs to review.
-        CT_directory_path: folder with the chirp figures ("{cell}_Chirp_raster+STA.png").
-        sta_figures_path: folder with the checkerboard STA figures ("Cell_{cell}.png"),
-            e.g. ``<Checkerboard_Analysis_...>/Stas_figs``.
-        selected_cells_sta: if non-empty, skip the STA selection and use this list.
-        selected_cells_chirp: if non-empty, skip the chirp selection and use this list.
-        save_format: image file extension (e.g. "png").
+        figure_path_for: function cell_id -> path of that cell's figure.
+        prompt: the yes/no question, formatted with the cell id.
+        crop: optional function image -> cropped image (e.g. to show only part of it).
 
     Returns:
-        selected_cells (STA-good AND chirp-good), selected_cells_sta, selected_cells_chirp.
+        the list of kept cell IDs.
     """
     # Replace each figure in place (instead of stacking them) so there is no endless
     # scrolling, and show it large enough to read.
     from IPython.display import clear_output
 
-    print("Selecting via STA (from the checkerboard STA figures) ...")
-    if selected_cells_sta == []:
-        for i, cell_nb in enumerate(cells):
-            sta_fig = os.path.normpath(
-                os.path.join(sta_figures_path, f"Cell_{cell_nb}.{save_format}")
-            )
-            if not os.path.isfile(sta_fig):
-                print(f"No STA figure for cell {cell_nb}, skipping.")
-                continue
-            clear_output(wait=True)  # remove the previous cell's figure + prompt
-            print(f"STA selection — cell {i + 1}/{len(cells)}")
-            plt.figure(r"Current cell", figsize=(14, 11))
-            plt.imshow(np.asarray(plt.imread(sta_fig)))
-            plt.axis("off")
-            plt.show()
-            if input(
-                "Keep cell {} for clustering using sta? Type Yes to select as good : ".format(
-                    cell_nb
-                )
-            ) in ["Y", "Yes", "y", "yes"]:
-                selected_cells_sta += [cell_nb]
-            plt.close("all")
+    selected = []
+    for i, cell_nb in enumerate(cells):
+        fig_path = os.path.normpath(figure_path_for(cell_nb))
+        if not os.path.isfile(fig_path):
+            print(f"No figure for cell {cell_nb} ({fig_path}), skipping.")
+            continue
+        image = np.asarray(plt.imread(fig_path))
+        if crop is not None:
+            image = crop(image)
+        clear_output(wait=True)  # remove the previous cell's figure + prompt
+        print(f"Reviewing cell {i + 1}/{len(cells)}")
+        plt.figure(r"Current cell", figsize=(15, 10))
+        plt.imshow(image)
+        plt.axis("off")
+        plt.show()
+        if utils.is_yes(input(prompt.format(cell_nb))):
+            selected.append(cell_nb)
+        plt.close("all")
+    return selected
 
-    print("List of selected cells using sta : ", selected_cells_sta)
-    print("Selecting via chirp ...")
 
-    if selected_cells_chirp == []:
-        for i, cell_nb in enumerate(cells):
-            image = np.asarray(
-                plt.imread(
-                    os.path.normpath(
-                        os.path.join(
-                            CT_directory_path,
-                            f"{cell_nb}_Chirp_raster+STA.{save_format}",
-                        )
-                    )
-                )
-            )
-            clear_output(wait=True)  # remove the previous cell's figure + prompt
-            print(f"Chirp selection — cell {i + 1}/{len(cells)}")
-            plt.figure(r"Current cell", figsize=(16, 8))
-            # The chirp (stimulus + raster + PSTH) occupies the left ~2/3 of the figure;
-            # the right third is the STA, which we judge from the checkerboard plots instead.
-            plt.imshow(image[:, : image.shape[1] * 2 // 3])
-            plt.axis("off")
-            plt.show()
-            if input(
-                "Keep cell {} for clustering using chirp? Type Yes to select as good : ".format(
-                    cell_nb
-                )
-            ) in ["Y", "Yes", "y", "yes"]:
-                selected_cells_chirp += [cell_nb]
-            plt.close("all")
-    print("List of selected cells using chirp : ", selected_cells_chirp)
+def _selection_file(CT_directory, params):
+    return os.path.normpath(
+        os.path.join(CT_directory, f"{params.exp}_selected_cells_for_clustering.pkl")
+    )
 
-    selected_cells = [id for id in selected_cells_sta if id in selected_cells_chirp]
 
-    return selected_cells, selected_cells_sta, selected_cells_chirp
+def load_cell_selection(CT_directory, params):
+    """Return a previously saved clustering selection (dict), or None if there is none."""
+    path = _selection_file(CT_directory, params)
+    if os.path.isfile(path):
+        return utils.load_obj(path)
+    return None
+
+
+def _save_selection(CT_directory, params, sta=None, chirp=None):
+    """Persist the clustering selection, updating ONLY the part(s) given and keeping the
+    rest. So saving the STA list never touches the chirp list and vice-versa. The combined
+    ``selected_cells`` (good STA AND good chirp) is recomputed each time.
+
+    Returns the saved dict.
+    """
+    data = load_cell_selection(CT_directory, params) or {
+        "selected_cells_sta": [],
+        "selected_cells_chirp": [],
+        "selected_cells": [],
+    }
+    if sta is not None:
+        data["selected_cells_sta"] = list(sta)
+    if chirp is not None:
+        data["selected_cells_chirp"] = list(chirp)
+    data["selected_cells"] = [
+        c for c in data["selected_cells_sta"] if c in data["selected_cells_chirp"]
+    ]
+    utils.save_obj(data, _selection_file(CT_directory, params))
+    return data
+
+
+def select_cells_by_sta(
+    cells, check_directory, CT_directory, params, preselected=None, save_format="png"
+):
+    """Pick the cells with a well-defined STA, for clustering, and SAVE the selection.
+
+    The STA list is chosen from, in order: ``preselected`` (if non-empty), a previously
+    saved STA selection (reused so it is never lost), or an interactive review of each cell's
+    checkerboard STA figure (y to keep, Enter/n to skip). The result is ALWAYS saved, updating only the
+    STA part of the shared selection file — the chirp selection is preserved.
+
+    To redo the review, pre-fill ``preselected`` or delete the selection file.
+
+    Returns the list of STA-good cells.
+    """
+    saved = load_cell_selection(CT_directory, params)
+    if preselected:
+        sta = list(preselected)
+    elif saved and saved.get("selected_cells_sta"):
+        sta = saved["selected_cells_sta"]
+        print(
+            f"Reusing the saved STA selection ({len(sta)} cells). "
+            "Pre-fill the list (or delete the selection file) to redo it."
+        )
+    else:
+        sta = _review_cells(
+            cells,
+            lambda cid: os.path.join(
+                check_directory, "Stas_figs", f"Cell_{cid}.{save_format}"
+            ),
+            "Cell {} — good STA?  [y = keep,  Enter/Esc/n = skip] : ",
+        )
+    _save_selection(CT_directory, params, sta=sta)
+    return sta
+
+
+def select_cells_by_chirp(
+    cells, CT_directory, params, preselected=None, save_format="png"
+):
+    """Pick the cells with a nice chirp response, for clustering, and SAVE the selection.
+
+    Same logic as select_cells_by_sta (preselected / reuse-saved / interactive), using the
+    chirp raster figures — only the left ~2/3 (stimulus + raster + PSTH) is shown, the STA on
+    the right is judged in the STA step. The result is saved, updating only the chirp part of
+    the shared file — the STA selection is preserved — and the combined selection is
+    recomputed.
+
+    Returns the list of chirp-good cells.
+    """
+    saved = load_cell_selection(CT_directory, params)
+    if preselected:
+        chirp = list(preselected)
+    elif saved and saved.get("selected_cells_chirp"):
+        chirp = saved["selected_cells_chirp"]
+        print(
+            f"Reusing the saved chirp selection ({len(chirp)} cells). "
+            "Pre-fill the list (or delete the selection file) to redo it."
+        )
+    else:
+        chirp = _review_cells(
+            cells,
+            lambda cid: os.path.join(
+                CT_directory,
+                "Chirp_rasters+STA",
+                f"{cid}_Chirp_raster+STA.{save_format}",
+            ),
+            "Cell {} — good chirp?  [y = keep,  Enter/Esc/n = skip] : ",
+            crop=lambda image: image[:, : image.shape[1] * 2 // 3],
+        )
+    _save_selection(CT_directory, params, chirp=chirp)
+    return chirp
+
+
+def edit_cell_selection(
+    CT_directory,
+    params,
+    sta_add=(),
+    sta_remove=(),
+    chirp_add=(),
+    chirp_remove=(),
+    remove_from_both=(),
+):
+    """Manually add / remove cells from the saved STA and chirp selections, non-destructively.
+
+    Loads the CURRENT saved selection (the source of truth), applies the edits, and saves —
+    the lists are never emptied or rebuilt from scratch, so nothing is lost if a list is left
+    blank. ``remove_from_both`` removes a cell from both the STA and the chirp lists.
+
+    Returns the updated ``(selected_cells_sta, selected_cells_chirp, selected_cells)``.
+    """
+    data = load_cell_selection(CT_directory, params) or {
+        "selected_cells_sta": [],
+        "selected_cells_chirp": [],
+        "selected_cells": [],
+    }
+
+    def edited(current, add, remove):
+        to_remove = set(remove) | set(remove_from_both)
+        kept = [c for c in current if c not in to_remove]
+        for c in add:
+            if c not in kept:
+                kept.append(c)
+        return kept
+
+    sta = edited(data["selected_cells_sta"], sta_add, sta_remove)
+    chirp = edited(data["selected_cells_chirp"], chirp_add, chirp_remove)
+    updated = _save_selection(CT_directory, params, sta=sta, chirp=chirp)
+    print(
+        f"STA: {len(updated['selected_cells_sta'])} cells | "
+        f"chirp: {len(updated['selected_cells_chirp'])} cells | "
+        f"selected for clustering (both): {len(updated['selected_cells'])}"
+    )
+    return (
+        updated["selected_cells_sta"],
+        updated["selected_cells_chirp"],
+        updated["selected_cells"],
+    )
 
 
 def plot_dendrogram(model, **kwargs):
@@ -147,177 +253,24 @@ def correlate_PersonPM(cell1, cell2, max_shift=25):
 #############################################
 
 
-def select_and_save_cells_for_clustering(
-    cells,
-    good_sta_cells: list,
-    good_chirp_cells: list,
-    CT_directory: str,
-    check_directory: str,
-    params: dict,
-):
-    """Update cell selection for clustering analysis.
-
-    Args:
-        good_sta_cells (list): Cell IDs with good STA quality (or empty list)
-        good_chirp_cells (list): Cell IDs with good chirp responses (or empty list)
-        CT_directory (str): Path to cell typing output directory
-        check_directory (str): Path to the checkerboard analysis directory (its
-            ``Stas_figs`` subfolder holds the STA figures used to judge STA quality)
-        params (dict): Experiment parameters containing 'exp' field
-
-    Returns:
-        tuple: Contains:
-            - selected_cells (list): Final list of all selected cells
-            - selected_cells_sta (list): Cells selected based on STA quality
-            - selected_cells_chirp (list): Cells selected based on chirp quality
-
-    Note:
-        Calls cell_selection_for_clustering() which should be defined in utils.
-        This function provides an interactive interface for manual cell selection.
-    """
-
-    # Input-------------------------------------------------
-
-    exp = params.exp
-
-    fig_directory = os.path.normpath(os.path.join(CT_directory, r"Chirp_rasters+STA"))
-    # Path to the file saving the cells to use for clustering
-    all_selected_cells_file = os.path.normpath(
-        os.path.join(CT_directory, "{}_selected_cells_for_clustering.pkl".format(exp))
-    )
-
-    if os.path.isfile(all_selected_cells_file):
-        print(f"Loading previous selection from  : {all_selected_cells_file}")
-        all_selected_cells = utils.load_obj(all_selected_cells_file)
-        selected_cells = all_selected_cells["selected_cells"]
-        selected_cells_sta = all_selected_cells["selected_cells_sta"]
-        selected_cells_chirp = all_selected_cells["selected_cells_chirp"]
-    else:
-        selected_cells = []
-        selected_cells_sta = []
-        selected_cells_chirp = []
-
-    # Processing-------------------------------------------------
-
-    if good_sta_cells:
-        selected_cells_sta = good_sta_cells
-    if good_chirp_cells:
-        selected_cells_chirp = good_chirp_cells
-
-    selected_cells, selected_cells_sta, selected_cells_chirp = (
-        utils.cell_selection_for_clustering(
-            cells,
-            CT_directory_path=fig_directory,
-            sta_figures_path=os.path.join(check_directory, "Stas_figs"),
-            selected_cells_sta=selected_cells_sta,
-            selected_cells_chirp=selected_cells_chirp,
-        )
-    )
-
-    print("Selected {} cells.".format(len(selected_cells)))
-
-    return selected_cells, selected_cells_sta, selected_cells_chirp
-
-
-def modify_cells_for_clustering(
-    cells,
-    selected_cells_sta: list,
-    selected_cells_sta_to_add: list,
-    selected_cells_sta_to_remove: list,
-    selected_cells_chirp: list,
-    selected_cells_chirp_to_add: list,
-    selected_cells_chirp_to_remove: list,
-    remove_any_way: list,
-    CT_directory: str,
-    check_directory: str,
-    params: dict,
-):
-    """Modify selected cells by adding/removing specific cells and save updated selection.
-
-    Args:
-        selected_cells_sta (list): Current STA-selected cells
-        selected_cells_sta_to_add (list): Cell IDs to add to STA selection
-        selected_cells_sta_to_remove (list): Cell IDs to remove from STA selection
-        selected_cells_chirp (list): Current chirp-selected cells
-        selected_cells_chirp_to_add (list): Cell IDs to add to chirp selection
-        selected_cells_chirp_to_remove (list): Cell IDs to remove from chirp selection
-        remove_any_way (list): Cell IDs to remove from all selections
-        CT_directory (str): Path to cell typing output directory
-        params (dict): Experiment parameters containing 'exp' field
-
-    Returns:
-        tuple: Contains:
-            - selected_cells (list): Final combined selection
-            - selected_cells_sta (list): Updated STA-selected cells
-            - selected_cells_chirp (list): Updated chirp-selected cells
-
-    Note:
-        Saves updated selection to '{exp}_selected_cells_for_clustering.pkl'
-        Function to review entirely completely
-    """
-
-    exp = params.exp  # Otherwise it can think that exp means the built in function exp not the experiment from params.
-
-    # 2026-01-22 Leaving for now but this looks like a typo.  First line seems like it should be selected_cells_chirp and second selected_cells_sta, not both _sta
-    selected_cells_sta = list(
-        set(
-            [
-                idx
-                for idx in selected_cells_chirp + selected_cells_chirp_to_add
-                if idx not in selected_cells_chirp_to_remove + remove_any_way
-            ]
-        )
-    )
-    selected_cells_sta = list(
-        set(
-            [
-                idx
-                for idx in selected_cells_sta + selected_cells_sta_to_add
-                if idx not in selected_cells_sta_to_remove + remove_any_way
-            ]
-        )
-    )
-
-    selected_cells, selected_cells_sta, selected_cells_chirp = (
-        utils.cell_selection_for_clustering(
-            cells,
-            CT_directory_path=os.path.join(CT_directory, "Chirp_rasters+STA"),
-            sta_figures_path=os.path.join(check_directory, "Stas_figs"),
-            selected_cells_sta=list(set(selected_cells_sta)),
-            selected_cells_chirp=list(set(selected_cells_chirp)),
-        )
-    )
-
-    fsave = os.path.join(CT_directory, "{}_selected_cells_for_clustering".format(exp))
-    utils.save_obj(
-        {
-            "selected_cells": selected_cells,
-            "selected_cells_sta": selected_cells_sta,
-            "selected_cells_chirp": selected_cells_chirp,
-        },
-        fsave,
-    )
-
-    return selected_cells, selected_cells_sta, selected_cells_chirp
-
-
-def select_direction_selective_cells(
+def select_dos_cells(
     selected_cells: list,
-    ds_cells: list,
+    dos_cells: list,
     DG_directory: str,
     CT_directory: str,
     params: dict,
 ):
-    """Partition the clustering-selected cells into direction-selective (DS) and non-DS.
+    """Partition the clustering-selected cells into DOS and non-DOS.
 
-    The clustered cells are split in two so that the two groups can be cell-typed
-    independently. Selection is either manual (pass a non-empty ``ds_cells`` list) or
-    interactive: each cell's drifting-gratings figure (from the DG analysis, notebook 3)
-    is shown and you confirm whether it is direction selective.
+    DOS = orientation- OR direction-selective (both kinds live in this group). They are
+    split from the rest so the two groups can be cell-typed independently. Selection is
+    either manual (pass a non-empty ``dos_cells`` list) or interactive: each cell's
+    drifting-gratings figure (from the DG analysis, notebook 3) is shown and you confirm
+    whether it is orientation- or direction-selective.
 
     Args:
         selected_cells (list): cells chosen for clustering (good STA + chirp).
-        ds_cells (list): DS cell IDs to use directly; if empty, select interactively
+        dos_cells (list): DOS cell IDs to use directly; if empty, select interactively
             (or reload a previously saved selection).
         DG_directory (str): the DG analysis directory (its ``DG_figs`` holds the figures).
             Get it with ``utils.find_analysis_directory(params.output_directory, "DG")``.
@@ -325,27 +278,27 @@ def select_direction_selective_cells(
         params (dict): experiment parameters containing 'exp'.
 
     Returns:
-        ds_cells (list): direction-selective cells (a subset of selected_cells).
-        non_ds_cells (list): the remaining selected cells.
+        dos_cells (list): orientation-/direction-selective cells (subset of selected_cells).
+        non_dos_cells (list): the remaining selected cells.
     """
     exp = params.exp
-    ds_file = os.path.normpath(
-        os.path.join(CT_directory, f"{exp}_direction_selective_cells.pkl")
-    )
+    dos_file = os.path.normpath(os.path.join(CT_directory, f"{exp}_dos_cells.pkl"))
 
     # Reuse a previously saved selection if none was given.
-    if not ds_cells and os.path.isfile(ds_file):
-        print(f"Loading previous DS selection from : {ds_file}")
-        ds_cells = utils.load_obj(ds_file)["ds_cells"]
+    if not dos_cells and os.path.isfile(dos_file):
+        print(f"Loading previous DOS selection from : {dos_file}")
+        dos_cells = utils.load_obj(dos_file)["dos_cells"]
 
     # Otherwise ask the user, showing each cell's DG figure. Each figure replaces the
     # previous one (no endless scrolling) and is shown large enough to read.
-    if not ds_cells:
+    if not dos_cells:
         from IPython.display import clear_output
 
         dg_fig_directory = os.path.normpath(os.path.join(DG_directory, "DG_figs"))
-        print("Selecting direction-selective cells from the DG plots ...")
-        ds_cells = []
+        print(
+            "Selecting orientation-/direction-selective (DOS) cells from the DG plots ..."
+        )
+        dos_cells = []
         for i, cell_nb in enumerate(selected_cells):
             fig_path = os.path.join(
                 dg_fig_directory, f"DG_resp_exp{exp}_Cell_{cell_nb}.png"
@@ -354,28 +307,30 @@ def select_direction_selective_cells(
                 print(f"No DG figure for cell {cell_nb}, skipping.")
                 continue
             clear_output(wait=True)  # remove the previous cell's figure + prompt
-            print(f"DS selection — cell {i + 1}/{len(selected_cells)}")
+            print(f"DOS selection — cell {i + 1}/{len(selected_cells)}")
             plt.figure("Current cell", figsize=(12, 11))
             plt.imshow(np.asarray(plt.imread(fig_path)))
             plt.axis("off")
             plt.show()
             if input(
-                f"Is cell {cell_nb} direction selective? Type Yes to select : "
+                f"Cell {cell_nb} — orientation-/direction-selective (DOS)?  [y = yes,  Enter/Esc/n = no] : "
             ) in ["Y", "Yes", "y", "yes"]:
-                ds_cells.append(cell_nb)
+                dos_cells.append(cell_nb)
             plt.close("all")
 
-    # Keep only DS cells that are actually in the clustering set; the rest are non-DS.
-    ds_cells = [cell for cell in selected_cells if cell in ds_cells]
-    non_ds_cells = [cell for cell in selected_cells if cell not in ds_cells]
+    # Keep only DOS cells that are actually in the clustering set; the rest are non-DOS.
+    dos_cells = [cell for cell in selected_cells if cell in dos_cells]
+    non_dos_cells = [cell for cell in selected_cells if cell not in dos_cells]
 
     utils.save_obj(
-        {"ds_cells": ds_cells, "non_ds_cells": non_ds_cells},
-        os.path.join(CT_directory, f"{exp}_direction_selective_cells"),
+        {"dos_cells": dos_cells, "non_dos_cells": non_dos_cells},
+        os.path.join(CT_directory, f"{exp}_dos_cells"),
     )
-    print(f"{len(ds_cells)} direction-selective, {len(non_ds_cells)} non-DS cells.")
+    print(
+        f"{len(dos_cells)} DOS (orientation/direction selective), {len(non_dos_cells)} non-DOS cells."
+    )
 
-    return ds_cells, non_ds_cells
+    return dos_cells, non_dos_cells
 
 
 def select_clusterable_cells(cell_data, sta_results, selected_cells):
@@ -836,7 +791,12 @@ def create_cluster_summary_figure(
         else:
             missing(ax, "no stimulus trace")
 
-        fig.savefig(os.path.join(fig_directory, f"Cluster_{icluster}.png"), dpi=200)
+        # Mark DOS (orientation- or direction-selective) clusters in the file name, e.g.
+        # "Cluster_38_DOS.png". DOS and non-DOS cells are clustered separately, so a cluster
+        # is DOS iff its cells carry the "dos" flag (set when the two labellings are merged).
+        is_dos = any(cell_data[c].get("dos") for c in cluster_cells)
+        cluster_name = f"Cluster_{icluster}_DOS" if is_dos else f"Cluster_{icluster}"
+        fig.savefig(os.path.join(fig_directory, f"{cluster_name}.png"), dpi=200)
         plt.close(fig)
 
 

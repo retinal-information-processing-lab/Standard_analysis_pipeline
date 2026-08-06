@@ -90,18 +90,28 @@ def mea_extent_on_display(mea=None):
     return mea_um / dmd_x_um
 
 
-def four_squares_bounds(fraction):
+# How far each square reaches OUTWARD from the MEA edge, as a multiple of the MEA half-
+# extent. The inner edge always stays flush with the MEA (so the squares never overlap it);
+# a bigger factor just makes the bright rectangles reach further out. 1.0 abuts by exactly
+# the MEA half-size; 1.5 makes them 1.5x deeper.
+SQUARE_DEPTH_FACTOR = 1.5
+
+
+def four_squares_bounds(fraction, depth_factor=SQUARE_DEPTH_FACTOR):
     """Normalised [-1, 1] bounds ``(x0, x1, y0, y1)`` of each square, in FOUR_SQUARES order.
 
     ``fraction`` is the MEA half-extent (mea_extent_on_display). Each square abuts one MEA
-    edge, extends outward by ``fraction``, and spans the MEA's width along the parallel axis.
+    edge, extends outward by ``depth_factor * fraction``, and spans the MEA's width along the
+    parallel axis. The inner edge stays on the MEA edge, so widening (a larger depth_factor)
+    never oversteps the MEA.
     """
     f = fraction
+    d = depth_factor * f  # outward depth of each square
     return [
-        ("top", (-f, f, f, 2 * f)),
-        ("right", (f, 2 * f, -f, f)),
-        ("bottom", (-f, f, -2 * f, -f)),
-        ("left", (-2 * f, -f, -f, f)),
+        ("top", (-f, f, f, f + d)),
+        ("right", (f, f + d, -f, f)),
+        ("bottom", (-f, f, -f - d, -f)),
+        ("left", (-f - d, -f, -f, f)),
     ]
 
 

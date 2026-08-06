@@ -28,7 +28,7 @@ Per-notebook companion submodules (NOT re-exported; import explicitly, e.g.
 ``from utils import drifting_gratings as analysis``):
     analyse_checkerboard  <- 2-Analyse_Checkerboard.ipynb
     drifting_gratings     <- 3-Drifting_Gratings.ipynb
-    chirp                 <- 4-Chirp+Cell Typing.ipynb (chirp rasters)
+    chirp                 <- 4-CellQualityCheck+Chirp+Typing.ipynb (chirp rasters)
     cell_id               <- 5_Cell_ID_card.ipynb
 """
 

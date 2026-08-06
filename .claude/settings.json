@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(~/anaconda3/envs/std_analysis_pipeline/bin/python -)",
+      "Bash(grep -i \"\\\\.vec$\")",
+      "Bash(cd /home/idv-s8/Documents/LabPipeline/Standard_analysis_pipeline *)"
+    ]
+  }
+}

@@ -19,28 +19,33 @@ import glob
 import warnings
 
 # setup pipeline parameters
-# relative path from pipeline notebook to a folder containing ressources such as mea pictures and datasets
-ressources = r"./ressources"
+# relative path from pipeline notebook to a folder containing resources such as mea pictures and datasets
+resources = r"./resources"
 
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1/",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20260702_Brid_Vs_Retina_Vs_Strychnine_1",  # name of your experiment for saving the triggers
+    "root": r"/media/idv-s8/SSD Storage/20260729_VideoLSTA_calib/",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20260729_VideoLSTA_calib",  # name of your experiment for saving the triggers
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
-    "raw_files_folder": r"RAW_Files",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
+    "raw_files_folder": r"RAW_DATA",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20260702_00_SWN_30Hz",
-        "20260702_01_SWN_30Hz",
-        "20260702_02_chirp_50Hz",
-        "20260702_03_DG_2sT_10rep_8dir_50Hz",
-        "20260702_04_barcode_3dir_50Hz",
-        "20260702_05_black_eagle_CTL_40Hz",
-        "20260702_05_black_eagle_CTL_40Hz_part2",
-        "20260702_06_SWN_drug_being_added_30Hz",
-        "20260702_07_black_eagle_strychnine_40Hz",
-        "20260702_08_SWN_drug_being_removed_30Hz",
-        "20260702_09_black_eagle_post_strychnine_CTL_40Hz",
+        "20260729_meas_00_SWN_30Hz",
+        "20260729_meas_01_SWN_30Hz",
+        "20260729_meas_02_chirp_50Hz",
+        "20260729_meas_03_DG_2ST_10rep_50Hz",
+        "20260729_meas_04_barcode_3dir_50Hz",
+        "20260729_meas_05_ RMO_Pert_CALIB_baseline_40Hz",
+        "20260729_meas_06_RMO_Pert_CALIB_c15_f04_40Hz",
+        "20260729_meas_07_RMO_Pert_CALIB_c15_f12_40Hz",
+        "20260729_meas_08_RMO_Pert_CALIB_c20_f04_40Hz_2026",
+        "20260729_meas_09_RMO_Pert_CALIB_c20_f12_40Hz",
+        "20260729_meas_10_RMO_Pert_CALIB_baseline_40Hz",
+        "20260729_meas_11_RMO_Pert_CALIB_c25_f04_40Hz",
+        "20260729_meas_12_RMO_Pert_CALIB_c25_f12_40Hz_2026",
+        "20260729_meas_13_RMO_Pert_CALIB_c30_f04_40Hz",
+        "20260729_meas_14_RMO_Pert_CALIB_c30_f12_40Hz",
+        "20260729_meas_15_RMO_Pert_CALIB_baseline_40Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
@@ -55,18 +60,18 @@ basic_params = {
 #     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
 #   - If you sorted on another machine / in another folder, set the path(s) explicitly.
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
-phy_directory_override = "/media/idv-s8/SSD Storage/20260702_Brid_Vs_Retina_Vs_Strychnine_1/RAW_Files/20260702_00_SWN_30Hz/20260702_00_SWN_30Hz.GUI"
+phy_directory_override = "/media/idv-s8/SSD Storage/20260729_VideoLSTA_calib/RAW_DATA/20260729_meas_00_SWN_30Hz/20260729_meas_00_SWN_30Hz.GUI"
 
 # ---------------------------------------------------------------------------
 # Stimulus (.vec) files
 # ---------------------------------------------------------------------------
 # Folder holding the standard stimulus ".vec" files (chirp, drifting-gratings,
-# cell-typing). The pipeline ships them in "RessourcesAndTools/StandardVec".
+# cell-typing). The pipeline ships them in "ResourcesAndTools/StandardVec".
 # If YOUR experiment used a different version of a stimulus (a differently-named .vec,
 # possibly with different parameters), either drop that .vec into this folder, or point
 # this path at wherever your .vec files live. When a step cannot find the .vec it expects
 # here, it lists the .vec files in this folder and asks you to pick the right one.
-stim_directory = r"./RessourcesAndTools/StandardVec"
+stim_directory = r"./ResourcesAndTools/StandardVec"
 
 
 # setup MEA parameters (always check!)
@@ -458,7 +463,7 @@ def create_path_automatically(params: dict):
     )
 
     # Path to the checkerboard binary file used to generate stimuli
-    binary_source_path = os.path.join(ressources, "binarysource1000Mbits")
+    binary_source_path = os.path.join(resources, "binarysource1000Mbits")
 
     raw_filtered_directory = os.path.join(params["root"], "RAW_filtered")
 
@@ -552,7 +557,7 @@ trigger_channel_ids = {
 # Like the checkerboard, each SWN sequence is a novel (never-repeated) first half followed
 # by a repeated half: 1200 frames = 600 novel + 600 repeated (20 s at 30 Hz), x 45 reps.
 # The novel half gives the STA, the repeated half gives the rasters / reliability.
-# The raw .vec has no sequence keys; RessourcesAndTools/StimMaking/add_standard_keys_to_swn_vec.ipynb
+# The raw .vec has no sequence keys; ResourcesAndTools/StimMaking/add_standard_keys_to_swn_vec.ipynb
 # writes a "*_std.vec" with them, usable by 6_Standard_Vec_Analysis.ipynb.
 # Each of the two settings below accepts EITHER of:
 #   * a bare file NAME  -> looked up in 'stim_directory' (StandardVec), like the other
