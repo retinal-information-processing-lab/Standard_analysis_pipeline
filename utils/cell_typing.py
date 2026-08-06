@@ -558,6 +558,7 @@ def create_cluster_summary_figure(
     old: bool,
     fontsize: int = 16,
     rf_zoom: int = 10,
+    rf_window_um: float = 700.0,
 ):
     """Create one summary figure per cluster (robust to missing per-cell data).
 
@@ -575,7 +576,10 @@ def create_cluster_summary_figure(
         CT_directory (str): cell typing output directory (figures go in its Cell_typing/ subfolder).
         old (bool): if True, use the old chirp stimulus vec; else the new one.
         fontsize (int): base font size for titles/labels.
-        rf_zoom (int): half-width (in STA pixels) of the spatial-STA window around the RF center.
+        rf_zoom (int): fallback half-width (in STA pixels) of the spatial-STA window, used
+            only for cells whose pixel size (Spatial_unit_size_um) is unknown.
+        rf_window_um (float): full width/height (in micrometers) of the per-cell spatial-STA
+            window around the RF center. Converted to pixels per cell via Spatial_unit_size_um.
 
     Returns:
         None. Saves one figure per cluster to CT_directory/Cell_typing/.
@@ -656,6 +660,7 @@ def create_cluster_summary_figure(
 
         temporal_sum = np.zeros(21)
         temporal_count = 0
+        rf_sizes_um = []  # RF diameters (2σ-equivalent, µm) of this cluster's cells
 
         for row, cell_nb in enumerate(cluster_cells, start=2):
             # --- Orientation tuning (polar, from DG) ---
@@ -677,13 +682,36 @@ def create_cluster_summary_figure(
             # --- Spatial STA (broad zoom) + ellipse overlay ---
             ax = fig.add_subplot(gs[row, 1])
             try:
-                ellipse = sta_results[cell_nb]["sta_analysis"]["EllipseCoor"]
-                spatial = sta_results[cell_nb]["sta_analysis"]["Spatial"]
+                sta_analysis = sta_results[cell_nb]["sta_analysis"]
+                ellipse = sta_analysis["EllipseCoor"]
+                spatial = sta_analysis["Spatial"]
                 x0, y0 = ellipse[1], ellipse[2]
                 utils.plot_sta(ax, spatial, ellipse)
-                ax.set_xlim(x0 - rf_zoom, x0 + rf_zoom)
-                ax.set_ylim(y0 + rf_zoom, y0 - rf_zoom)
+                # Window a fixed physical field of view (rf_window_um) around the RF center,
+                # converting µm -> STA pixels with this cell's pixel size. Fall back to the
+                # pixel half-width rf_zoom if the pixel size is unknown.
+                pixel_size_um = sta_analysis.get("Spatial_unit_size_um")
+                half_px = (
+                    (rf_window_um / 2.0) / pixel_size_um if pixel_size_um else rf_zoom
+                )
+                ax.set_xlim(x0 - half_px, x0 + half_px)
+                ax.set_ylim(y0 + half_px, y0 - half_px)
                 ax.set_aspect("equal")
+                # RF size for the cluster histogram: 2σ-equivalent diameter (µm). Prefer the
+                # micrometer ellipse if present, else convert the pixel sigmas.
+                RF_N_SIGMA = 2.0
+                ellipse_um = sta_analysis.get("EllipseCoor_um")
+                if ellipse_um is not None:
+                    sigma_x_um, sigma_y_um = ellipse_um[3], ellipse_um[4]
+                elif pixel_size_um:
+                    sigma_x_um = ellipse[3] * pixel_size_um
+                    sigma_y_um = ellipse[4] * pixel_size_um
+                else:
+                    sigma_x_um = sigma_y_um = None
+                if sigma_x_um and ellipse[0] != 0:
+                    rf_sizes_um.append(
+                        2.0 * RF_N_SIGMA * np.sqrt(abs(sigma_x_um * sigma_y_um))
+                    )
                 ax.set_xticks([])
                 ax.set_yticks([])
                 # Scale bar (legend for the RF size), labelled with its length.
@@ -763,6 +791,30 @@ def create_cluster_summary_figure(
         ax_ellipses.set_aspect("equal")
         ax_ellipses.set_xticks([])
         ax_ellipses.set_yticks([])
+
+        # RF-size distribution of this cluster (left of the mosaic), with the mean marked.
+        ax_hist = fig.add_subplot(gs[0:2, 0])
+        if rf_sizes_um:
+            mean_rf = float(np.mean(rf_sizes_um))
+            ax_hist.hist(
+                rf_sizes_um,
+                bins=min(12, max(3, len(rf_sizes_um))),
+                color="0.6",
+                edgecolor="k",
+            )
+            ax_hist.axvline(mean_rf, color="crimson", lw=2)
+            ax_hist.set_title(
+                f"RF size (2σ Ø)\nmean {mean_rf:.0f} µm  (n={len(rf_sizes_um)})",
+                fontsize=fontsize - 3,
+            )
+            ax_hist.set_xlabel("µm", fontsize=fontsize - 4)
+            ax_hist.set_ylabel("cells", fontsize=fontsize - 4)
+            ax_hist.tick_params(labelsize=fontsize - 6)
+            ax_hist.locator_params(nbins=4)
+            for name, spine in ax_hist.spines.items():
+                spine.set_visible(name in ("bottom", "left"))
+        else:
+            missing(ax_hist, "no RF sizes")
 
         # mean chirp PSTH
         ax = fig.add_subplot(gs[0, 4:8])
