@@ -128,5 +128,43 @@ class TestVecSequenceMachinery(unittest.TestCase):
         np.testing.assert_array_almost_equal(psth["2"], [0.0, 0.5, 0.0])
 
 
+class TestNonDefaultRepDigits(unittest.TestCase):
+    """
+    Regression test for n_digit_for_rep != 4 through the whole build_spikes pipeline.
+
+    A vec with 3-digit sequence types and 2-DIGIT repetitions (keys like "10000" =
+    type "100", rep "00"), as produced by some rigs. build_spikes_per_sequence_dict
+    threads n_digit_for_rep into the raster grouping but used to drop it on the PSTH
+    call, which then padded the sequence key with 4 zeros ("100" + "0000") and raised
+    KeyError "1000000". This checks the parameter is honoured end-to-end.
+    """
+
+    def setUp(self):
+        # 2 sequence-types ("100", "200") x 2 reps x 3 triggers, 1 s apart. Triggers 0..11.
+        # keys: 10000/10001 (type 100), 20000/20001 (type 200); reps are the last 2 digits.
+        self.triggers = np.arange(12, dtype=float)
+        self.vec_keys = np.array(
+            [10000] * 3 + [10001] * 3 + [20000] * 3 + [20001] * 3, dtype=float
+        )
+        self.spikes = {7: np.array([0.5, 2.5, 3.5, 10.5])}
+
+    def test_build_spikes_dict_honours_two_digit_reps(self):
+        # Must NOT raise (the KeyError "1000000" regression) and must key by the
+        # 3-digit sequence type, not the default-4-digit-stripped "1"/"2".
+        result, _, _ = utils.build_spikes_per_sequence_dict(
+            [7],
+            self.spikes,
+            self.triggers,
+            self.vec_keys,
+            bin_size=1.0,
+            n_digit_for_rep=2,
+        )
+        self.assertEqual(sorted(result[7].keys()), ["100", "200"])
+        # Same 2 reps x 3 s window as the default-digit test, just relabelled.
+        self.assertEqual(len(result[7]["100"]["raster"]), 2)
+        np.testing.assert_array_almost_equal(result[7]["100"]["psth"], [1.0, 0.0, 0.5])
+        np.testing.assert_array_almost_equal(result[7]["200"]["psth"], [0.0, 0.5, 0.0])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -257,7 +257,10 @@ def build_spikes_per_sequence_dict(
         )
         # Mean firing over repetitions, binned: {"<seq>": np.ndarray of spike counts}.
         psth = spike_sequences_to_psth(
-            raster, triggers_per_repetition, bin_size=bin_size
+            raster,
+            triggers_per_repetition,
+            bin_size=bin_size,
+            n_digit_for_rep=n_digit_for_rep,
         )
 
         spikes_per_repetition[cell] = cell_spikes_per_rep
