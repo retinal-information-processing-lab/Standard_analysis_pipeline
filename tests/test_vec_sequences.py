@@ -127,6 +127,16 @@ class TestVecSequenceMachinery(unittest.TestCase):
         # Type "2": rep0 -> [0,0,0], rep1 -> [0,1,0]; mean -> [0.0, 0.5, 0.0].
         np.testing.assert_array_almost_equal(psth["2"], [0.0, 0.5, 0.0])
 
+    def test_psth_bin_count_survives_float_error_in_duration(self):
+        # Real case: 28 triggers exactly 500 samples apart at fs = 20 kHz (a 40 Hz stimulus).
+        # Duration should be 28 * 0.025 = 0.7 s, but in floats it comes out as
+        # 0.6999999999999988, so int(dur / 0.025) gave 27 bins instead of 28.
+        trigs = list((232451 + 500 * np.arange(28)) / 20000)
+        trig_seq = {"10000": trigs}
+        raster = {"1": [np.array([])]}
+        psth = utils.spike_sequences_to_psth(raster, trig_seq, bin_size=0.025)
+        self.assertEqual(len(psth["1"]), 28)
+
 
 class TestNonDefaultRepDigits(unittest.TestCase):
     """
@@ -164,6 +174,58 @@ class TestNonDefaultRepDigits(unittest.TestCase):
         self.assertEqual(len(result[7]["100"]["raster"]), 2)
         np.testing.assert_array_almost_equal(result[7]["100"]["psth"], [1.0, 0.0, 0.5])
         np.testing.assert_array_almost_equal(result[7]["200"]["psth"], [0.0, 0.5, 0.0])
+
+
+class TestFlexibleSequenceParsing(unittest.TestCase):
+    """Flexibility around how sequence keys are created:
+    - n_digit_for_rep suggested from the vec (infer_rep_digits),
+    - first repetition may be 0- or 1-based (not hardcoded to "0"),
+    - a repetition may be missing,
+    - an all-zero key marks stimulus to exclude.
+    """
+
+    def test_infer_rep_digits_on_clean_schemes(self):
+        # 8 "directions" x 10 reps, one rep digit (keys dir*10+rep).
+        dg1 = np.array([d * 10 + r for d in range(1, 9) for r in range(10)], float)
+        self.assertEqual(utils.infer_rep_digits(dg1), 1)
+        # same but two rep digits (keys dir*100+rep), robust to a dropped rep.
+        dg2 = np.array(
+            [d * 100 + r for d in range(1, 9) for r in range(15) if r != 10], float
+        )
+        self.assertEqual(utils.infer_rep_digits(dg2), 2)
+
+    def test_build_is_robust_to_1based_missing_and_discard(self):
+        # One discard block (key 0), then 2 sequence types with 1-BASED reps, and
+        # sequence "1" is missing rep 3. Three triggers per rep at 1 s spacing.
+        triggers, keys = [], []
+        t = 0.0
+        for _ in range(3):  # grey lead-in, must be excluded
+            keys.append(0)
+            triggers.append(t)
+            t += 1.0
+        for s in (1, 2):
+            for r in range(1, 5):  # reps 1..4
+                if s == 1 and r == 2:  # a lost INTERIOR repetition
+                    continue
+                for _ in range(3):
+                    keys.append(s * 100 + r)
+                    triggers.append(t)
+                    t += 1.0
+        vec_keys = np.array(keys, float)
+        stim_onsets = np.array(triggers, float)
+
+        summary = utils.describe_sequence_keys(vec_keys, 2)
+        self.assertEqual(sorted(summary), [1, 2])
+        self.assertEqual(summary[1]["first_rep"], 1)  # 1-based
+        self.assertEqual(summary[1]["missing"], [2])  # interior gap detected
+
+        result, _, _ = utils.build_spikes_per_sequence_dict(
+            [7], {7: stim_onsets + 0.5}, stim_onsets, vec_keys, 1.0, n_digit_for_rep=2
+        )
+        # Discard "0" excluded; both sequences kept despite 1-based reps and the missing one.
+        self.assertEqual(sorted(result[7].keys()), ["1", "2"])
+        self.assertEqual(len(result[7]["1"]["raster"]), 3)  # rep 2 missing -> 3 reps
+        self.assertEqual(len(result[7]["2"]["raster"]), 4)
 
 
 if __name__ == "__main__":

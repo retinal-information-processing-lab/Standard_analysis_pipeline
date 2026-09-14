@@ -83,26 +83,25 @@ def spike_sequences_to_raster(spikesequences, trig_seq, n_digit_for_rep=4):
 
 def spike_sequences_to_psth(raster, trig_seq, bin_size=0.025, n_digit_for_rep=4):
     """Compute a PSTH from rasterized spike sequences."""
+    # First repetition actually present for each sequence type (robust to a 0- or 1-based
+    # first rep and to a missing repetition), in the order the vec lists them.
+    first_rep_key_of = {}
+    for full_key in trig_seq:
+        first_rep_key_of.setdefault(full_key[:-n_digit_for_rep], full_key)
+
     psth = {}
     for key in raster.keys():
         n_rep = len(raster[key])
-        if key == "":
-            seq_range = (
-                0,
-                trig_seq["0"][-1] - trig_seq["0"][0] + np.mean(np.diff(trig_seq["0"])),
-            )
-        else:
-            rep_signature = "0" * (
-                n_digit_for_rep
-            )  # Create a string of zeros to pad the key
-            seq_range = (
-                0,
-                trig_seq[key + rep_signature][-1]
-                - trig_seq[key + rep_signature][0]
-                + np.mean(np.diff(trig_seq[key + rep_signature])),
-            )
+        first_key = first_rep_key_of.get(key)
+        if first_key is None:
+            continue
+        first_trigs = trig_seq[first_key]
+        seq_range = (
+            0,
+            first_trigs[-1] - first_trigs[0] + np.mean(np.diff(first_trigs)),
+        )
 
-        n_bin = int(seq_range[1] / bin_size)
+        n_bin = round(seq_range[1] / bin_size)  # round, not int(): 27.9999... must give 28
         binned_spike_count = np.zeros((n_rep, n_bin))
         for i in range(n_rep):
             binned_spike_count[i, :] = np.histogram(
@@ -202,6 +201,81 @@ def find_vec_file(vec_filename: str, stim_directory: str) -> str:
     return os.path.join(stim_directory, chosen)
 
 
+def _ignored_key(key_str: str) -> bool:
+    """Whether a sequence key marks a part NOT to analyse.
+
+    By convention a key made only of zeros (e.g. ``0`` or ``00000``) labels stimulus that
+    should be excluded (a grey lead-in, a pause, ...). Everything else is a real sequence.
+    """
+    return set(key_str) <= {"0"}
+
+
+def infer_rep_digits(vec_keys: np.ndarray) -> int:
+    """Suggest ``n_digit_for_rep`` from a vec's key column.
+
+    Heuristic (increase the rep-digit count while it still looks like a repetition index):
+    starting from 1, grow n while (a) the sequence-type part ``key // 10**n`` has not
+    collapsed to 0 and (b) the smallest repetition ``key % 10**n`` is still the first-rep
+    index (0 or 1). Return the largest n that satisfies both. Uses the GLOBAL minimum
+    repetition, so a single missing repetition does not change the result.
+
+    IMPORTANT — this is a SUGGESTION, not ground truth. Nothing in the key column marks
+    where the sequence id ends and the repetition begins, so on structured ids (e.g. ids
+    that differ only in their last digit, like 10/11/12) this can overshoot and merge
+    sequences. Always confirm with ``describe_sequence_keys`` before trusting it.
+    """
+    keys = np.unique(np.asarray(vec_keys).astype(np.int64))
+    keys = keys[keys != 0]  # ignore the "discard" rows
+    if len(keys) == 0:
+        return 1
+    max_digits = len(str(int(keys.max())))
+    best = 1
+    for n in range(1, max_digits):  # keep at least one sequence-type digit
+        rep = keys % (10**n)
+        seqtype = keys // (10**n)
+        if seqtype.min() == 0 or rep.min() > 1:
+            break
+        best = n
+    return best
+
+
+def describe_sequence_keys(vec_keys: np.ndarray, n_digit_for_rep: int) -> dict:
+    """Print and return how a vec decodes for a given ``n_digit_for_rep``.
+
+    For each sequence type it reports the first-rep index, the number of repetitions and
+    any missing repetitions (gaps in the rep range). Use it to confirm a suggested
+    ``n_digit_for_rep`` before running the analysis.
+
+    Returns:
+        {sequence_type (int): {"first_rep": int, "n_reps": int, "missing": [int, ...]}}.
+    """
+    keys = np.asarray(vec_keys).astype(np.int64)
+    keys = keys[keys != 0]
+    seqtype = keys // (10**n_digit_for_rep)
+    rep = keys % (10**n_digit_for_rep)
+
+    summary = {}
+    for s in np.unique(seqtype):
+        reps = np.unique(rep[seqtype == s])
+        full = set(range(int(reps.min()), int(reps.max()) + 1))
+        summary[int(s)] = {
+            "first_rep": int(reps.min()),
+            "n_reps": int(len(reps)),
+            "missing": sorted(full - set(int(r) for r in reps)),
+        }
+
+    print(f"Decoding with n_digit_for_rep = {n_digit_for_rep}:")
+    print(f"  {len(summary)} sequence type(s) found.")
+    for s, info in summary.items():
+        line = (
+            f"    seq {s}: {info['n_reps']} reps (first rep index {info['first_rep']})"
+        )
+        if info["missing"]:
+            line += f"  ⚠ missing reps {info['missing']}"
+        print(line)
+    return summary
+
+
 def build_spikes_per_sequence_dict(
     cells: list,
     spike_times: dict,
@@ -238,8 +312,19 @@ def build_spikes_per_sequence_dict(
 
     # {"<seq><rep>": [trigger times]} — one entry per repetition, ordered as the vec file.
     triggers_per_repetition = group_triggers_by_sequence(stim_onsets, vec_keys)
+    # Drop the "discard" repetitions (all-zero keys: grey lead-in, pauses, ...).
+    triggers_per_repetition = {
+        key: trigs
+        for key, trigs in triggers_per_repetition.items()
+        if not _ignored_key(key)
+    }
 
-    rep_signature = "0" * n_digit_for_rep  # suffix of the first repetition, e.g. "0000"
+    # First repetition ACTUALLY PRESENT for each sequence type, in vec order. Using the
+    # first present rep (instead of assuming "<seq>0000") makes the timing robust to a
+    # first-rep index of 0 or 1, and to a missing repetition.
+    first_rep_key_of = {}
+    for full_key in triggers_per_repetition:
+        first_rep_key_of.setdefault(full_key[:-n_digit_for_rep], full_key)
 
     for cell in tqdm(cells):
         spikes_per_sequence_dict[cell] = {}
@@ -265,10 +350,10 @@ def build_spikes_per_sequence_dict(
 
         spikes_per_repetition[cell] = cell_spikes_per_rep
         for sequence_key in raster.keys():
-            if sequence_key == "":
+            if sequence_key not in first_rep_key_of:
                 continue
 
-            first_rep_triggers = triggers_per_repetition[sequence_key + rep_signature]
+            first_rep_triggers = triggers_per_repetition[first_rep_key_of[sequence_key]]
             duration_s = (
                 first_rep_triggers[-1]
                 - first_rep_triggers[0]
