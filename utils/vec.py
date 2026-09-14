@@ -101,7 +101,9 @@ def spike_sequences_to_psth(raster, trig_seq, bin_size=0.025, n_digit_for_rep=4)
             first_trigs[-1] - first_trigs[0] + np.mean(np.diff(first_trigs)),
         )
 
-        n_bin = round(seq_range[1] / bin_size)  # round, not int(): 27.9999... must give 28
+        n_bin = round(
+            seq_range[1] / bin_size
+        )  # round, not int(): 27.9999... must give 28
         binned_spike_count = np.zeros((n_rep, n_bin))
         for i in range(n_rep):
             binned_spike_count[i, :] = np.histogram(
