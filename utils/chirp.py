@@ -32,6 +32,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
         check_directory (str): checkerboard analysis directory.
         CT_directory (str): cell typing output directory.
         old (bool): chirp type flag (passed through).
+        rec (str): name of the selected chirp recording.
 
     Note:
         Prompts the user to select the recording. Creates the cell typing directory.
@@ -80,6 +81,7 @@ def get_all_inputs_for_chirp_analysis(params: dict, old: bool):
         check_directory,
         CT_directory,
         old,
+        rec,
     )
 
 
@@ -174,6 +176,29 @@ def compute_chirp_rasters(
         }
 
     return cell_data
+
+
+def save_chirp_rasters(cell_data, old, recording_name, CT_directory, params):
+    """Save the chirp rasters (and which chirp they come from) so notebook 4b can reload them."""
+    path = os.path.join(CT_directory, f"{params.exp}_chirp_rasters.pkl")
+    utils.save_obj(
+        {"cell_data": cell_data, "old": old, "recording_name": recording_name}, path
+    )
+    print(f"Chirp rasters saved to {path}")
+
+
+def load_chirp_rasters(CT_directory, params):
+    """Reload the chirp rasters saved by notebook 4a. Returns (cell_data, old)."""
+    path = os.path.join(CT_directory, f"{params.exp}_chirp_rasters.pkl")
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"No saved chirp rasters:\n  {path}\nRun the chirp section of notebook 4a first."
+        )
+    data = utils.load_obj(path)
+    print(
+        f"Chirp rasters loaded ({len(data['cell_data'])} cells, recording {data['recording_name']})"
+    )
+    return data["cell_data"], data["old"]
 
 
 def plot_chirp_rasters(

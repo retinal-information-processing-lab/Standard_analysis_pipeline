@@ -20,6 +20,7 @@ Shared submodules (re-exported here):
     checkerboard   checkerboard stimulus reconstruction & raster building
     sta            spike-triggered-average / receptive-field analysis
     cell_typing    clustering / cell-typing helpers (chirp PSTH + STA -> clusters)
+    cell_quality   cell_quality dict: per-experiment RPV / STA / chirp verdicts, to filter cells
     RPV_analysis   refractory-period-violation (RPV) spike-quality metrics
     vec            vec-file "sequence" analysis (rasters/PSTH per repetition)
     holography     holographic registration & legacy STA analyses
@@ -28,7 +29,7 @@ Per-notebook companion submodules (NOT re-exported; import explicitly, e.g.
 ``from utils import drifting_gratings as analysis``):
     analyse_checkerboard  <- 2-Analyse_Checkerboard.ipynb
     drifting_gratings     <- 3-Drifting_Gratings.ipynb
-    chirp                 <- 4-CellQualityCheck+Chirp+Typing.ipynb (chirp rasters)
+    chirp                 <- 4a-Cell_Quality.ipynb / 4b-Cell_Typing.ipynb (chirp rasters)
     cell_id               <- 5_Cell_ID_card.ipynb
 """
 
@@ -43,6 +44,7 @@ from .checkerboard import *
 from .sta import *
 from .holography import *
 from .cell_typing import *
+from .cell_quality import *
 from .RPV_analysis import *
 from .vec import *
 from .four_squares import *

@@ -14,7 +14,7 @@ import utils
 #############################################
 
 
-def _review_cells(cells, figure_path_for, prompt, crop=None):
+def _review_cells(cells, figure_path_for, prompt, crop=None, on_decision=None):
     """Interactive quality review: show each cell's figure and keep it (y) or skip it (Enter/n).
 
     Args:
@@ -22,6 +22,9 @@ def _review_cells(cells, figure_path_for, prompt, crop=None):
         figure_path_for: function cell_id -> path of that cell's figure.
         prompt: the yes/no question, formatted with the cell id.
         crop: optional function image -> cropped image (e.g. to show only part of it).
+        on_decision: optional function (cell_id, kept: bool) called right after each
+            answer — used to record and save every decision as it is made, so an
+            interrupted review loses nothing.
 
     Returns:
         the list of kept cell IDs.
@@ -45,164 +48,47 @@ def _review_cells(cells, figure_path_for, prompt, crop=None):
         plt.imshow(image)
         plt.axis("off")
         plt.show()
-        if utils.is_yes(input(prompt.format(cell_nb))):
+        kept = utils.is_yes(input(prompt.format(cell_nb)))
+        if kept:
             selected.append(cell_nb)
+        if on_decision is not None:
+            on_decision(cell_nb, kept)
         plt.close("all")
     return selected
 
 
-def _selection_file(CT_directory, params):
-    return os.path.normpath(
-        os.path.join(CT_directory, f"{params.exp}_selected_cells_for_clustering.pkl")
+def review_cells_by_sta(cells, check_directory, on_decision=None, save_format="png"):
+    """Interactive review of each cell's checkerboard STA figure; returns the cells kept.
+
+    Shows one figure at a time — answer y to keep the cell (well-defined receptive field),
+    Enter/n to skip it. Pass ``on_decision(cell, kept)`` to record each answer in the
+    cell_quality dict as it is given (see notebook 4a).
+    """
+    return _review_cells(
+        cells,
+        lambda cid: os.path.join(
+            check_directory, "Stas_figs", f"Cell_{cid}.{save_format}"
+        ),
+        "Cell {} — good STA?  [y = keep,  Enter/Esc/n = skip] : ",
+        on_decision=on_decision,
     )
 
 
-def load_cell_selection(CT_directory, params):
-    """Return a previously saved clustering selection (dict), or None if there is none."""
-    path = _selection_file(CT_directory, params)
-    if os.path.isfile(path):
-        return utils.load_obj(path)
-    return None
+def review_cells_by_chirp(cells, CT_directory, on_decision=None, save_format="png"):
+    """Interactive review of each cell's chirp raster figure; returns the cells kept.
 
-
-def _save_selection(CT_directory, params, sta=None, chirp=None):
-    """Persist the clustering selection, updating ONLY the part(s) given and keeping the
-    rest. So saving the STA list never touches the chirp list and vice-versa. The combined
-    ``selected_cells`` (good STA AND good chirp) is recomputed each time.
-
-    Returns the saved dict.
+    Only the left ~2/3 of the figure (stimulus + raster + PSTH) is shown, the STA on the
+    right is judged in the STA step. Pass ``on_decision(cell, kept)`` to record each answer
+    in the cell_quality dict as it is given (see notebook 4a).
     """
-    data = load_cell_selection(CT_directory, params) or {
-        "selected_cells_sta": [],
-        "selected_cells_chirp": [],
-        "selected_cells": [],
-    }
-    if sta is not None:
-        data["selected_cells_sta"] = list(sta)
-    if chirp is not None:
-        data["selected_cells_chirp"] = list(chirp)
-    data["selected_cells"] = [
-        c for c in data["selected_cells_sta"] if c in data["selected_cells_chirp"]
-    ]
-    utils.save_obj(data, _selection_file(CT_directory, params))
-    return data
-
-
-def select_cells_by_sta(
-    cells, check_directory, CT_directory, params, preselected=None, save_format="png"
-):
-    """Pick the cells with a well-defined STA, for clustering, and SAVE the selection.
-
-    The STA list is chosen from, in order: ``preselected`` (if non-empty), a previously
-    saved STA selection (reused so it is never lost), or an interactive review of each cell's
-    checkerboard STA figure (y to keep, Enter/n to skip). The result is ALWAYS saved, updating only the
-    STA part of the shared selection file — the chirp selection is preserved.
-
-    To redo the review, pre-fill ``preselected`` or delete the selection file.
-
-    Returns the list of STA-good cells.
-    """
-    saved = load_cell_selection(CT_directory, params)
-    if preselected:
-        sta = list(preselected)
-    elif saved and saved.get("selected_cells_sta"):
-        sta = saved["selected_cells_sta"]
-        print(
-            f"Reusing the saved STA selection ({len(sta)} cells). "
-            "Pre-fill the list (or delete the selection file) to redo it."
-        )
-    else:
-        sta = _review_cells(
-            cells,
-            lambda cid: os.path.join(
-                check_directory, "Stas_figs", f"Cell_{cid}.{save_format}"
-            ),
-            "Cell {} — good STA?  [y = keep,  Enter/Esc/n = skip] : ",
-        )
-    _save_selection(CT_directory, params, sta=sta)
-    return sta
-
-
-def select_cells_by_chirp(
-    cells, CT_directory, params, preselected=None, save_format="png"
-):
-    """Pick the cells with a nice chirp response, for clustering, and SAVE the selection.
-
-    Same logic as select_cells_by_sta (preselected / reuse-saved / interactive), using the
-    chirp raster figures — only the left ~2/3 (stimulus + raster + PSTH) is shown, the STA on
-    the right is judged in the STA step. The result is saved, updating only the chirp part of
-    the shared file — the STA selection is preserved — and the combined selection is
-    recomputed.
-
-    Returns the list of chirp-good cells.
-    """
-    saved = load_cell_selection(CT_directory, params)
-    if preselected:
-        chirp = list(preselected)
-    elif saved and saved.get("selected_cells_chirp"):
-        chirp = saved["selected_cells_chirp"]
-        print(
-            f"Reusing the saved chirp selection ({len(chirp)} cells). "
-            "Pre-fill the list (or delete the selection file) to redo it."
-        )
-    else:
-        chirp = _review_cells(
-            cells,
-            lambda cid: os.path.join(
-                CT_directory,
-                "Chirp_rasters+STA",
-                f"{cid}_Chirp_raster+STA.{save_format}",
-            ),
-            "Cell {} — good chirp?  [y = keep,  Enter/Esc/n = skip] : ",
-            crop=lambda image: image[:, : image.shape[1] * 2 // 3],
-        )
-    _save_selection(CT_directory, params, chirp=chirp)
-    return chirp
-
-
-def edit_cell_selection(
-    CT_directory,
-    params,
-    sta_add=(),
-    sta_remove=(),
-    chirp_add=(),
-    chirp_remove=(),
-    remove_from_both=(),
-):
-    """Manually add / remove cells from the saved STA and chirp selections, non-destructively.
-
-    Loads the CURRENT saved selection (the source of truth), applies the edits, and saves —
-    the lists are never emptied or rebuilt from scratch, so nothing is lost if a list is left
-    blank. ``remove_from_both`` removes a cell from both the STA and the chirp lists.
-
-    Returns the updated ``(selected_cells_sta, selected_cells_chirp, selected_cells)``.
-    """
-    data = load_cell_selection(CT_directory, params) or {
-        "selected_cells_sta": [],
-        "selected_cells_chirp": [],
-        "selected_cells": [],
-    }
-
-    def edited(current, add, remove):
-        to_remove = set(remove) | set(remove_from_both)
-        kept = [c for c in current if c not in to_remove]
-        for c in add:
-            if c not in kept:
-                kept.append(c)
-        return kept
-
-    sta = edited(data["selected_cells_sta"], sta_add, sta_remove)
-    chirp = edited(data["selected_cells_chirp"], chirp_add, chirp_remove)
-    updated = _save_selection(CT_directory, params, sta=sta, chirp=chirp)
-    print(
-        f"STA: {len(updated['selected_cells_sta'])} cells | "
-        f"chirp: {len(updated['selected_cells_chirp'])} cells | "
-        f"selected for clustering (both): {len(updated['selected_cells'])}"
-    )
-    return (
-        updated["selected_cells_sta"],
-        updated["selected_cells_chirp"],
-        updated["selected_cells"],
+    return _review_cells(
+        cells,
+        lambda cid: os.path.join(
+            CT_directory, "Chirp_rasters+STA", f"{cid}_Chirp_raster+STA.{save_format}"
+        ),
+        "Cell {} — good chirp?  [y = keep,  Enter/Esc/n = skip] : ",
+        crop=lambda image: image[:, : image.shape[1] * 2 // 3],
+        on_decision=on_decision,
     )
 
 
@@ -269,7 +155,7 @@ def select_dos_cells(
     whether it is orientation- or direction-selective.
 
     Args:
-        selected_cells (list): cells chosen for clustering (good STA + chirp).
+        selected_cells (list): cells chosen for clustering (from ``CellQuality``).
         dos_cells (list): DOS cell IDs to use directly; if empty, select interactively
             (or reload a previously saved selection).
         DG_directory (str): the DG analysis directory (its ``DG_figs`` holds the figures).
@@ -791,6 +677,9 @@ def create_cluster_summary_figure(
         ax_ellipses.set_aspect("equal")
         ax_ellipses.set_xticks([])
         ax_ellipses.set_yticks([])
+        # The contours are drawn in STA pixel coordinates; show them like the per-cell STAs
+        # (imshow convention: row 0 at the top), otherwise this overlay is upside down.
+        ax_ellipses.invert_yaxis()
 
         # RF-size distribution of this cluster (left of the mosaic), with the mean marked.
         ax_hist = fig.add_subplot(gs[0:2, 0])
