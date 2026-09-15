@@ -44,6 +44,12 @@ have your own local version, and it is normal for it to show as modified.
 - `ruff.toml` holds the few rules we relax on purpose (star re-exports in `utils`, long lines,
   bare `except` in notebooks). Don't add per-file ignores without a reason in a comment.
 
+Those developments tools are only in the develop branch not in main. 
+Roadmap to push a change to main :
+- develop in personal branch
+- push changes to main develop branch and test
+- push to main
+
 ## 3. How the code is organised
 
 ```
