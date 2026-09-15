@@ -1,209 +1,255 @@
-# README-developer
+# README — developers
 
-# Step 1
+This file is for people who want to **add or change code** in the pipeline. If you only want
+to *use* it, read `README.md`.
 
-List of completed tasks.
+The pipeline was renovated in three phases:
 
-## Test dataset used
+| phase | who | what |
+|-------|-----|------|
+| I (2025) | Ron, Steeve | first refactoring: notebooks split into cells + companion `.py` modules, conda env, first unit tests, `develop`/`main` branches |
+| II (Jan–Feb 2026) | Chiara | checkerboard / STA analysis rewritten and standardised (one RF-fitting method, physical units, figure conventions) |
+| III (Jun 2026 → ) | Baptiste | standard vec analysis, cell quality / typing, stimulus creation (preamble), utils package, tests + CI |
 
-Test dataset used (from Guilhem): 20251219_PulsingGratings_PupilSize/
+Change log at the bottom of this file. Roadmap just above it.
 
-## Installation 
+---
 
-### Setup the conda virtual environment
+## 1. Setting up for development
 
-TODO!: env/standard_analysis_pipeline.yml must be updated with all the dependencies
-
-Requirements: > conda 23.3.1
-
-Move to the root of the repository and install:
+1. Install the conda environment and register the Jupyter kernel exactly as in
+   `README.md` (Installation). The environment runs **Python 3.9**: no `match`, no
+   `X | None` annotations (that one crashes at import time), no `list[int]` outside quotes
+   in code that runs at import.
+2. Install the dev tool: `pip install ruff` (in the env).
+3. Check everything works from the repository root:
 
 ```bash
-conda env create -f env/standard_analysis_pipeline.yml --prefix env/standard_analysis_pipeline
-conda activate env/standard_analysis_pipeline
+python tasks.py test              # unit tests (stdlib unittest, no pytest needed)
+python tasks.py check-formatting  # ruff lint + format check
+python tasks.py fix-formatting    # ruff --fix + ruff format, run it before committing
 ```
 
-Execution time < 1 min
+Test dataset used for manual checks: `20251219_PulsingGratings_PupilSize/` (from Guilhem).
+`params.py` is per-machine: it holds the experiment name, recording list and rig — you will
+have your own local version, and it is normal for it to show as modified.
 
-Tested on Ubuntu 24.04.1 LTS (32 cores, 188 GB RAM, Intel(R) Core(TM) i9-14900K ＠3.2 GHz/5.8 GHz)
+## 2. Branches and CI
 
+- `main` is the released pipeline; `develop` is where work lands.
+- Create a feature branch from `develop`, open a pull request back into `develop` when done.
+- **CI** (`.github/workflows/test.yml`) runs `ruff check .` and `python -m unittest discover
+  -s tests` on every push and pull request. There is no local git hook: run
+  `python tasks.py fix-formatting` yourself before pushing, or CI will complain.
+- `ruff.toml` holds the few rules we relax on purpose (star re-exports in `utils`, long lines,
+  bare `except` in notebooks). Don't add per-file ignores without a reason in a comment.
 
-## Basic refactoring
+## 3. How the code is organised
 
-- Large chunks of code 
-    - very hard to debug -> refactor code to make readable, understandable.
-    - notebook too long -> endless scrolling
-    - Use functions:
-        - have control of the variables in the environment at anytime.
-        - modular
-        - enables testing/validation/debugging/sharing.
+```
+1-…5_ notebooks          the standard pipeline, in order (preprocessing → checkerboard →
+                         DG → 4a cell quality → 4b cell typing → 5 ID card)
+A_Standard_Vec_Analysis  generic raster/PSTH analysis of any stimulus described by a vec
+B_Standard_Stim_Creation how to build a stimulus (bin + vec), the standard preamble
+utils/                   all the Python code (see below)
+params.py                the ONLY place for experiment / rig parameters
+tests/                   unit tests (synthetic data, no recording needed)
+ResourcesAndTools/       StandardVec (the vec files the analyses expect), StimMaking,
+                         probe file, binary source of the checkerboard, RF tool, Typing
+StimulusDisplayer/       stimulus preview tool — its own git repository, cloned next to
+                         the pipeline (its binfile.py must stay identical to utils/binfile.py:
+                         tests/test_binfile_sync.py checks it)
+Other_Analysis_Notebooks/ non-standard analyses, not maintained to the same level
+```
 
-- Clean up:
-    - Added .yml config. for conda virtual environment.
-    - Refactored `import params`:
-        - moved params' variable to a dictionary -> more readable, editable
-        - created small un-nested functions to replace huge chunks of code -> more readable    
-    - Cleaned up notebook 
-        - `3-Drifting_Gratings_steeve.ipynb`
-        - `2-Analyse_Checkerboard_steeve.ipynb` 
-        - in first cell: 
-            - separate built-in from custom package -> we rarely have to debug built-in packages
-            - ideally should contain all paths, parameters input
-        - moved notebook functions to associated .py module to enable versioning
-    - Create associated modules: 
-        - `drifting_gratings_steeve.py`
-        - `analyse_checkerboard_steeve.py`
-    - move long comments on top of code - else, hard to read on small screen
+### `utils/` — shared vs companion modules
 
+`utils` is a package. `utils/__init__.py` re-exports the **shared** modules
+(`loading`, `preprocessing`, `checkerboard`, `sta`, `vec`, `reliability`, `cell_typing`,
+`cell_quality`, `four_squares`, `RPV_analysis`, `binfile`, …), so notebooks call
+`utils.load_obj(...)`, `utils.build_spikes_per_sequence_dict(...)`, etc.
 
-## Unit-tests
+Each standard notebook also has a **companion module** that is *not* re-exported and is
+imported explicitly, e.g. `from utils import drifting_gratings as analysis`:
 
-- Identified the utils.py functions used in Drifting gratings and checkerboard notebooks
-    - `load_obj`
-        - Drifting gratings [DONE]
-        - Checkerboard
-    - compute_tuning
-        - Drifting gratings
-    - `save_obj` [DONE]-w/ Chiara
-        - Drifting gratings
-        - Checkerboard    
-    - `get_recording_spikes` [DONE]-w/ Chiara
-       - Checkerboard    
-    - extract_from_sequence [TODO] - requires logic
-        - Checkerboard    
-    - compute_3D_sta [TODO] - requires logic
-        - Checkerboard    
-    - analyse_sta_tom [TODO] - requires logic
-        - Checkerboard    
-    - analyse_sta_matias [TODO] - requires logic
-        - Checkerboard    
-    - analyse_sta_gab [TODO] - requires logic
-        - Checkerboard    
-    - analyse_sta [TODO] - requires logic
-        - Checkerboard    
+| notebook | companion |
+|----------|-----------|
+| 2-Analyse_Checkerboard | `utils/analyse_checkerboard.py` |
+| 3-Drifting_Gratings | `utils/drifting_gratings.py` |
+| 4a / 4b | `utils/chirp.py` (chirp rasters), `utils/cell_typing.py` |
+| 5_Cell_ID_card | `utils/cell_id.py` |
 
-- Setup pytest testing in `tests/test_utils.py`
+Rule of thumb: code used by **two or more** notebooks goes in a shared module; code specific
+to one notebook goes in its companion module; the notebook itself stays thin (inputs, one
+call per step, a plot) with a few commented "escape hatch" examples showing how to do the
+same thing by hand.
 
-## Branches
+### Notebooks are for non-coders
 
-- This is pushed on a `"Develop"` branch from which the dev can collaborate
-- Devs create their feature branches from "Develop" and pull request/solve conflicts when done.
-- At the end, we can automate Github launching of automated testing for Pull requests from "Develop" to "Master".
+Most users have little coding experience. In notebooks:
 
-## Recommendations:
+- every input a user may change is a named variable at the top of the cell, with a one-line
+  comment saying what it does and a sensible default;
+- one step per cell, a markdown cell before it saying *why*, not only *what*;
+- no magic numbers in code: give them a name (`rpv_threshold = 0.5  # %`), and prefer
+  module-level named constants in `utils` (`N_STANDARD_BIN_FRAMES`, `FOUR_SQUARES_KEYS`, …);
+- figures: big fonts, few elements, readable from across the room. Clear outputs before
+  committing a notebook (`git diff` on a notebook with outputs is unreadable).
 
-- Experimentalist-only can only interact with notebooks in a notebooks_for_experimentalist/ folder.
-    - once, we can move the content of the clean-up, tested functions back to notebook to facilitate their work.
-    - they cannot push to the develop , nor main if they modify .py modules.
-- Dev. can interact with the entire codebase.
+### Data flow and files on disk
 
-# Step 2
+- `params.root/Analysis/output/` (= `params.output_directory`) holds everything the
+  pipeline produces: `<exp>_fullexp_neurons_data.pkl` (spikes per cell per recording),
+  `<exp>_cell_quality.pkl`, and one folder per analysis and recording:
+  `Checkerboard_Analysis_rec_N`, `DG_Analysis_rec_N`, `CellTyping_Analysis_rec_N`,
+  `Vec_Analysis_rec_N`. Find them with `utils.find_analysis_directory(output_directory, "DG")`.
+- Triggers per recording: `params.triggers_directory/<exp>_<recording>_triggers.pkl`
+  (`indices` in samples) and `_trigger_channels.pkl` (raw aux channels, for sanity checks).
+- Vec files live in `params.stim_directory` (`ResourcesAndTools/StandardVec`). The analyses
+  expect the `_std.vec` version: the stimulus vec with a **sequence key** in its last column
+  (`<sequence id><repetition digits>`, see section I of notebook B).
+- Results are plain dicts keyed by cell id, saved with `utils.save_obj` / `utils.load_obj`
+  (pickle): `sta_data[cell]["sta_analysis"][...]`, `cell_quality[cell]["sta_ok"]`, … Keep
+  new results in that shape — users index them directly.
 
-## Baptiste's note
+### Conventions
 
-### What I did
+- `snake_case` everywhere; docstrings on every public function (Args / Returns), written
+  for someone who does not know the code.
+- Pass what a function needs explicitly (`params.fs`, `params.MEA`), never the `params`
+  module as a whole, and never read `params` from inside `utils` (except the rig table in
+  `params.rig_params`, accessed through `params.get_rig_params(mea)`).
+- Rig-dependent things (pixel size, DMD size, polarity, optical transform, trigger threshold)
+  come **only** from `params.rig_params`. To support a new rig: fill in its entry and add
+  it to `params.DISPLAY_READY_RIGS`.
+- Images / STAs follow the `imshow` convention: row 0 at the top, x = columns, y = rows.
+  Anything drawn on top of an STA (contours, ellipses, RF centres) must use the same
+  orientation (see the cluster-figure bug in the change log).
+- Sequence keys are strings of digits; the repetition number is the last `n_digit_for_rep`
+  digits and is **inferred** from the vec (`utils.infer_rep_digits`) but always confirmed by
+  the user. Don't hardcode `[-4:]` or `[-2:]`.
+- Anything interactive (reviews, yes/no prompts) must be **resumable**: save after each
+  decision, skip what was already decided on re-run.
 
-I included and tested the following function
-- load_spike_times(params, rec, verbose = False): Load spike times for all neurons for a given recording from the fullexp_neurons_data.pkl file.
-        Helpful to help reducing the liens it takes to read data from fullexp.pkl
+## 4. Adding things
 
-- load_stim_onset_from_triggers_path(triggers_path, params, verbose: bool ) : Load trigger data from saved file and give the stim onset aleady converted in second.
-        Helpful for getting stim_onsets (the real thing we care about) from raw trigger data
+**A new standard stimulus analysis**
 
-- prompt_user_for_recording(params: dict, stim_name: str) : Help with showing the prompt that helps findinf the .vec
+1. Build the stimulus with notebook B: vec with sequence keys, the standard preamble
+   prepended (`utils.prepend_standard_preamble`), checked with `utils.check_standard_preamble`.
+   Put the `_std.vec` in `ResourcesAndTools/StandardVec`.
+2. Start from `A_Standard_Vec_Analysis`: `utils.build_spikes_per_sequence_dict` already gives
+   you rasters, PSTHs and per-repetition triggers for any keyed vec. Only the
+   stimulus-specific metrics and plots are new code.
+3. Put those in a companion module `utils/<stimulus>.py`; keep the notebook thin.
+4. Add a unit test in `tests/` with a tiny synthetic vec + spike train (see
+   `tests/test_vec_sequences.py`) for anything that has logic (parsing, timing, metrics).
+5. Add a line to `utils/__init__.py`'s docstring and to the change log below.
 
-- create_analysis_directory(params: dict, recording_number: int, analysis_name: str): Create the calssicale directories used by the pipeline analysis
+**A new quality criterion** — add a key to the per-cell dict built in notebook 4a
+(`utils/cell_quality.py`, `QUALITY_CRITERIA`), evaluate it in its own 4a cell, save after
+each decision.
 
-- find_analysis_directory(dir_type="Checkerboard", output_directory = params.output_directory): Look for specific analysis directory
+**A shared helper** — put it in the matching shared module, docstring, test if it has logic,
+and grep the notebooks for the duplicated code it replaces.
 
-Those changes have been implemented up to the notebook (which I tested)
+## 5. Tests
 
-- I've added the test_utils as an action on guthub for commit and push (test are run automatically by Git and you receive a notification if you broke something)
+- Stdlib `unittest`, run with `python tasks.py test` or
+  `python -m unittest tests.test_vec_sequences` for one file.
+- Tests use **small synthetic inputs** (a handful of triggers and spikes) — no recording, no
+  network. Regression tests on real data are out of scope: the figures are the visual check.
+- `tests/test_utils.py` (loading helpers), `tests/test_vec_sequences.py` (the vec "sequence"
+  machinery: key parsing, rasters, PSTH bins, repetition filtering),
+  `tests/test_binfile_sync.py` (the two `binfile.py` copies are identical).
+- When you fix a bug, add the test that would have caught it first (e.g. the 27/28-bin PSTH
+  test was built from the real trigger samples that exposed it).
 
-- I try to run all notebooks up to the analysis and corrected a few bugs that prevented it to work
+---
 
-### Note on Utils
+## Roadmap
 
-- There are still some magic variables (fixed params in CAPITAL letters) that should be removed
-- Except for the analyse_STA (with all the named versions), the gaussian fitting and the preprocessing, there is nearly no duplciation in utils.
-- All functions should be changed to use snake_case.
+- Analyses for the other standard stimuli: multisize spots, barcode, MSF.
+- Remi's check with repeated stimuli (like the checkerboard) to accept / refuse merges
+  during spike sorting.
+- Notebook 5 (ID card) still recomputes the RPV itself; it should read `cell_quality`.
+- SWN loader (`utils/analyse_checkerboard.load_swn_stimulus`) reads frame indices straight
+  from the vec header: it does not support a preamble-prefixed vec (SWN is recorded without
+  one for now).
+- Also check issues on Git for more
 
-- I'm still not super conviced about the specific analysis .py, I really think we'll want to move them back to the notebooks at some point (trade off between nice for experimentalist and easy to debug).
+## Change log
 
-- Test should be mainly unitest that used fake generated little dataset
-- Regression test using real data that we know what the analysis should look like will be to complicated (Visual inspection of the graphs is already here for that)
+Newest first. Older entries summarised from the Phase I / II notes.
 
-- Finally I did Ruff pass to improve code quality (only allowed undefined-local-with-import-star and bare-except)
+**2026-09-14/15 (Baptiste)**
+- Vec analysis: PSTH bin count is now `round(duration / bin_size)` — `int()` truncated
+  27.999… to 27 on 40 Hz stimuli, so PSTHs randomly came out one bin short (regression test
+  from the real trigger samples). New `repetitions=(start, stop)` option in
+  `build_spikes_per_sequence_dict` / notebook A to keep only a range of repetitions.
+- Standard preamble is now **grey + the four squares** (5 frames). The F orientation test is
+  deliberately left to the user's own stimulus code (reserved key `9999`), since its purpose
+  is to debug that code. Preamble keys use the same repetition-digit width as the stimulus
+  they are prepended to; `utils.check_standard_preamble(bin, vec)` verifies any pair **by
+  content** (which frame each square key points at, stimulus rows inside the bin) and is run
+  automatically after `prepend_standard_preamble`. The four-squares check in notebook A works
+  on any preamble-prefixed recording.
+- Notebook 4 split into **4a Cell quality** (RPV, STA review, optional chirp review →
+  `cell_quality` dict saved once per experiment, reviews saved after every answer and
+  resumable) and **4b Cell typing** (loads the quality dict + saved chirp rasters, DOS split,
+  clustering). Legacy `_selected_cells_for_clustering.pkl` dropped.
+- Cluster summary figure: the "RF ellipses" overlay was vertically mirrored relative to the
+  per-cell STAs (`contour` vs `imshow` y direction) — fixed.
+- Notebook B: intro on what vec / bin are; section on natural images (dataset-wide
+  normalisation to mean 0.5, clip instead of min-max; control of displayed size per rig).
+- `.claude/` untracked; RF visualisation help files moved to
+  `ResourcesAndTools/ReceptiveFIeldAnalysisTool`.
 
-- Ruff will be run automatically by git or manually using python tasks.py fix-formatting
-- 
-### Noteds PSTH + RASTER ANALYSIS
+**2026-08-06 (Baptiste)**
+- Quality pass on cell typing and cluster views; fixed `n_digit_for_rep` not passed through
+  in the standard vec analysis; resources regrouped under `ResourcesAndTools/`.
 
-This is just a sketch of functions that could be useful.
-Some of it is already handled in utils.py in build_rasters or etract_from_sequence (+ others).
-But it needs to be be slightly reworked to be more general and reusable.
-Overall the notebook 'Standard_Vec_Analysis' should also contain important ideas here!
-The accent should also be made on separating low-level stuff (data handling, I/O) from higher level stuff (plots).
+**2026-07-29 (Baptiste)**
+- STA figures: mask in grey with a 0 floor, yellow scale bar on the mask, symmetric colour
+  bars with labels; ellipse fitted on the mask also for SWN; the `_std` vec is the default
+  everywhere.
 
-def compute_rasters(spikes: dict, triggers: np.ndarray, 
-                   nb_repeats: int, stimulus_frequency: int) -> dict:
-    """
-    Compute raster data for all cells.
-    
-    NOTE : Redundant with build_rasters
-    
-    Args:
-        checkerboard_spikes: Dict mapping cell IDs to spike times
-        triggers: Array of trigger times
-        nb_repeats: Number of stimulus repetitions
-        stimulus_frequency: Stimulus frequency in Hz
-        
-    Returns:
-        Dictionary mapping cell IDs to raster data
-    """
-    print('Computing rasters...')
-    raster_data = {}
-    
-    for cell_id, spike_times in tqdm(spikes.items()):
-        raster_data[cell_id] = extract_from_sequence(
-            spike_times, triggers, nb_repeats, stim_frequency=stimulus_frequency
-        )
-    
-    return raster_data
+**2026-07-26 (Guilhem, Baptiste)**
+- Notebook B: how to build a stimulus, the F frame. All 4 auxiliary trigger channels are read
+  and used for sanity checks in the standard vec analysis.
 
-def plot_single_raster(ax, spike_trains, color='darkblue', linelength=0.8):
-    """
-    Plot raster for a single cell.
-    From data directly.
+**2026-07-13 (Awen, Baptiste) — first beta test**
+- Hardcoded paths and cross-machine access fixed; repeated-sequence analysis for SWN;
+  smoother handling of rigs other than MEA 2/3; spatial-mask description in notebook 2;
+  physically sensible trigger threshold in preprocessing; all parameters (including
+  BinFile's) moved to `params.py`.
 
-    Args:
-        ax: Matplotlib axis 
-        spike_trains: List of spike trains
-    """
-    ax.eventplot(spike_trains, colors=color, linelengths=linelength)
-    ax.set(title="Raster plot", ylabel="N Repetitions", xlabel="Time in sec",)
+**2026-06-26 (Baptiste) — standard vec analysis**
+- Vec analysis standardised, functions moved to `utils`; DG and chirp analyses rebuilt on it
+  (any number of repetitions). Typing notebook: interactive DS selection, in-place figure
+  review, robust to cells without chirp response, deterministic clustering, DS cells clustered
+  after non-DS with the largest IDs. `utils` became a package; `params.x` always passed
+  explicitly; unit tests for the vec analysis; vec files in a dedicated folder; RF
+  coordinates example in notebook 2; new preprocessing (spyking-circus part untested); SWN
+  integration; backup guide and reminders; RF scale bars; reliability examples; vec columns
+  drawn as stimulus traces.
 
-def plot_single_psth_from_raster_data(ax, raster_data, cell_nb, params: dict):
-    """
-    Plot PSTH for a single cell.
-    From raster data directly to extract all information automatically.
+**Phase II — 2026-01-26 → 2026-02-27 (Chiara, with Baptiste, Guilhem)**
+- Loading helpers moved to `utils` (`prompt_user_for_recording`, `create_analysis_directory`,
+  `find_analysis_directory`, `load_spike_times`, `load_stim_onset_from_triggers_path`).
+- Checkerboard notebook: response extraction separated from plotting
+  (`extract_all_cell_responses_to_repeated_sequences`, `plot_all_rasters`,
+  `plot_raster_and_psth`).
+- STA: `extract_from_sequence` / `compute_3D_sta` with explicit mandatory arguments; the many
+  `analyse_sta_*` versions merged into one `rf_analysis` with a **standard method**
+  (median-normalised 3D STA, `preprocess_fitting_standard` smoothing + thresholding,
+  `get_sta_components` locating the RF from the std mask, ellipse drawn at 2 σ); physical
+  units (`extend_sta_analysis_to_physical_units`, ellipse area / diameter, SNR, delay);
+  `plot_sta_fitted_with_ellipse` with mask, markers, colour bars, scale bar, RF quantification
+  text; `plot_all_stas` overview; figures saved in several formats incl. svg.
+- Fitting methods compared (`ResourcesAndTools/STA_analysis_comparison.py`).
 
-    Args:
-        ax: Matplotlib axis
-        raster_data: Dictionary with raster data
-        cell_nb: Cell number to plot
-        params: Dictionary with 'nb_frames_by_sequence'
-    """
-    width = raster_data[cell_nb]["repeated_sequences_times"][0][0] / int(
-        params.nb_frames_by_sequence / 2
-    )
-    seq_length = (
-        raster_data[cell_nb]["repeated_sequences_times"][0][1]
-        - raster_data[cell_nb]["repeated_sequences_times"][0][0]
-    )
-
-    x_vals = (
-        np.linspace(0, seq_length, int(params.nb_frames_by_sequence / 2)) + width / 2
-    )
-    ax.bar(x_vals, raster_data[cell_nb]["psth"], width=1.3 * width)
-    ax.set(xlabel="Time in sec", ylabel="Firing rate (spikes/s)")
+**Phase I — 2025 (Ron, Steeve)**
+- Notebooks 2 and 3 refactored into thin notebooks + companion modules; `params` reorganised;
+  conda `env/standard_analysis_pipeline.yml`; first unit tests (`tests/test_utils.py`) and a
+  GitHub Action running them; `develop` / `main` branching model; ruff pass.
