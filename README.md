@@ -3,7 +3,7 @@ A repo with all the code you need to go from your raw files to hundreds of fully
 
 Once downloaded the repository all the code runs in python. A standard anaconda distribution with few dependencies will do. The installation of spyking interface is required. The use of jupyter is advised but not necessary. 
 
-If you find any bug or have a feature recommendation, please open a Git issue.
+If you find any bug or have a feature recommendation, please open a Git issue in the repo : https://github.com/retinal-information-processing-lab/Standard_analysis_pipeline/issues.
 
 ## Installation (2026 version)
 1. Ensure you have conda installed (It works for sure with Anaconda 4.11.0, you can find here the ones you need depending on your OS: https://www.anaconda.com/download#downloads) 
