@@ -16,12 +16,10 @@ If you find any bug or have a feature recommendation, please open a Git issue.
     ```
     (more on how to do it here: https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-with-commands)
 
-3. If you also need spiking interface for spike sorting ...???????
-      it is automatically installed with the env no? 
-      add ...to install spikeinterface in it (here how to do it: https://spikeinterface.readthedocs.io/en/latest/installation.html). For spikeinterface to work hdbscan (https://anaconda.org/conda-forge/hdbscan) and numba (https://numba.pydata.org/numba-doc/latest/user/installing.html) have to be installed. Sometimes numba will complain about the version of numpy but reinstalling numpy could create compatibility issues with other packages. Instead, running pip uninstall numba and them pip install -U numba solves it https://stackoverflow.com/questions/74947992/how-to-remove-the-error-systemerror-initialization-of-internal-failed-without. 
-      add ..? One may have issues involving Qt plateform plugin "xcb". In this case, please make sure your drivers are up to date. If you still have an issue, check this solution: https://stackoverflow.com/questions/68036484/qt6-qt-qpa-plugin-could-not-load-the-qt-platform-plugin-xcb-in-even-thou
+3. Spikeinterface for spike sorting is automatically installed with the env (https://spikeinterface.readthedocs.io/en/latest/installation.html). 
+For spikeinterface to work hdbscan (https://anaconda.org/conda-forge/hdbscan) and numba (https://numba.pydata.org/numba-doc/latest/user/installing.html) may have to be installed too. Sometimes numba will complain about the version of numpy but reinstalling numpy could create compatibility issues with other packages. Instead, running pip uninstall numba and them pip install -U numba solves it https://stackoverflow.com/questions/74947992/how-to-remove-the-error-systemerror-initialization-of-internal-failed-without.) One may have issues involving Qt plateform plugin "xcb". In this case, please make sure your drivers are up to date. If you still have an issue, check this solution: https://stackoverflow.com/questions/68036484/qt6-qt-qpa-plugin-could-not-load-the-qt-platform-plugin-xcb-in-even-thou .
 
-4. Now open the notebook you want to use and first ensure you are using the correct python kernel: 
+1. Now open the notebook you want to use and first ensure you are using the correct python kernel: 
 Option 1) add a cell at the beginning of the notebook with the following line of code and run it
     ```python
     !python -m ipykernel install --user --name standard_analysis_pipeline --display-name "standard_analysis_pipeline"
@@ -36,25 +34,10 @@ Option 2) Press Ctrl+Shift+P, search for "Python: Select Interpreter", click "En
 You now should be ready to run any python file in the workspace. 
 
 
-## Dependencies (REMOVE LIBRARIES ARE IN YML NO? KEEP ONLY NEEDED FILES)
-- colorama: https://pypi.org/project/colorama/
-- scikit-image: https://scikit-image.org/docs/stable/install.html
-- PyQt5
+## Additional Dependencies 
 - also in the pipeline folder should be present:
   -  the files bynarysource1000Mbits
-  -  the Chirp vecs for plotting
+  -  th SWAN .bin if needed
   -  the probe file for sorting
 
 The analysis of this pipeline are nice and most of all are free. Take advantage of them!
-
-## Tests
-
-The notebooks were tested on the 20251219_PulsingGratings_PupilSize dataset.
-
-Run unit-tests with:
-
-```bash
-pytest
-```
-
-Update unit-tests in tests/test_utils.py
