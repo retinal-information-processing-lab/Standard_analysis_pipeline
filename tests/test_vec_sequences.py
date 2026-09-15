@@ -175,6 +175,40 @@ class TestNonDefaultRepDigits(unittest.TestCase):
         np.testing.assert_array_almost_equal(result[7]["100"]["psth"], [1.0, 0.0, 0.5])
         np.testing.assert_array_almost_equal(result[7]["200"]["psth"], [0.0, 0.5, 0.0])
 
+    def test_build_spikes_dict_keeps_only_a_range_of_repetitions(self):
+        # repetitions=(start, stop) keeps rep numbers in range(start, stop). Here each type
+        # has reps 0 and 1: (0, 1) keeps rep 0 only, (1, 2) rep 1 only.
+        first, _, _ = utils.build_spikes_per_sequence_dict(
+            [7],
+            self.spikes,
+            self.triggers,
+            self.vec_keys,
+            bin_size=1.0,
+            n_digit_for_rep=2,
+            repetitions=(0, 1),
+        )
+        self.assertEqual(len(first[7]["100"]["raster"]), 1)
+        np.testing.assert_array_almost_equal(first[7]["100"]["psth"], [1.0, 0.0, 1.0])
+        second, _, _ = utils.build_spikes_per_sequence_dict(
+            [7],
+            self.spikes,
+            self.triggers,
+            self.vec_keys,
+            bin_size=1.0,
+            n_digit_for_rep=2,
+            repetitions=(1, 2),
+        )
+        np.testing.assert_array_almost_equal(second[7]["100"]["psth"], [1.0, 0.0, 0.0])
+        with self.assertRaises(ValueError):
+            utils.build_spikes_per_sequence_dict(
+                [7],
+                self.spikes,
+                self.triggers,
+                self.vec_keys,
+                n_digit_for_rep=2,
+                repetitions=(5, 9),
+            )
+
 
 class TestFlexibleSequenceParsing(unittest.TestCase):
     """Flexibility around how sequence keys are created:

@@ -285,6 +285,7 @@ def build_spikes_per_sequence_dict(
     vec_keys: np.ndarray,
     bin_size: float = 0.025,
     n_digit_for_rep: int = 4,
+    repetitions: tuple = None,
 ) -> tuple[dict, dict, dict]:
     """
     Split each cell's spikes into stimulus sequences and build a raster + PSTH per sequence.
@@ -301,6 +302,11 @@ def build_spikes_per_sequence_dict(
         bin_size: PSTH bin width in seconds.
         n_digit_for_rep: Number of trailing digits of a key that encode the
             repetition number; the remaining leading digits identify the sequence type.
+        repetitions: Optional ``(start, stop)`` to keep only the repetitions whose number
+            is in ``range(start, stop)`` (stop excluded, like Python slices) — e.g. (0, 10)
+            keeps repetitions 0..9, (10, 20) the next ten. The number is read from the key's
+            repetition digits, so it works whatever order the repetitions were shown in.
+            None (default) keeps them all.
 
     Returns:
         spikes_per_sequence_dict: {cell_id: {sequence_key: {"raster": [np.ndarray],
@@ -320,6 +326,20 @@ def build_spikes_per_sequence_dict(
         for key, trigs in triggers_per_repetition.items()
         if not _ignored_key(key)
     }
+    # Optionally keep only a range of repetition numbers (e.g. to drop a degraded end of
+    # recording, or compare the first and second halves).
+    if repetitions is not None:
+        start, stop = repetitions
+        triggers_per_repetition = {
+            key: trigs
+            for key, trigs in triggers_per_repetition.items()
+            if start <= int(key[-n_digit_for_rep:]) < stop
+        }
+        if not triggers_per_repetition:
+            raise ValueError(
+                f"No repetition in range {repetitions}; check the repetition numbers "
+                "printed by describe_sequence_keys."
+            )
 
     # First repetition ACTUALLY PRESENT for each sequence type, in vec order. Using the
     # first present rep (instead of assuming "<seq>0000") makes the timing robust to a
