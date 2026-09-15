@@ -170,6 +170,7 @@ resources/baden_data.mat
 2-Analyse_Checkerboard-DEBUGGING.ipynb
 
 *.bin
+*.vec
 
 *.pkl
 
