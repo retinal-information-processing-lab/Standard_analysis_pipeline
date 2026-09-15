@@ -170,4 +170,4 @@ resources/baden_data.mat
 
 *.pkl
 
-StimulusDisplayer/
+.claude/
