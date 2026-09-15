@@ -19,7 +19,8 @@ If you find any bug or have a feature recommendation, please open a Git issue.
 3. Spikeinterface for spike sorting is automatically installed with the env (https://spikeinterface.readthedocs.io/en/latest/installation.html). 
 For spikeinterface to work hdbscan (https://anaconda.org/conda-forge/hdbscan) and numba (https://numba.pydata.org/numba-doc/latest/user/installing.html) may have to be installed too. Sometimes numba will complain about the version of numpy but reinstalling numpy could create compatibility issues with other packages. Instead, running pip uninstall numba and them pip install -U numba solves it https://stackoverflow.com/questions/74947992/how-to-remove-the-error-systemerror-initialization-of-internal-failed-without.) One may have issues involving Qt plateform plugin "xcb". In this case, please make sure your drivers are up to date. If you still have an issue, check this solution: https://stackoverflow.com/questions/68036484/qt6-qt-qpa-plugin-could-not-load-the-qt-platform-plugin-xcb-in-even-thou .
 
-1. Now open the notebook you want to use and first ensure you are using the correct python kernel: 
+1. Now open the notebook you want to use and first ensure you are using the correct python kernel:
+
 Option 1) add a cell at the beginning of the notebook with the following line of code and run it
     ```python
     !python -m ipykernel install --user --name standard_analysis_pipeline --display-name "standard_analysis_pipeline"
