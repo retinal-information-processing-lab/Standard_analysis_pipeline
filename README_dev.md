@@ -187,6 +187,18 @@ and grep the notebooks for the duplicated code it replaces.
 
 Newest first. Older entries summarised from the Phase I / II notes.
 
+**2026-09-16 (Baptiste)** — four-squares preamble v2
+- Preamble is now grey, **black**, four squares (6 frames, stimulus starts at 6). Each square
+  = 1 s white + 1 s black under its own key, plus 1 s black (key 0) first, so OFF responses
+  are credited to the right square. Squares moved **inward** (`SQUARE_INSET_FACTOR = 0.5`:
+  inner edge halfway to the MEA centre) because too few RFs lie outside the MEA.
+- Notebook A four-squares map rebuilt: µm frame centred on the MEA, kernel-smoothed
+  **preference vote** of selective cells (silent / non-discriminating cells don't vote),
+  black where < `min_cells`, RF-sized circles, cyan outline of the active square. Verified
+  no y-axis reversal between RF centres and squares (round trip through BinFile).
+- `infer_rep_digits` anchors on the preamble ids; loud warning when triggers ≠ vec rows;
+  `find_vec_file` accepts a full path / empty name cleanly (notebook A vec selection).
+
 **2026-09-15 (Baptiste)** — StimulusDisplayer merged into this repository
 - The displayer was its own repo with a copy of `binfile.py` and a `rig_settings.py`
   mirroring `params.rig_params`; both copies are gone, it now imports `utils.binfile` and

@@ -218,6 +218,19 @@ class TestFlexibleSequenceParsing(unittest.TestCase):
     - an all-zero key marks stimulus to exclude.
     """
 
+    def test_infer_rep_digits_anchors_on_the_preamble(self):
+        # Ids 10/11/12 with 1000 reps (0000-0999): the heuristic alone overshoots to 5
+        # digits (merging 10/11/12 into "1"). The preamble keys (9991 * 10**4 + rep) pin the
+        # width to 4.
+        stimulus = [s * 10**4 + r for s in (10, 11, 12) for r in range(1000)]
+        preamble = [9991 * 10**4, 9992 * 10**4, 9993 * 10**4, 9994 * 10**4]
+        self.assertEqual(utils.infer_rep_digits(np.array(stimulus)), 5)  # no anchor
+        self.assertEqual(utils.infer_rep_digits(np.array(preamble + stimulus)), 4)
+        # A 2-digit stimulus with a matching 2-digit preamble.
+        self.assertEqual(
+            utils.infer_rep_digits(np.array([999100, 999200, 100, 101, 200, 201])), 2
+        )
+
     def test_infer_rep_digits_on_clean_schemes(self):
         # 8 "directions" x 10 reps, one rep digit (keys dir*10+rep).
         dg1 = np.array([d * 10 + r for d in range(1, 9) for r in range(10)], float)

@@ -176,7 +176,7 @@ def find_vec_file(vec_filename: str, stim_directory: str) -> str:
             f"The stimulus folder does not exist:\n    {stim_directory}\n"
             "Set 'stim_directory' in params.py to the folder that holds your stimulus files."
         )
-    ext = os.path.splitext(vec_filename)[1]  # ".vec" or ".bin"
+    ext = os.path.splitext(vec_filename)[1] or ".vec"  # ".vec" or ".bin"; "" -> .vec
     files = sorted(f for f in os.listdir(stim_directory) if f.endswith(ext))
     if not files:
         raise FileNotFoundError(
@@ -188,19 +188,42 @@ def find_vec_file(vec_filename: str, stim_directory: str) -> str:
     print(f"\nStimulus files in {stim_directory}:")
     for i, f in enumerate(files):
         print(f"    {i} : {f}" + ("   <- default" if i == default_idx else ""))
-
-    if default_idx is not None:
-        answer = input(
-            f"Pick a file number, or press Enter for the default ({vec_filename}): "
-        ).strip()
-        chosen = files[int(answer)] if answer else vec_filename
-    else:
+    if default_idx is None and vec_filename:
         print(f"(the expected file '{vec_filename}' is not in this folder)")
-        answer = input("Pick the matching file number: ").strip()
-        chosen = files[int(answer)]
+
+    # One prompt, two kinds of answer: a number from the list, or the full path of a file
+    # kept anywhere else (typical for an experiment-specific vec on the data drive).
+    prompt = "Type a file number, or paste the full path of a file elsewhere"
+    prompt += f" [Enter = {vec_filename}]: " if default_idx is not None else ": "
+    while True:
+        try:
+            answer = input(prompt).strip().strip("'\"")  # tolerate pasted quotes
+        except KeyboardInterrupt:
+            print(
+                "\nNo stimulus file selected. Re-run the cell and type a number or paste a "
+                "path, or set default_vec_file to the full path of your vec."
+            )
+            raise
+        if not answer and default_idx is not None:
+            chosen = os.path.join(stim_directory, vec_filename)
+            break
+        if answer.isdigit() and int(answer) < len(files):
+            chosen = os.path.join(stim_directory, files[int(answer)])
+            break
+        candidate = os.path.expanduser(answer)
+        if os.path.isfile(candidate):
+            chosen = candidate
+            break
+        if os.path.dirname(candidate):
+            print(f"No such file: {candidate}")
+        else:
+            print(
+                f"Please type a number between 0 and {len(files) - 1}, or the full path "
+                "of your file (e.g. /media/my_drive/Stim/my_stimulus_std.vec)."
+            )
 
     print(f"Using stimulus file: {chosen}\n")
-    return os.path.join(stim_directory, chosen)
+    return chosen
 
 
 def _ignored_key(key_str: str) -> bool:
@@ -221,16 +244,30 @@ def infer_rep_digits(vec_keys: np.ndarray) -> int:
     index (0 or 1). Return the largest n that satisfies both. Uses the GLOBAL minimum
     repetition, so a single missing repetition does not change the result.
 
-    IMPORTANT — this is a SUGGESTION, not ground truth. Nothing in the key column marks
-    where the sequence id ends and the repetition begins, so on structured ids (e.g. ids
-    that differ only in their last digit, like 10/11/12) this can overshoot and merge
-    sequences. Always confirm with ``describe_sequence_keys`` before trusting it.
+    If the vec carries the standard preamble, its reserved ids (9991-9994 squares, 9999 F)
+    give the answer exactly: they are written with the stimulus's own repetition width, so
+    the only n for which a key decodes to one of them is the right one. That anchor is used
+    first; the heuristic below is the fallback for vecs without a preamble.
+
+    IMPORTANT — the heuristic is a SUGGESTION, not ground truth. Nothing in the key column
+    marks where the sequence id ends and the repetition begins, so on structured ids (e.g.
+    ids that differ only in their last digit, like 10/11/12, with many repetitions) it can
+    overshoot and merge sequences. Always confirm with ``describe_sequence_keys``.
     """
+    from .four_squares import F_CHECK_SEQUENCE_ID, FOUR_SQUARES_SEQUENCE_IDS
+
     keys = np.unique(np.asarray(vec_keys).astype(np.int64))
     keys = keys[keys != 0]  # ignore the "discard" rows
     if len(keys) == 0:
         return 1
     max_digits = len(str(int(keys.max())))
+
+    # Anchor on the preamble's reserved ids when present.
+    reserved = set(FOUR_SQUARES_SEQUENCE_IDS.values()) | {F_CHECK_SEQUENCE_ID}
+    for n in range(1, max_digits):
+        if any(int(k) in reserved for k in np.unique(keys // (10**n))):
+            return n
+
     best = 1
     for n in range(1, max_digits):  # keep at least one sequence-type digit
         rep = keys % (10**n)
@@ -317,6 +354,24 @@ def build_spikes_per_sequence_dict(
     """
     spikes_per_sequence_dict = {}
     spikes_per_repetition = {}
+
+    # Triggers and vec rows are paired one-to-one from the START: trigger i <-> vec row i.
+    # A mismatch in their number is the #1 sign of a wrong vec file (or a truncated
+    # recording), and would otherwise go unnoticed, so say it loudly.
+    n_trig, n_rows = len(stim_onsets), len(vec_keys)
+    if n_trig != n_rows:
+        which = (
+            f"the last {n_trig - n_rows} triggers are IGNORED"
+            if n_trig > n_rows
+            else f"the last {n_rows - n_trig} vec rows have NO trigger (recording shorter "
+            "than the stimulus?)"
+        )
+        print(
+            f"\n!!! WARNING: {n_trig} triggers but {n_rows} vec rows -> {which}.\n"
+            "    A small excess of triggers at the end is common (the display keeps "
+            "triggering after the vec). A large mismatch means the vec does not match "
+            "this recording: check the vec file you selected.\n"
+        )
 
     # {"<seq><rep>": [trigger times]} — one entry per repetition, ordered as the vec file.
     triggers_per_repetition = group_triggers_by_sequence(stim_onsets, vec_keys)
