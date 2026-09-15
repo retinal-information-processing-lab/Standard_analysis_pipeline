@@ -62,9 +62,8 @@ params.py                the ONLY place for experiment / rig parameters
 tests/                   unit tests (synthetic data, no recording needed)
 ResourcesAndTools/       StandardVec (the vec files the analyses expect), StimMaking,
                          probe file, binary source of the checkerboard, RF tool, Typing
-StimulusDisplayer/       stimulus preview tool — its own git repository, cloned next to
-                         the pipeline (its binfile.py must stay identical to utils/binfile.py:
-                         tests/test_binfile_sync.py checks it)
+StimulusDisplayer/       stimulus preview tool (pygame GUI replaying a vec against a bin);
+                         imports utils.binfile and params from the repo root
 Other_Analysis_Notebooks/ non-standard analyses, not maintained to the same level
 ```
 
@@ -167,7 +166,7 @@ and grep the notebooks for the duplicated code it replaces.
   network. Regression tests on real data are out of scope: the figures are the visual check.
 - `tests/test_utils.py` (loading helpers), `tests/test_vec_sequences.py` (the vec "sequence"
   machinery: key parsing, rasters, PSTH bins, repetition filtering),
-  `tests/test_binfile_sync.py` (the two `binfile.py` copies are identical).
+  `tests/test_vec_sequences.py` also covers the repetition-range filter.
 - When you fix a bug, add the test that would have caught it first (e.g. the 27/28-bin PSTH
   test was built from the real trigger samples that exposed it).
 
@@ -187,6 +186,13 @@ and grep the notebooks for the duplicated code it replaces.
 ## Change log
 
 Newest first. Older entries summarised from the Phase I / II notes.
+
+**2026-09-15 (Baptiste)** — StimulusDisplayer merged into this repository
+- The displayer was its own repo with a copy of `binfile.py` and a `rig_settings.py`
+  mirroring `params.rig_params`; both copies are gone, it now imports `utils.binfile` and
+  `params` directly (`tests/test_binfile_sync.py` removed). Ruff config pinned
+  (`select = ["E", "F"]`, `target-version = "py39"`) so CI no longer depends on the ruff
+  version. First release of `develop` to `main` (without the developer-only files).
 
 **2026-09-14/15 (Baptiste)**
 - Vec analysis: PSTH bin count is now `round(duration / bin_size)` — `int()` truncated

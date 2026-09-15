@@ -5,11 +5,10 @@ ONCE in params.py (``params.rig_params``) and read from there — nothing is har
 Rigs that have not been implemented/tested warn and fall back to neutral defaults (see
 ``params.get_display_rig_params``).
 
-This module is deliberately kept free of any import-time dependency on ``params``: the
-settings can also be passed explicitly via ``BinFile(..., rig_settings={...})``, and
-``params`` is only imported when they are not. That way the exact same file can be used by
-the standalone StimulusDisplayer tool, which has no experiment configuration to load.
-Keep the two copies identical (tests/test_binfile_sync.py checks it).
+This module has no import-time dependency on ``params``: the settings can also be passed
+explicitly via ``BinFile(..., rig_settings={...})``, and ``params`` is only imported when
+they are not. The StimulusDisplayer tool (``StimulusDisplayer/`` in this repository) uses
+this same module with ``rig_settings=params.get_display_rig_params(mea)``.
 """
 
 from typing import Optional

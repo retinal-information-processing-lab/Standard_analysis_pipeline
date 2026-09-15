@@ -175,3 +175,7 @@ resources/baden_data.mat
 *.pkl
 
 .claude/
+# StimulusDisplayer working folders (stimuli to preview, generated GIFs)
+StimulusDisplayer/StimList/
+StimulusDisplayer/GIFs/
+*.gif
