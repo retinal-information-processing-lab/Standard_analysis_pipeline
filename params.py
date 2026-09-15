@@ -19,33 +19,25 @@ import glob
 import warnings
 
 # setup pipeline parameters
-# relative path from pipeline notebook to a folder containing resources such as mea pictures and datasets
-resources = r"./resources"
+# relative path from the pipeline notebooks to the folder holding resources (MEA pictures, probe file,
+# the checkerboard binary source, standard vecs...)
+resources = r"./ResourcesAndTools"
 
 # setup experiment parameters (always check!)
 
 basic_params = {
-    "root": r"/media/idv-s8/SSD Storage/20260729_VideoLSTA_calib/",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
-    "exp": r"20260729_VideoLSTA_calib",  # name of your experiment for saving the triggers
+    "root": r"/media/idv-s8/SSD Storage/20260812_Ze_eclipse_experiment_Video_LSTA_2/",  # This is the root folder of your experiment; all other files must be inside of this folder or manually specified.
+    "exp": r"20260812_Ze_eclipse_experiment_Video_LSTA_2",  # name of your experiment for saving the triggers
     "MEA": 2,  # select MEA (3=2p room) (4=MEA1 Polychrome)
     "raw_files_folder": r"RAW_DATA",  # Enter the name of the folder containing all your raw files. It will be conctenated with root to find your raws. If the folder is not in root, change the variable "recording_directory" manually.
     "recording_names": [
-        "20260729_meas_00_SWN_30Hz",
-        "20260729_meas_01_SWN_30Hz",
-        "20260729_meas_02_chirp_50Hz",
-        "20260729_meas_03_DG_2ST_10rep_50Hz",
-        "20260729_meas_04_barcode_3dir_50Hz",
-        "20260729_meas_05_ RMO_Pert_CALIB_baseline_40Hz",
-        "20260729_meas_06_RMO_Pert_CALIB_c15_f04_40Hz",
-        "20260729_meas_07_RMO_Pert_CALIB_c15_f12_40Hz",
-        "20260729_meas_08_RMO_Pert_CALIB_c20_f04_40Hz_2026",
-        "20260729_meas_09_RMO_Pert_CALIB_c20_f12_40Hz",
-        "20260729_meas_10_RMO_Pert_CALIB_baseline_40Hz",
-        "20260729_meas_11_RMO_Pert_CALIB_c25_f04_40Hz",
-        "20260729_meas_12_RMO_Pert_CALIB_c25_f12_40Hz_2026",
-        "20260729_meas_13_RMO_Pert_CALIB_c30_f04_40Hz",
-        "20260729_meas_14_RMO_Pert_CALIB_c30_f12_40Hz",
-        "20260729_meas_15_RMO_Pert_CALIB_baseline_40Hz",
+        "20260812_meas00_SWN_30Hz",
+        "20260812_meas01_SWN_30Hz",
+        "20260812_meas02_chirp_50Hz",
+        "20260812_meas03_DG_2sT_10rep_8dir_50Hz",
+        "20260812_meas04_RMO_Pert_Videos_c25_f05_40Hz",
+        "20260812_meas05_SWN_30Hz",
+        "20260812_meas06_barcode_8dir_50Hz",
     ],  # Ordered list of recording_names without your file extension (mostlikly .raw). Don't forget to put it as raw string using r before the name : r'Checkerboard'.
     "registration_directory": r"",
 }
@@ -60,7 +52,7 @@ basic_params = {
 #     is <root>/Sorting and the phy ".GUI" folder inside it is found automatically.
 #   - If you sorted on another machine / in another folder, set the path(s) explicitly.
 sorting_directory_override = None  # e.g. r"/media/other_pc/exp/Sorting"
-phy_directory_override = "/media/idv-s8/SSD Storage/20260729_VideoLSTA_calib/RAW_DATA/20260729_meas_00_SWN_30Hz/20260729_meas_00_SWN_30Hz.GUI"
+phy_directory_override = "/media/idv-s8/SSD Storage/20260812_Ze_eclipse_experiment_Video_LSTA_2/RAW_DATA/20260812_meas00_SWN_30Hz/20260812_meas00_SWN_30Hz.GUI"
 
 # ---------------------------------------------------------------------------
 # Stimulus (.vec) files
