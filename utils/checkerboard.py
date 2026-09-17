@@ -123,7 +123,10 @@ def checkerboard_from_binary(
                     message = "Unexpected bit value: {}".format(bit)
                     raise ValueError(message)
 
+
         checkerboard[frame, :, :] = image_projection(image, mea)
+    if not checkerboard_file.parent.exists():
+        checkerboard_file.parent.mkdir(parents=True, exist_ok=True)
     np.save(checkerboard_file, checkerboard)
     print(f"Checkerboard stimulus created and saved at : {checkerboard_file}")
     return checkerboard
@@ -157,7 +160,7 @@ def extract_from_sequence(
             - "psth": 1D numpy array containing the mean firing rate across repetitions for each time bin, computed from "counted_spikes".
     """
     nb_sequences = int(len(triggers) / nb_frames_per_sequence)
-    int(nb_frames_per_sequence / stim_frequency)
+    # int(nb_frames_per_sequence / stim_frequency)
 
     repeated_sequences_times = []
     spike_trains = []

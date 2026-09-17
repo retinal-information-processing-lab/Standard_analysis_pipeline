@@ -11,171 +11,21 @@ import matplotlib.pyplot as plt
 import math
 from matplotlib.gridspec import GridSpec
 from types import ModuleType
-
-# import custom packages
-import utils
+from pathlib import Path
+from analysis.tools import load_obj, save_obj
+from analysis.analysis_params import checkerboard_params, recording_params, checkerboard_dir
 
 # ------------------------------------------------------------------------------------------------------------------- #
 # CHECKERBOARD DATA LOADING AND PREPARATION
 # ------------------------------------------------------------------------------------------------------------------- #
-
-
-def prompt_user_for_checkerboard_params() -> tuple[int, int, int, int]:
-    """
-    Prompt user for stimulus parameters.
-
-    Returns:
-        Tuple of (stimulus_frequency, nb_checks_x, nb_checks_y)
-    """
-    stimulus_frequency = int(
-        input("Select stimulus frequency (Hz, usually in stimulus filename): ")
-    )
-    nb_checks_x = int(
-        input("Select number of checks on x (sq, usually in stimulus filename): ")
-    )
-    nb_checks_y = int(
-        input("Select number of checks on y (sq, usually in stimulus filename): ")
-    )
-    nb_pixels_per_check = int(
-        input("Select number of pixels per check (px, usually in stimulus filename): ")
-    )
-
-    return stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check
-
-
-def get_all_inputs_for_checkerboard_analysis(
-    params: ModuleType,
-    is_swn: bool = False,
-) -> tuple[int, str, float, int, int, int, str]:
-    """
-    Get all input parameters for a checkerboard (or SWN) experiment analysis.
-
-    Interactively prompts for the recording and stimulus frequency, and for the
-    checkerboard the number/size of checks too. Creates the analysis directory.
-
-    Args:
-        params: params module with recording_names and output_directory.
-        is_swn: if True, this is a Shifting-White-Noise recording — the check
-            count/size questions are skipped (they don't apply to SWN; its spatial
-            resolution comes from the .bin frames and the down-sampling shift).
-
-    Returns:
-        Tuple containing:
-            - recording_number: Selected recording index
-            - recording_name: Selected recording name
-            - stimulus_frequency: Stimulus frequency in Hz
-            - nb_checks_x: Number of checks in x (None for SWN)
-            - nb_checks_y: Number of checks in y (None for SWN)
-            - nb_pixels_per_check: Number of pixels per check (None for SWN)
-            - check_directory: Path to analysis output directory
-    """
-    stim_label = "SWN" if is_swn else "checkerboard"
-    recording_number, recording_name = utils.prompt_user_for_recording(
-        params.recording_names, stim_label
-    )
-    if is_swn:
-        # SWN: only the stimulus frequency is needed (no checks).
-        stimulus_frequency = int(
-            input("Select stimulus frequency (Hz, usually in stimulus filename): ")
-        )
-        nb_checks_x = nb_checks_y = nb_pixels_per_check = None
-    else:
-        stimulus_frequency, nb_checks_x, nb_checks_y, nb_pixels_per_check = (
-            prompt_user_for_checkerboard_params()
-        )
-    check_directory = utils.create_analysis_directory(
-        params.output_directory, recording_number, "Checkerboard"
-    )
-
-    return (
-        recording_number,
-        recording_name,
-        stimulus_frequency,
-        nb_checks_x,
-        nb_checks_y,
-        nb_pixels_per_check,
-        check_directory,
-    )
-
-
-def calculate_checkerboard_experiment_stats(
-    triggers: np.ndarray, params: ModuleType, stimulus_frequency: float
-) -> tuple[int, int]:
-    """
-    Calculate and display experiment statistics.
-
-    Args:
-        triggers: Array of trigger times
-        params: Module from params.py containing experiment parameters including 'nb_frames_by_sequence'
-        stimulus_frequency: Stimulus frequency in Hz
-
-    Returns:
-        Tuple of (nb_repeats, duration_sequence)
-    """
-    nb_repeats = int(len(triggers) / params.nb_frames_by_sequence)
-    duration_sequence = int(params.nb_frames_by_sequence / stimulus_frequency)
-
-    print("\nCheckerboard Stats :")
-    print(f"\t- {int(triggers[-1] / 60)} min total duration")
-    print(f"\t- {len(triggers)} triggers")
-    print(f"\t- {nb_repeats} complete sequences")
-    print(f"\t- {duration_sequence} seconds per sequence\n")
-
-    return nb_repeats, duration_sequence
-
-
-def load_or_create_checkerboard_stimulus(
-    nb_repeats: int,
-    nb_checks_x: int,
-    nb_checks_y: int,
-    check_directory: str,
-    params: ModuleType,
-) -> np.ndarray:
-    """
-    Load existing stimulus array or create new one.
-
-    Args:
-        nb_repeats: Number of stimulus repetitions
-        nb_checks_x: Number of checks in x dimension
-        nb_checks_y: Number of checks in y dimension
-        check_directory: Directory for stimulus file
-        params: Module from params.py containing experiment parameters including 'nb_frames_by_sequence' and 'binary_source_path'
-
-    Returns:
-        Checkerboard stimulus array
-    """
-    nb_frames = int(nb_repeats * int(params.nb_frames_by_sequence / 2))
-    stimulus_path = os.path.normpath(
-        os.path.join(
-            check_directory,
-            f"checkerboard_{nb_checks_x}x{nb_checks_y}checks_{nb_frames}frames.npy",
-        )
-    )
-
-    if os.path.isfile(stimulus_path):
-        print(f"Stimulus file exists. Loaded from:\t {stimulus_path}")
-        checkerboard = np.load(stimulus_path)
-    else:
-        print("Reconstructing the stimulus...")
-        checkerboard = utils.checkerboard_from_binary(
-            nb_frames,
-            nb_checks_x,
-            nb_checks_y,
-            checkerboard_file=stimulus_path,
-            binary_source_path=params.binary_source_path,
-            mea=params.MEA,
-        )
-
-    return checkerboard
+import utils
 
 
 def load_checkerboard_data(
-    params: ModuleType,
-    check_directory: str,
-    checkerboard_name: str,
-    nb_checks_x: int,
-    nb_checks_y: int,
-    stimulus_frequency: float,
+    # params: ModuleType,
+    rec_name: str,
+    sid: str,
+    output_directory: Path,
 ) -> tuple:
     """
     Load and process all checkerboard experiment data.
@@ -198,267 +48,51 @@ def load_checkerboard_data(
             - cells_id: List of cell IDs
             - checkerboard: Stimulus array
     """
-    print(params.triggers_directory)
-    triggers_path = os.path.normpath(
-        os.path.join(
-            params.triggers_directory,
-            f"{params.exp}_{checkerboard_name}_triggers.pkl",
-        )
+
+    triggers_path = output_directory / f'{sid}_{rec_name}_triggers.pkl'
+    triggers_data = load_obj(triggers_path)
+    stim_onsets = triggers_data["indices"] / recording_params['fs']
+
+    sp_path = output_directory / f'{sid}_fullexp_neurons_data.pkl'
+    spike_trains = load_obj(sp_path)
+
+    cell_ids = list(spike_trains.keys())
+    spike_times = {cell: spike_trains[cell][rec_name] for cell in cell_ids}
+
+    nb_repeats = int(len(stim_onsets) / checkerboard_params['nb_frames_by_sequence'])
+
+    nb_frames = int(nb_repeats * int(checkerboard_params['nb_frames_by_sequence'] / 2))
+    nb_checks_x = checkerboard_params['nb_checks_x']
+    nb_checks_y = checkerboard_params['nb_checks_y']
+
+    checkerboard = utils.checkerboard_from_binary(
+        nb_frames,
+        nb_checks_x,
+        nb_checks_y,
+        checkerboard_file=output_directory / 'checkerboard' / 'checkerboard.npy',
+        binary_source_path=checkerboard_dir / '0_chirp_MEA1_50Hz.bin',
+        mea=2,
     )
-    print(f"Loading triggers from:\t {triggers_path}")
-    stim_onsets = utils.load_stim_onset_from_triggers_path(
-        triggers_path, params.fs, verbose=True
-    )
-    cells_id, checkerboard_spikes = utils.load_spike_times(
-        checkerboard_name, params.output_directory, params.exp
-    )
-    nb_repeats, _ = calculate_checkerboard_experiment_stats(
-        stim_onsets, params, stimulus_frequency
-    )
-    checkerboard = load_or_create_checkerboard_stimulus(
-        nb_repeats, nb_checks_x, nb_checks_y, check_directory, params
-    )
+    print('CHECK IF MEA 2 OR 3 (ANALYSE CHECKERBOARD)')
+
     print(f"Checkerboard stimulus shape: {checkerboard.shape}")
 
     print(
-        f"\nTotal : {len(checkerboard_spikes.keys())} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n"
+        f"\nTotal : {len(spike_times.keys())} neurons loaded\nCell ids: {[int(x) for x in cell_ids]}\n"
     )
 
-    return checkerboard_spikes, stim_onsets, nb_repeats, cells_id, checkerboard
+    return spike_times, stim_onsets, nb_repeats, cell_ids, checkerboard
 
-
-# ------------------------------------------------------------------------------------------------------------------- #
-# SWN (Shifting White Noise) — alternative stimulus. Reuses the whole checkerboard STA
-# pipeline; only the stimulus reconstruction and one decorrelation step differ.
-# ------------------------------------------------------------------------------------------------------------------- #
-
-
-def load_swn_stimulus(
-    bin_path: str,
-    vec_path: str,
-    rig_id: int,
-    shift_x: int,
-    shift_y: int,
-    sigma: float = 5.0,
-) -> tuple:
-    """
-    Reconstruct a Shifting-White-Noise (SWN) stimulus from its .bin (raw frames) and
-    .vec files, and compute the stimulus covariance used later to whiten the STA.
-
-    Unlike the checkerboard (drawn from a white binary source), SWN frames are
-    spatially correlated, so the spatial STA must be decorrelated by the inverse of
-    this covariance afterwards (see decorrelate_spatial_stas).
-
-    Args:
-        bin_path: path to the SWN .bin file (raw noise frames, read via utils.binfile.BinFile).
-        vec_path: path to the SWN .vec file (its header column 1 gives the total frame count).
-        rig_id: MEA / rig id (params.MEA). Its DMD geometry, polarity and optical
-            transform are read from params.rig_params; rigs that are not implemented
-            /tested raise a clear error.
-        shift_x: spatial down-sampling step in x (pixels).
-        shift_y: spatial down-sampling step in y (pixels).
-        sigma: value added to the covariance diagonal for numerical stability.
-
-    Returns:
-        stimulus: np.ndarray (n_frames, H, W) of the down-sampled, unrepeated SWN frames.
-        C_I: np.ndarray (H*W, H*W) regularised stimulus covariance matrix.
-    """
-    from .binfile import BinFile
-
-    vec_data = np.loadtxt(vec_path)
-    vec_trigs, vec_header = vec_data[1:], vec_data[0]
-    # Only the first half of the SWN frames are unrepeated (used to build the STA).
-    num_unrepeated_frames = int(vec_header[1] / 2)
-
-    bin_obj = BinFile(
-        bin_path, 0, 0, rig_id, mode="r"
-    )  # frame size is read from the .bin header
-    frames = []
-    for vec in tqdm(vec_trigs, desc="Reconstructing SWN stimulus"):
-        frame_index = int(vec[1])
-        if frame_index < num_unrepeated_frames:
-            frame = bin_obj.read_frame(frame_index)
-            frames.append(frame[::shift_x, ::shift_y] / frame.max())
-    bin_obj.close()
-    stimulus = np.array(frames)
-    print(
-        f"SWN stimulus reconstructed: {stimulus.shape[0]} frames of {stimulus.shape[1]}x{stimulus.shape[2]}"
-    )
-
-    # Stimulus covariance (for decorrelating the STA); regularised on the diagonal.
-    print("Computing SWN stimulus covariance matrix...")
-    stimulus_matrix = stimulus.reshape(len(stimulus), -1)
-    cov = np.cov(stimulus_matrix.T)
-    C_I = cov + np.eye(cov.shape[0]) * sigma
-    return stimulus, C_I
-
-
-def load_swn_data(
-    params: ModuleType,
-    swn_recording_name: str,
-    stimulus_frequency: float,
-) -> tuple:
-    """
-    Load everything needed for an SWN analysis: triggers, spikes, the reconstructed
-    SWN stimulus and its covariance matrix.
-
-    Triggers and spikes are loaded exactly like the checkerboard path; only the
-    stimulus comes from the SWN .bin/.vec (via load_swn_stimulus) and an extra
-    covariance matrix C_I is returned for the later STA decorrelation.
-
-    Args:
-        params: params module (uses triggers_directory, exp, fs, output_directory, MEA,
-            stim_directory, swn_bin_file, swn_vec_file, swn_shift_x, swn_shift_y,
-            swn_cov_regularization).
-        swn_recording_name: the SWN recording name (to locate its triggers/spikes).
-        stimulus_frequency: stimulus frequency in Hz.
-
-    Returns:
-        swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
-    """
-    triggers_path = os.path.normpath(
-        os.path.join(
-            params.triggers_directory, f"{params.exp}_{swn_recording_name}_triggers.pkl"
-        )
-    )
-    print(f"Loading triggers from:\t {triggers_path}")
-    stim_onsets = utils.load_stim_onset_from_triggers_path(
-        triggers_path, params.fs, verbose=True
-    )
-    cells_id, swn_spikes = utils.load_spike_times(
-        swn_recording_name, params.output_directory, params.exp
-    )
-    nb_repeats, _ = calculate_checkerboard_experiment_stats(
-        stim_onsets, params, stimulus_frequency
-    )
-
-    # Resolve the SWN .bin/.vec from the stimulus folder (prompts if the exact file is
-    # not there), the same way the other analyses find their .vec files.
-    swn_bin_path = utils.find_vec_file(params.swn_bin_file, params.stim_directory)
-    swn_vec_path = utils.find_vec_file(params.swn_vec_file, params.stim_directory)
-    stimulus, C_I = load_swn_stimulus(
-        swn_bin_path,
-        swn_vec_path,
-        params.MEA,
-        params.swn_shift_x,
-        params.swn_shift_y,
-        params.swn_cov_regularization,
-    )
-
-    print(
-        f"\nTotal : {len(swn_spikes)} neurons loaded\nCell ids: {[int(x) for x in cells_id]}\n"
-    )
-    return swn_spikes, stim_onsets, nb_repeats, cells_id, stimulus, C_I
-
-
-# ------------------------------------------------------------------------------------------------------------------- #
-# RESPONSE EXTRACTION
-# ------------------------------------------------------------------------------------------------------------------- #
-
-
-def extract_all_cell_responses_to_repeated_sequences(
-    checkerboard_spikes: dict,
-    triggers: np.ndarray,
-    nb_repeats: int,
-    stimulus_frequency: float,
-    cells_id: list,
-    nb_frames_per_sequence: int,
-    sequence_portion: tuple = (0.5, 1),
-) -> dict:
-    """
-    Extract responses to repeated stimulus sequences for all cells.
-
-    Args:
-        checkerboard_spikes: Dict mapping cell IDs to spike times {cell_id: np.array of spike times}
-        triggers: Array of trigger times (n_triggers,)
-        nb_repeats: Number of complete stimulus sequences
-        stimulus_frequency: Stimulus frequency in Hz
-        cells_id: List of cell IDs to process
-        nb_frames_per_sequence: Number of frames in each stimulus sequence
-        sequence_portion: Tuple specifying which portion of sequence to use (e.g., (0.5, 1) for second half)
-
-    Returns:
-        Dict containing extracted responses for each cell, including:
-            - spike_trains: List of spike trains for each repetition
-            - repeated_sequences_times: List of start and end times for each repeated sequence
-
-            output_data = {
-                cell_id (np.uint): {
-                    'spike_times': np.array of shape (n_spikes,)
-                    'repeated_sequences_times': list of length nb_repeats
-                    'spike_trains': list of length nb_repeats
-                    'counted_spikes': np.array of shape (nb_repeats, n_bins)
-                    'psth': np.array of shape (n_bins,)
-                },
-    """
-
-    # initialise output
-    output_data = {}
-
-    # loop over the spikes recorded during the checkerboard experiment
-    # get the responses to the repeated sequence
-    for cell_id, spike_times in tqdm(
-        checkerboard_spikes.items(),
-        desc="Extracting responses to repeated sequence for each cell",
-    ):
-        output_data[cell_id] = utils.extract_from_sequence(
-            spike_times,
-            triggers,
-            nb_repeats,
-            stim_frequency=stimulus_frequency,
-            sequence_portion=sequence_portion,
-            nb_frames_per_sequence=nb_frames_per_sequence,
-        )
-
-    # check data
-    assert set(output_data.keys()) == set(cells_id), (
-        "Error in extracting data: Cell IDs in output data do not match expected cell IDs"
-    )
-    for cell_id in cells_id:
-        assert (
-            "spike_times" in output_data[cell_id]
-            and output_data[cell_id]["spike_times"].ndim == 1
-        ), (
-            f"Error in extracting data: 'spike_times' key missing or None for cell ID {cell_id}"
-        )
-        assert (
-            "repeated_sequences_times" in output_data[cell_id]
-            and isinstance(output_data[cell_id]["repeated_sequences_times"], list)
-            and len(output_data[cell_id]["repeated_sequences_times"]) == nb_repeats
-        ), (
-            f"Error in extracting data: 'repeated_sequences_times' key missing or not a list for cell ID {cell_id}"
-        )
-        assert (
-            "spike_trains" in output_data[cell_id]
-            and isinstance(output_data[cell_id]["spike_trains"], list)
-            and len(output_data[cell_id]["spike_trains"]) == nb_repeats
-        ), (
-            f"Error in extracting data: 'spike_trains' key missing or not a list for cell ID {cell_id}"
-        )
-        assert (
-            "counted_spikes" in output_data[cell_id]
-            and output_data[cell_id]["counted_spikes"].ndim == 2
-            and output_data[cell_id]["counted_spikes"].shape[0] == nb_repeats
-        ), (
-            f"Error in extracting data: 'counted_spikes' key missing or not a 2D array for cell ID {cell_id}"
-        )
-        nbins = output_data[cell_id]["counted_spikes"].shape[1]
-        assert (
-            "psth" in output_data[cell_id]
-            and output_data[cell_id]["psth"].ndim == 1
-            and output_data[cell_id]["psth"].shape[0] == nbins
-        ), (
-            f"Error in extracting data: 'psth' key missing or not a 1D array for cell ID {cell_id}"
-        )
-    return output_data
 
 
 def plot_all_rasters(
     rep_seq_data: dict,
     cells_id: list,
+    savename: Path,
     fontsize: int = 35,
     show_labels: bool = False,
     plotting: bool = True,
+
 ):
     """
     Plot rasters for all cells in a grid (might take a few seconds).
@@ -473,28 +107,31 @@ def plot_all_rasters(
     Returns:
             None (plots are displayed if plotting is True)
     """
-    if plotting:
-        size = int(math.sqrt(len(cells_id))) + 1
+    size = int(math.sqrt(len(cells_id))) + 1
 
-        # setup subplots
-        fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
-        for i in tqdm(range(size**2), desc="Plotting rasters for all cells"):
-            ax = axs[i // size, i % size]
-            if i < len(cells_id):
-                ax.eventplot(rep_seq_data[cells_id[i]]["spike_trains"])
-                ax.set_title(f"C{cells_id[i]}", fontsize=fontsize)
-                if show_labels:
-                    ax.set_xlabel("Time (s)", fontsize=fontsize)
-                if show_labels:
-                    ax.set_ylabel("n repetition", fontsize=fontsize)
-            else:
-                ax.set_visible(False)
+    # setup subplots
+    fig, axs = plt.subplots(nrows=size, ncols=size, figsize=(50, 50))
+    for i in tqdm(range(size**2), desc="Plotting rasters for all cells"):
+        ax = axs[i // size, i % size]
+        if i < len(cells_id):
+            ax.eventplot(rep_seq_data[cells_id[i]]["spike_trains"])
+            ax.set_title(f"C{cells_id[i]}", fontsize=fontsize)
+            if show_labels:
+                ax.set_xlabel("Time (s)", fontsize=fontsize)
+            if show_labels:
+                ax.set_ylabel("n repetition", fontsize=fontsize)
+        else:
+            ax.set_visible(False)
 
-        # format and close
-        plt.tight_layout()
-        plt.show(block=False)
-        plt.close("all")
-    return None
+    # format and close
+    plt.tight_layout()
+    # plt.show(block=False)
+    if not savename.parent.exists():
+        savename.parent.mkdir(parents=True)
+    plt.savefig(savename.as_posix())
+    plt.close("all")
+
+    print(f'saved: {savename}')
 
 
 def plot_raster_and_psth(
