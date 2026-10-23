@@ -219,6 +219,54 @@ def select_dos_cells(
     return dos_cells, non_dos_cells
 
 
+def edit_dos_selection(
+    dos_cells: list,
+    selected_cells: list,
+    add_to_dos: list,
+    remove_from_dos: list,
+    CT_directory: str,
+    params: dict,
+):
+    """Manually move cells into / out of the DOS group, then save the edited selection.
+
+    The edited selection overwrites the saved one, so the next run of
+    ``select_dos_cells`` reloads it. Re-running with the same lists changes nothing.
+
+    Args:
+        dos_cells (list): current DOS cells (from ``select_dos_cells``).
+        selected_cells (list): cells chosen for clustering; only these can be DOS.
+        add_to_dos (list): cells to move INTO the DOS group.
+        remove_from_dos (list): cells to move OUT of the DOS group.
+        CT_directory (str): cell typing output directory (the selection is saved here).
+        params (dict): experiment parameters containing 'exp'.
+
+    Returns:
+        dos_cells (list): the edited DOS cells (subset of selected_cells).
+        non_dos_cells (list): the remaining selected cells.
+    """
+    both = set(add_to_dos) & set(remove_from_dos)
+    if both:
+        raise ValueError(
+            f"Cells in both add_to_dos and remove_from_dos: {sorted(both)}"
+        )
+    unknown = [c for c in add_to_dos if c not in selected_cells]
+    if unknown:
+        print(f"Not among the selected cells, ignored: {unknown}")
+
+    new_dos = (set(dos_cells) | set(add_to_dos)) - set(remove_from_dos)
+    dos_cells = [cell for cell in selected_cells if cell in new_dos]
+    non_dos_cells = [cell for cell in selected_cells if cell not in new_dos]
+
+    utils.save_obj(
+        {"dos_cells": dos_cells, "non_dos_cells": non_dos_cells},
+        os.path.join(CT_directory, f"{params.exp}_dos_cells"),
+    )
+    print(
+        f"{len(dos_cells)} DOS (orientation/direction selective), {len(non_dos_cells)} non-DOS cells."
+    )
+    return dos_cells, non_dos_cells
+
+
 def select_clusterable_cells(cell_data, sta_results, selected_cells):
     """Drop cells that cannot be clustered.
 
