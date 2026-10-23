@@ -1,6 +1,5 @@
 import numpy as np
 import os
-import gc
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 from collections import defaultdict
@@ -569,6 +568,7 @@ def plot_sequence_with_stimulus(
     smoothing: float = 0.4,
     fontsize: int = 18,
     n_digit_for_rep: int = 4,
+    fig=None,
 ):
     """Raster + PSTH of one sequence, with the stimulus vec tracks drawn on top.
 
@@ -582,13 +582,18 @@ def plot_sequence_with_stimulus(
         columns: list of (column_index, label) to show, e.g. ``[(1, "image idx")]``.
         color, smoothing, fontsize: passed through to ``plot_sequence``.
         n_digit_for_rep: repetition-digit count of the vec keys.
+        fig: an existing Figure to draw into (it is cleared first). None (default) creates
+            a new one. Passing the same figure from a loop avoids re-creating one per plot.
 
     Returns:
         The matplotlib Figure.
     """
     stimulus = get_sequence_stimulus(vec, sequence_key, n_digit_for_rep)
 
-    fig = plt.figure(figsize=(12, 10))
+    if fig is None:
+        fig = plt.figure(figsize=(12, 10))
+    else:
+        fig.clear()
     gs = fig.add_gridspec(
         3, 1, height_ratios=[max(1.0, 0.7 * len(columns)), 3, 1.2], hspace=0.15
     )
@@ -715,6 +720,7 @@ def save_sequence_figures(
     fontsize: int = 18,
     vec=None,
     stimulus_columns=None,
+    n_digit_for_rep: int = 4,
 ) -> None:
     """
     Plot and save a raster + PSTH figure for every cell x sequence-type pair.
@@ -733,6 +739,8 @@ def save_sequence_figures(
             a "Stimulus" panel with the chosen vec columns is drawn above each raster.
         stimulus_columns: list of (column_index, label) to show as stimulus tracks,
             e.g. ``[(1, "image idx"), (2, "color")]``. Ignored if vec is None.
+        n_digit_for_rep: repetition-digit count of the vec keys (needed to pull each
+            sequence's stimulus frames from the vec when vec is given).
     """
     show_stimulus = vec is not None and stimulus_columns
     if clusters_as_folder:
@@ -744,6 +752,9 @@ def save_sequence_figures(
         )  # swap cell/sequence nesting
         element, scd_element = "Sequence", "Cell"
 
+    # ONE figure for the whole loop, cleared and redrawn for each plot: creating and
+    # closing hundreds of figures is slow and fragments memory.
+    fig = plt.figure(figsize=(12, 10) if show_stimulus else (10, 10))
     for elt in tqdm(dict_to_plot.keys()):
         item_directory = os.path.normpath(
             os.path.join(analysis_directory, f"{element}_{elt}")
@@ -758,7 +769,7 @@ def save_sequence_figures(
             if show_stimulus:
                 # scd_elt is the sequence when clusters_as_folder, otherwise elt is.
                 sequence_key = scd_elt if clusters_as_folder else elt
-                fig = plot_sequence_with_stimulus(
+                plot_sequence_with_stimulus(
                     dict_to_plot[elt][scd_elt],
                     vec,
                     sequence_key,
@@ -766,14 +777,13 @@ def save_sequence_figures(
                     color=color,
                     smoothing=smoothing,
                     fontsize=fontsize,
+                    n_digit_for_rep=n_digit_for_rep,
+                    fig=fig,
                 )
             else:
-                fig, axs = plt.subplots(
-                    nrows=2,
-                    ncols=1,
-                    sharex=True,
-                    gridspec_kw={"height_ratios": [3, 1]},
-                    figsize=(10, 10),
+                fig.clear()
+                axs = fig.subplots(
+                    nrows=2, ncols=1, sharex=True, gridspec_kw={"height_ratios": [3, 1]}
                 )
                 plot_sequence(
                     dict_to_plot[elt][scd_elt],
@@ -783,11 +793,10 @@ def save_sequence_figures(
                     smoothing=smoothing,
                     fontsize=fontsize,
                 )
-            plt.suptitle(f"{scd_element}_{scd_elt}", fontsize=fontsize + 2)
-            plt.subplots_adjust(wspace=0, hspace=0)
-            plt.savefig(figure_path)
-            plt.close(fig)
-            gc.collect()  # free memory between figures (many cells x sequences)
+            fig.suptitle(f"{scd_element}_{scd_elt}", fontsize=fontsize + 2)
+            fig.subplots_adjust(wspace=0, hspace=0)
+            fig.savefig(figure_path)
+    plt.close(fig)
 
 
 def smooth(
