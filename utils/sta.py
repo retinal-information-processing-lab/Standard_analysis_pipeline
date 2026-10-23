@@ -87,9 +87,10 @@ def gaussian2D(
     if sigma_y == 0:
         sigma_y = 0.001
     shape = (int(shape[0]), int(shape[1]))
-    x = np.linspace(0, shape[1], shape[1])
-    y = np.linspace(0, shape[0], shape[0])
-    X, Y = np.meshgrid(x, y)
+    # Grid = pixel indices 0..N-1 (same convention as imshow and np.argmax). Do NOT use
+    # np.linspace(0, N, N): its step is N/(N-1), which scaled every fitted centre and sigma
+    # by N/(N-1) (~0.8 pixel off, i.e. ~150 µm with 12x12 checks).
+    X, Y = np.meshgrid(np.arange(shape[1]), np.arange(shape[0]))
 
     theta = 3.14 * angle / 180
     a = (math.cos(theta) ** 2) / (2 * sigma_x**2) + (math.sin(theta) ** 2) / (

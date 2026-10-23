@@ -166,7 +166,8 @@ and grep the notebooks for the duplicated code it replaces.
   network. Regression tests on real data are out of scope: the figures are the visual check.
 - `tests/test_utils.py` (loading helpers), `tests/test_vec_sequences.py` (the vec "sequence"
   machinery: key parsing, rasters, PSTH bins, repetition filtering),
-  `tests/test_vec_sequences.py` also covers the repetition-range filter.
+  `tests/test_vec_sequences.py` also covers the repetition-range filter,
+  `tests/test_sta_fit.py` (the RF ellipse fit recovers a known centre and sigma).
 - When you fix a bug, add the test that would have caught it first (e.g. the 27/28-bin PSTH
   test was built from the real trigger samples that exposed it).
 
@@ -186,6 +187,20 @@ and grep the notebooks for the duplicated code it replaces.
 ## Change log
 
 Newest first. Older entries summarised from the Phase I / II notes.
+
+**2026-10-23 (Baptiste)** — RF ellipse fit bias fixed
+- `utils.sta.gaussian2D` built its grid with `np.linspace(0, N, N)` (step `N/(N-1)`), so every
+  fitted RF centre was ~0.8 STA pixel off and every sigma `N/(N-1)` too large. In µm the
+  centre error is ~16 µm on 80x80 STAs but ~85-150 µm with big checks (24x24 / 12x12), where
+  the ellipse visibly missed the mask. Now on pixel indices; checked on real 24x24-check data
+  (2023_07_13 dark bar): ellipse centre to blob centroid 89 µm -> 16 µm.
+- **Saved `sta_data_analysed_extended.pkl` are biased: re-run the STA analysis of notebook 2**
+  for correct `EllipseCoor` (RF diameters shrink by ~1 % on 80x80 STAs, ~2 % at 126 µm checks,
+  ~9 % at 12 checks). Everything reading `EllipseCoor` follows (µm conversion, four-squares
+  map, cluster figures). The cyan marker of the STA figures is an `argmax`, so it stays on a
+  check centre by design: with big checks it can sit up to half a check from the ellipse.
+- `utils/holography.py` also uses `gaussian2D` (smoothing kernel, ellipse drawing): its
+  effective sigma changes by the same `N/(N-1)`.
 
 **2026-09-16 (Baptiste)** — four-squares preamble v2
 - Preamble is now grey, **black**, four squares (6 frames, stimulus starts at 6). Each square
