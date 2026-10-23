@@ -6,6 +6,9 @@ functions the Standard_Vec_Analysis notebook uses) to split each cell's spikes p
 direction and repetition, then computes direction tuning and plots rasters + polar
 tuning curves.
 
+The same analysis also runs on the barcode stimulus (random bars moving in 8
+directions, 15 repetitions): pass ``stimulus_name="barcode"``.
+
 contact: laquitainesteeve@gmail.com
 """
 
@@ -26,29 +29,58 @@ import utils
 N_DIRECTIONS = 8  # number of grating directions (45° apart)
 N_REPETITIONS = 4  # number of times each direction is shown
 
-# Per grating speed: sweep duration of one grating and the separation used to lay
-# the 8 directions side by side on a single plot time axis (purely for display).
-DG_SPEED_SETTINGS = {
-    0: {"label": "FAST", "seq_len": 3.96, "seq_sep": 9},
-    1: {"label": "MEDIUM", "seq_len": 6.0, "seq_sep": 10},
-    2: {"label": "SLOW", "seq_len": 12.0, "seq_sep": 20},
+DG_VEC_FILE = "DG_50hZ_8reps_8dir_2sT_std.vec"
+BARCODE_VEC_FILE = "00_BarcodeV2_8dir_15rep_50Hz.vec"
+BARCODE_FRAMES_PER_SEQUENCE = 746  # frames of one barcode sequence (one direction)
+BARCODE_FRAME_RATE = 50  # Hz
+
+# Angle index (0..7, i.e. 0°, 45°, ..., 315° on the polar plot) of each vec direction
+# key 1..8: entry k-1 is the angle index of direction key k.
+# DG: the original pipeline indexed angles as ``7 - <grating index in presentation
+# order>`` (the "counterclockwise" flip); the vec key is ``<grating index> + 1``.
+DG_ANGLE_INDEX_OF_DIRECTION = (7, 6, 5, 4, 3, 2, 1, 0)
+# Barcode: direction keys 1..8 move toward 9h, 7.5h, 6h, 4.5h, 3h, 1.5h, 12h, 10.5h on
+# a clock face, i.e. 180°, 225°, ..., 135° (0° = 3h, counterclockwise).
+BARCODE_ANGLE_INDEX_OF_DIRECTION = (4, 5, 6, 7, 0, 1, 2, 3)
+
+# One entry per stimulus you can analyse:
+#   seq_len          duration (s) of one direction (one grating sweep / one barcode)
+#   seq_sep          separation (s) used to lay the 8 directions side by side on a
+#                    single plot time axis (purely for display; must be > seq_len)
+#   vec_file         default vec file for this stimulus
+#   n_digit_for_rep  trailing digits of the vec key that encode the repetition
+#   angle_index_of_direction   see above
+DG_SETTINGS = {
+    "vec_file": DG_VEC_FILE,
+    "n_digit_for_rep": 4,
+    "angle_index_of_direction": DG_ANGLE_INDEX_OF_DIRECTION,
 }
+STIMULUS_SETTINGS = {
+    "DG fast": {"seq_len": 3.96, "seq_sep": 9, **DG_SETTINGS},
+    "DG medium": {"seq_len": 6.0, "seq_sep": 10, **DG_SETTINGS},
+    "DG slow": {"seq_len": 12.0, "seq_sep": 20, **DG_SETTINGS},
+    "barcode": {
+        "seq_len": BARCODE_FRAMES_PER_SEQUENCE / BARCODE_FRAME_RATE,  # 14.92 s
+        "seq_sep": 20,
+        "vec_file": BARCODE_VEC_FILE,
+        "n_digit_for_rep": 2,  # key = <direction><2-digit repetition>, e.g. 314
+        "angle_index_of_direction": BARCODE_ANGLE_INDEX_OF_DIRECTION,
+    },
+}
+DEFAULT_STIMULUS = STIMULUS_SETTINGS["DG slow"]
 
 # The original pipeline subtracted no baseline firing rate.
 BASELINE_FIRING = 0
 
 
-def direction_key_to_angle_index(direction_key) -> int:
+def direction_key_to_angle_index(direction_key, stimulus=DEFAULT_STIMULUS) -> int:
     """Map a vec direction key (1..8) to the angle index 0..7 used by the tuning code.
 
-    The original pipeline indexed angles as ``7 - <grating index in presentation
-    order>`` (the "counterclockwise" flip). The vec key encodes ``<grating index> + 1``,
-    so the equivalent angle index is ``N_DIRECTIONS - direction_key``.
-
-    If a later validation shows rotated/flipped tuning curves, the vec's direction
-    ordering differs from the old hardcoded order and THIS is the single place to fix it.
+    The mapping is the stimulus's ``angle_index_of_direction`` (see the constants at the
+    top of this file). If a later validation shows rotated/flipped tuning curves, THAT
+    tuple is the single place to fix it.
     """
-    return N_DIRECTIONS - int(direction_key)
+    return stimulus["angle_index_of_direction"][int(direction_key) - 1]
 
 
 # ==========================
@@ -56,27 +88,24 @@ def direction_key_to_angle_index(direction_key) -> int:
 # ==========================
 
 
-def prompt_user_for_dg_speed():
-    """Ask the user for the grating speed and return its settings.
+def check_vec_matches_stimulus(vec_keys, stimulus_name, vec_path):
+    """Stop with a clear message if the vec does not look like the chosen stimulus.
 
-    Returns
-    -------
-    seq_len : float
-        Duration (s) of one grating sweep.
-    seq_sep : float
-        Separation (s) between gratings on the plot time axis (display only).
-    label : str
-        Human-readable speed label.
+    With the stimulus's repetition digits removed, the vec keys must give exactly the
+    direction keys 1..8 (key 0 = grey parts, ignored). A DG vec read as barcode (or the
+    reverse), or a vec of another stimulus, fails this check.
     """
-    speed = int(
-        input("\nSelect grating speed (0 = fast, 1 = medium, 2 = slow (default)): ")
-    )
-    if speed not in DG_SPEED_SETTINGS:
+    n_digit_for_rep = STIMULUS_SETTINGS[stimulus_name]["n_digit_for_rep"]
+    keys = np.asarray(vec_keys).astype(int)
+    directions = set(np.unique(keys[keys != 0] // 10**n_digit_for_rep).tolist())
+    if directions != set(range(1, N_DIRECTIONS + 1)):
         raise ValueError(
-            "Grating speed must be 0 (fast), 1 (medium) or 2 (slow = default)."
+            f"The vec file\n    {vec_path}\ndoes not look like a '{stimulus_name}' vec "
+            f"(expected directions 1..{N_DIRECTIONS}, found {sorted(directions)[:10]}).\n"
+            "Check 'stimulus_name' and the vec file you picked "
+            f"(standard vec for '{stimulus_name}': "
+            f"{STIMULUS_SETTINGS[stimulus_name]['vec_file']})."
         )
-    settings = DG_SPEED_SETTINGS[speed]
-    return settings["seq_len"], settings["seq_sep"], settings["label"]
 
 
 def infer_n_repetitions_from_vec(vec_keys, n_digit_for_rep: int = 4) -> int:
@@ -90,8 +119,8 @@ def infer_n_repetitions_from_vec(vec_keys, n_digit_for_rep: int = 4) -> int:
     return int(reps.max()) + 1
 
 
-def get_all_inputs_for_dg_analysis(params):
-    """Prompt for the recording, vec file and speed, then load everything needed.
+def get_all_inputs_for_dg_analysis(params, stimulus_name="DG slow", vec_file=None):
+    """Prompt for the recording and vec file, then load everything needed.
 
     The number of repetitions per direction is read from the vec and shown to you for
     confirmation (press Enter to accept, or type the correct number).
@@ -100,6 +129,12 @@ def get_all_inputs_for_dg_analysis(params):
     ----------
     params : object
         Experiment parameters (from params.py).
+    stimulus_name : str
+        Which stimulus was shown: one of the keys of ``STIMULUS_SETTINGS``
+        ("DG fast", "DG medium", "DG slow", "barcode").
+    vec_file : str or None
+        None (default): you are offered the stimulus's standard vec (press Enter) from
+        ``params.stim_directory``, or can pick another. A full path: used directly.
 
     Returns
     -------
@@ -112,34 +147,50 @@ def get_all_inputs_for_dg_analysis(params):
     vec_keys : np.ndarray
         Sequence key of each trigger (the vec file's last column).
     seq_len : float
-        Duration of a grating sweep (s).
+        Duration of one direction (grating sweep or barcode) (s).
     seq_sep : float
-        Separation between gratings on the plot time axis (s).
+        Separation between directions on the plot time axis (s).
     DG_directory : str
-        Output directory for the DG analysis.
+        Output directory for the analysis ("DG_..." or "Barcode_..." folder).
     n_repetitions : int
         Number of repetitions per direction (read from the vec, confirmed by the user).
+    stimulus : dict
+        Settings of the chosen stimulus (see ``STIMULUS_SETTINGS``); pass it on to
+        ``compute_dg_rasters`` and ``plot_dg_rasters``.
     """
+    if stimulus_name not in STIMULUS_SETTINGS:
+        raise ValueError(
+            f"Unknown stimulus_name '{stimulus_name}'. "
+            f"Choose one of: {', '.join(STIMULUS_SETTINGS)}."
+        )
+
     rec_idx, rec = utils.prompt_user_for_recording(
-        params.recording_names, "DG recording"
-    )
-    DG_directory = utils.create_analysis_directory(
-        params.output_directory, rec_idx, "DG"
+        params.recording_names, "DG / barcode recording"
     )
 
-    seq_len, seq_sep, _ = prompt_user_for_dg_speed()
+    stimulus = STIMULUS_SETTINGS[stimulus_name]
+    seq_len, seq_sep = stimulus["seq_len"], stimulus["seq_sep"]
+    print(f"Stimulus: {stimulus_name}")
+
+    analysis_name = "Barcode" if stimulus_name == "barcode" else "DG"
+    DG_directory = utils.create_analysis_directory(
+        params.output_directory, rec_idx, analysis_name
+    )
 
     # Vec file (its last column gives the direction+repetition key of every trigger).
-    # Looks for the standard DG vec in params.stim_directory; if your experiment used a
-    # different version, it lists the .vec files there and asks you to pick the right one.
+    # Offers the stimulus's standard vec from params.stim_directory as the default; if
+    # your experiment used a different version, pick it from the list or paste its path.
     vec_path = utils.find_vec_file(
-        "DG_50hZ_8reps_8dir_2sT_std.vec", params.stim_directory
+        vec_file or stimulus["vec_file"], params.stim_directory
     )
     vec = np.loadtxt(vec_path)[1:, :]  # drop header line
     vec_keys = vec[:, -1]
+    check_vec_matches_stimulus(vec_keys, stimulus_name, vec_path)
 
     # Number of repetitions per direction: read from the vec, confirmed by the user.
-    detected = infer_n_repetitions_from_vec(vec_keys, n_digit_for_rep=4)
+    detected = infer_n_repetitions_from_vec(
+        vec_keys, n_digit_for_rep=stimulus["n_digit_for_rep"]
+    )
     answer = input(
         f"\nDetected {detected} repetitions per direction from the vec. "
         "Press Enter to accept, or type the correct number: "
@@ -166,6 +217,7 @@ def get_all_inputs_for_dg_analysis(params):
         seq_sep,
         DG_directory,
         n_repetitions,
+        stimulus,
     )
 
 
@@ -184,7 +236,7 @@ def compute_dg_rasters(
     DG_directory,
     params,
     n_repetitions: int = N_REPETITIONS,
-    n_digit_for_rep: int = 4,
+    stimulus=DEFAULT_STIMULUS,
 ):
     """Build per-direction rasters and direction tuning for every cell, then save them.
 
@@ -199,6 +251,9 @@ def compute_dg_rasters(
     1..n_repetitions-1 are used), the last raster row is left empty, and no baseline
     firing rate is subtracted.
 
+    ``stimulus`` (from ``get_all_inputs_for_dg_analysis``) gives how the vec keys
+    encode the repetition and which angle each direction is drawn at.
+
     The result is saved as ``{cell_id: DG_data}`` to ``DG_data_exp<exp>.pkl`` in
     ``DG_directory`` (see ``compute_tuning`` for the contents of ``DG_data``).
     """
@@ -206,7 +261,11 @@ def compute_dg_rasters(
     #   spikes_per_sequence[cell][direction_key]["raster"] = [rep0, rep1, rep2, rep3]
     # each repetition being the spike times referenced to that grating's onset.
     spikes_per_sequence, _, _ = utils.build_spikes_per_sequence_dict(
-        cells, spike_times, stim_onsets, vec_keys, n_digit_for_rep=n_digit_for_rep
+        cells,
+        spike_times,
+        stim_onsets,
+        vec_keys,
+        n_digit_for_rep=stimulus["n_digit_for_rep"],
     )
 
     DG_set = {}
@@ -218,7 +277,7 @@ def compute_dg_rasters(
         # 0..2, and the 4th row stays empty.
         ch_raster = [[] for _ in range(n_repetitions)]
         for direction_key, sequence in directions.items():
-            angle = direction_key_to_angle_index(direction_key)
+            angle = direction_key_to_angle_index(direction_key, stimulus)
             repetitions = sequence["raster"]  # [rep0, rep1, ..., rep(n_repetitions-1)]
             for row, rep in enumerate(range(1, n_repetitions)):  # drop rep 0
                 ch_raster[row] = np.append(
@@ -237,7 +296,14 @@ def compute_dg_rasters(
     print("--- Done ---")
 
 
-def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=False):
+def plot_dg_rasters(
+    DG_directory,
+    seq_sep,
+    seq_len,
+    params,
+    fontsize=16,
+    show=False,
+):
     """Plot and save, for every cell, its DG raster + PSTH and polar direction tuning.
 
     Reads the ``DG_data`` dictionary saved by ``compute_dg_rasters`` and writes one
@@ -298,10 +364,15 @@ def plot_dg_rasters(DG_directory, seq_sep, seq_len, params, fontsize=16, show=Fa
         ax.set_xlim([-seq_sep / 2, seq_sep * N_DIRECTIONS])
         ax.set_xticks([a * seq_sep + seq_len / 2 for a in range(N_DIRECTIONS)])
         ax.set_xticklabels([f"{d}°" for d in direction_degrees], fontsize=fontsize - 2)
-        ax.set_yticks(range(n_rep))
+        # One row per repetition: too cramped to label them all, so only first and last.
+        ax.set_yticks([0, n_rep - 1])
         ax.tick_params(axis="y", labelsize=fontsize - 2)
+        # Centre the label on the raster rows only (the PSTH sits above them).
+        ax.set_ylabel("Repetitions", fontsize=fontsize)
+        ax.yaxis.set_label_coords(
+            -0.04, (n_rep - 1) / 2, transform=ax.get_yaxis_transform()
+        )
         ax.set_xlabel("Direction", fontsize=fontsize)
-        ax.set_ylabel("Repetition", fontsize=fontsize)
         ax.set_title("Raster + PSTH per direction", fontsize=fontsize)
 
         # ---- Direction tuning (single polar plot) ----
