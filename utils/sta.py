@@ -44,17 +44,20 @@ def compute_3D_sta(
             )
         return sta
 
+    # sta[lag] = sum over frames f of spikes(f) * stimulus(f - temporal_dimension + lag).
+    # Within a sequence the stimulus frames needed for one lag are contiguous, so each
+    # (sequence, lag) is a single vector-matrix product (fast, multi-threaded BLAS)
+    # instead of a Python loop over frames.
+    half_sequence = int(nb_frames_per_sequence / 2)  # novel (non-repeated) frames
+    nb_valid_frames = half_sequence - temporal_dimension  # frames with a full history
+    stimulus_2d = checkerboard.reshape(len(checkerboard), -1)  # (frames, pixels)
+    sta_2d = sta.reshape(temporal_dimension, -1)  # view: filling it fills sta
     for sequence in range(nb_sequences):
-        for frame in range(
-            temporal_dimension, int(nb_frames_per_sequence / 2)
-        ):  # should be made more robust to extact portion is in extract sequence?
-            sta_frame_start = (
-                sequence * int(nb_frames_per_sequence / 2) + frame - temporal_dimension
-            )
-            sta_frame_end = sequence * int(nb_frames_per_sequence / 2) + frame
-            weight = data["counted_spikes"][sequence, frame]
-
-            sta += weight * checkerboard[sta_frame_start:sta_frame_end, :, :]
+        weights = data["counted_spikes"][sequence, temporal_dimension:half_sequence]
+        sequence_start = sequence * half_sequence
+        for lag in range(temporal_dimension):
+            first = sequence_start + lag
+            sta_2d[lag] += weights @ stimulus_2d[first : first + nb_valid_frames]
 
     if np.max(np.abs(sta)) > 0:
         sta = sta / total_spikes
